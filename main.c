@@ -72,6 +72,7 @@
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
+#include "platform/native_config.c" 
 
 #ifndef CC
 #if defined(__GNUC__)
@@ -189,6 +190,8 @@ int main(int argc, char *argv[])
 	{
 		return NativeConsole_Return(1);
 	}
+
+	NativeConfig_Load();
 
 #if defined(CTR_INTERNAL)
 	if (NativeReplayScheduler_PrepareReportFromArgs(argc, argv) != 0)

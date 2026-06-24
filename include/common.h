@@ -10,6 +10,8 @@
 #include <ctr_gte.h>
 #include <ctr_scratchpad.h>
 #include <prim.h>
+#include <psx/libpad.h>
+#include <platform/native_config.h>
 
 #include <game_layouts.h>
 
