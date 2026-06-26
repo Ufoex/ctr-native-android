@@ -126,7 +126,9 @@ int MM_Characters_GetNextDriver(s16 direction, s16 characterID)
 	    // if desired driver is not unlocked by default
 	    (unlocked != MM_CHARACTER_UNLOCK_ALWAYS) &&
 
-	    !CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked))
+	    !CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked) &&
+
+	    !g_config.unlockAllCharacters)
 	{
 		// set new driver to the driver you already have
 		newDriver = characterID;
@@ -1009,7 +1011,9 @@ dontDrawSelectCharacter:
 		    // if character is unlocked
 		    // from the global unlock bitfield
 		    // also the variable written by cheats
-		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement))
+		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement) ||
+
+		    g_config.unlockAllCharacters)
 		{
 			Color iconColor = D230.characterSelect_NeutralColor;
 
@@ -1133,7 +1137,9 @@ dontDrawSelectCharacter:
 		    // if character is unlocked
 		    // from the global unlock bitfield
 		    // also the variable written by cheats
-		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement))
+		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement) ||
+
+		    g_config.unlockAllCharacters)
 		{
 			struct TransitionMeta *iconTransition = &D230.characterSelectTransitionMeta[iconIndex];
 
