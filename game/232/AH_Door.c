@@ -58,6 +58,9 @@ void AH_Door_ThDestroy(struct Thread *t)
 
 static b32 AH_Door_IsOpenByRewards(s16 levelID, AdventureHubDoorID doorID)
 {
+	if (g_config.unlockAllGates)
+		return 1;
+
 	if ((levelID == N_SANITY_BEACH) && (doorID == AH_DOOR_BEACH_TO_GLACIER_PARK))
 	{
 		return (sdata->advProgress.storyFlags & ADV_REWARD_DOOR_BEACH_TO_GLACIER_PARK_MASK) != 0;
@@ -729,7 +732,7 @@ void AH_Door_LInB(struct Instance *inst)
 
 	headers->flags |= 2;
 
-	if (
+	if (g_config.unlockAllGates || (
 	    // Level ID is N Sanity Beach, check door to Glacier Park
 	    (levelID == N_SANITY_BEACH && woodDoor->doorID == AH_DOOR_BEACH_TO_GLACIER_PARK &&
 	     ((sdata->advProgress.storyFlags & ADV_REWARD_DOOR_BEACH_TO_GLACIER_PARK_MASK) != 0)) ||
@@ -745,7 +748,7 @@ void AH_Door_LInB(struct Instance *inst)
 	    (levelID == THE_LOST_RUINS && ((sdata->advProgress.storyFlags & ADV_REWARD_DOOR_LOST_RUINS_TO_GLACIER_PARK_MASK) != 0)) ||
 
 	    // Level ID is Glacier Park, check door to Citadel City
-	    ((levelID == GLACIER_PARK) && ((sdata->advProgress.storyFlags & ADV_REWARD_DOOR_GLACIER_PARK_TO_CITADEL_CITY_MASK) != 0)))
+	    ((levelID == GLACIER_PARK) && ((sdata->advProgress.storyFlags & ADV_REWARD_DOOR_GLACIER_PARK_TO_CITADEL_CITY_MASK) != 0))))
 	{
 		// rotation = 90 degrees
 		woodDoor->doorRot.y = AH_DOOR_OPEN_ROTATION;
