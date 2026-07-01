@@ -394,15 +394,22 @@ void MM_Characters_SetMenuLayout(void)
 
 	// Loop through bottom characters,
 	// if any are unlocked, use expanded
-	for (s32 iconIndex = MM_CHARACTER_SELECT_EXPANSION_ICON_FIRST; iconIndex < MM_CHARACTER_SELECT_ICON_COUNT; iconIndex++)
+	if (g_config.unlockAllCharacters)
 	{
-		// OG game code
-		u16 unlocked = D230.characterSelectMeta1P2P[iconIndex].unlockFlags;
-
-		if (CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked))
+		expandRoster = true;
+	}
+	else
+	{
+		for (s32 iconIndex = MM_CHARACTER_SELECT_EXPANSION_ICON_FIRST; iconIndex < MM_CHARACTER_SELECT_ICON_COUNT; iconIndex++)
 		{
-			expandRoster = true;
-			break;
+			// OG game code
+			u16 unlocked = D230.characterSelectMeta1P2P[iconIndex].unlockFlags;
+
+			if (CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked))
+			{
+				expandRoster = true;
+				break;
+			}
 		}
 	}
 
