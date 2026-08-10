@@ -1,5 +1,11 @@
 #include <common.h>
 
+#if defined(CTR_NATIVE)
+#include <platform/native_renderer.h>
+#define PUSHBUFFER_WIDE_W(h) NativeRenderer_GetWideGeomWidth(0x200, (h))
+#else
+#define PUSHBUFFER_WIDE_W(h) 0x200
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800426f8-0x80042910.
 void PushBuffer_Init(struct PushBuffer *pb, int id, int total)
@@ -35,7 +41,7 @@ void PushBuffer_Init(struct PushBuffer *pb, int id, int total)
 
 	if (total == 1)
 	{
-		pb->rect.w = 0x200;
+		pb->rect.w = PUSHBUFFER_WIDE_W(SIZEY_1P);
 		pb->rect.h = SIZEY_1P;
 
 		pb->distanceToScreen_PREV = 0x100;
@@ -52,7 +58,7 @@ void PushBuffer_Init(struct PushBuffer *pb, int id, int total)
 	{
 		if (id == 0)
 		{
-			pb->rect.w = 0x200;
+			pb->rect.w = PUSHBUFFER_WIDE_W(SIZEY_TOP);
 			pb->rect.h = SIZEY_TOP;
 
 			pb->distanceToScreen_PREV = 0x100;
@@ -68,7 +74,7 @@ void PushBuffer_Init(struct PushBuffer *pb, int id, int total)
 		if (id == 1)
 		{
 			pb->rect.y = STARTY_2P;
-			pb->rect.w = 0x200;
+			pb->rect.w = PUSHBUFFER_WIDE_W(SIZEY_TOP);
 			pb->rect.h = SIZEY_TOP;
 
 			pb->distanceToScreen_PREV = 0x100;

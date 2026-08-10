@@ -130,6 +130,40 @@ TextureID NativeRenderer_GetWhiteTexture(void)
 int g_windowWidth = 0;
 int g_windowHeight = 0;
 
+// Hor+ widescreen: given the game's authored 4:3 dimensions for a screen/
+// viewport, return a widened width that matches the real window's aspect
+// ratio while keeping the same height (and therefore the same vertical FOV
+// once fed back into SetGeomOffset/SetGeomScreen). Never returns narrower
+// than the original, so 4:3 windows are unaffected.
+int NativeRenderer_GetWideGeomWidth(int originalWidth, int originalHeight)
+{
+	int windowWidth = g_windowWidth;
+	int windowHeight = g_windowHeight;
+
+	// g_windowWidth/Height are the size requested at SDL_CreateWindow time.
+	// On backends that assign the real surface size later (e.g. Android,
+	// which always hands the app the full display regardless of what was
+	// requested), ask SDL for the live size instead of trusting the cache.
+	if (g_window != NULL)
+	{
+		SDL_GetWindowSizeInPixels(g_window, &windowWidth, &windowHeight);
+	}
+
+	if ((windowWidth <= 0) || (windowHeight <= 0) || (originalHeight <= 0))
+	{
+		return originalWidth;
+	}
+
+	int wideWidth = (originalHeight * windowWidth) / windowHeight;
+
+	if (wideWidth < originalWidth)
+	{
+		wideWidth = originalWidth;
+	}
+
+	return wideWidth & ~1; // keep it even: rect.w >> 1 feeds SetGeomOffset
+}
+
 global_variable int s_presentAspectW = 4;
 global_variable int s_presentAspectH = 3;
 global_variable SDL_Rect s_presentViewport = {0, 0, 0, 0};
@@ -274,7 +308,6 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 {
 	g_windowWidth = width;
 	g_windowHeight = height;
-	NativeRenderer_SetPresentationAspect(width, height);
 
 	// Due to debugging in fullscreen
 	SDL_SetHint(SDL_HINT_WINDOW_ALLOW_TOPMOST, "0");
@@ -287,6 +320,12 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 		NATIVE_RENDERER_ERROR("%s\n", "Failed to Initialise GL Context!");
 		return 0;
 	}
+
+	// Backends like Android always hand back the real display surface size
+	// regardless of what was requested; re-read it so the presentation
+	// letterbox matches reality instead of the original request.
+	SDL_GetWindowSizeInPixels(g_window, &g_windowWidth, &g_windowHeight);
+	NativeRenderer_SetPresentationAspect(g_windowWidth, g_windowHeight);
 
 	if (!NativeRenderer_InitialiseGLExt())
 	{

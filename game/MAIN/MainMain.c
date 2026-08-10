@@ -1,5 +1,9 @@
 #include <common.h>
 
+#if defined(CTR_NATIVE)
+#include <platform/native_renderer.h>
+#endif
+
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 #include <platform/native_perf.h>
 #include <platform/native_replay_scheduler.h>
@@ -526,10 +530,19 @@ void StateZero()
 
 	SetDispMask(1);
 
-	SetDefDrawEnv(&gGT->db[0].drawEnv, 0, 0, 0x200, 0xd8);
-	SetDefDrawEnv(&gGT->db[1].drawEnv, 0, 0x128, 0x200, 0xd8);
-	SetDefDispEnv(&gGT->db[0].dispEnv, 0, 0x128, 0x200, 0xd8);
-	SetDefDispEnv(&gGT->db[1].dispEnv, 0, 0, 0x200, 0xd8);
+#if defined(CTR_NATIVE)
+	// Hor+ widescreen: widen the draw/display envs to match the real window's
+	// aspect ratio instead of the authored 512x216 (4:3). Height, and
+	// therefore vertical FOV, is untouched.
+	int screenWidth = NativeRenderer_GetWideGeomWidth(0x200, 0xd8);
+#else
+	int screenWidth = 0x200;
+#endif
+
+	SetDefDrawEnv(&gGT->db[0].drawEnv, 0, 0, screenWidth, 0xd8);
+	SetDefDrawEnv(&gGT->db[1].drawEnv, 0, 0x128, screenWidth, 0xd8);
+	SetDefDispEnv(&gGT->db[0].dispEnv, 0, 0x128, screenWidth, 0xd8);
+	SetDefDispEnv(&gGT->db[1].dispEnv, 0, 0, screenWidth, 0xd8);
 
 	gGT->db[0].dispEnv.screen.x = 0;
 	gGT->db[0].dispEnv.screen.y = 0xc;
@@ -616,8 +629,8 @@ void StateZero()
 	// gGT->levelID = OXIDE_TRUE_ENDING;
 
 	InitGeom();
-	SetGeomOffset(0x100, 0x78); // width/2, height/2
-	SetGeomScreen(0x140);       // "distance" to screen, alters FOV
+	SetGeomOffset(screenWidth >> 1, 0x78); // width/2, height/2
+	SetGeomScreen(0x140);                  // "distance" to screen, alters FOV
 
 	// NOTE(aalhendi): Retail calls 0x8006ae74 here; keep the verified depth
 	// scale setup on every target.
