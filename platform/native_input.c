@@ -744,6 +744,10 @@ internal void NativeInput_OpenKnownControllers(void)
 
 #include <SDL3/SDL_system.h>
 
+#ifdef __ANDROID__
+
+#include <jni.h>
+
 internal void NativeInput_AndroidVibrate(int device_id, float low, float high, int len)
 {
     JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
@@ -795,6 +799,22 @@ internal void NativeInput_AndroidPollHaptics(void)
     }
     (*env)->DeleteLocalRef(env, cls);
 }
+
+#else
+
+internal void NativeInput_AndroidVibrate(int device_id, float low, float high, int len)
+{
+    (void)device_id;
+    (void)low;
+    (void)high;
+    (void)len;
+}
+
+internal void NativeInput_AndroidPollHaptics(void)
+{
+}
+
+#endif // __ANDROID__
 
 int Platform_InputInit(void)
 {

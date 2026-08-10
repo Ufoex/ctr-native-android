@@ -5,6 +5,10 @@
 #include <platform/native_disc_image.h>
 #include <platform/native_path.h>
 
+#ifdef __ANDROID__
+#include <platform/native_android.h>
+#endif
+
 #if defined(_WIN32)
 #include <platform/native_win32.h>
 #else
