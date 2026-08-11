@@ -5,7 +5,7 @@
 
 int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int fullscreen);
 int NativeRenderer_InitialisePSX(void);
-int NativeRenderer_GetWideGeomWidth(int originalWidth, int originalHeight);
+int NativeRenderer_GetWideGeomWidth(int originalWidth);
 void NativeRenderer_Shutdown(void);
 void NativeRenderer_ResetDevice(void);
 void NativeRenderer_BeginScene(void);

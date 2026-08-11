@@ -530,14 +530,10 @@ void StateZero()
 
 	SetDispMask(1);
 
-#if defined(CTR_NATIVE)
-	// Hor+ widescreen: widen the draw/display envs to match the real window's
-	// aspect ratio instead of the authored 512x216 (4:3). Height, and
-	// therefore vertical FOV, is untouched.
-	int screenWidth = NativeRenderer_GetWideGeomWidth(0x200, 0xd8);
-#else
+	// Widened later, after the fixed-size "SCEA Presents" splash (a
+	// pre-rendered VRAM image, not 3D content) has been blitted at its
+	// authored 512x216 (4:3) size - see below.
 	int screenWidth = 0x200;
-#endif
 
 	SetDefDrawEnv(&gGT->db[0].drawEnv, 0, 0, screenWidth, 0xd8);
 	SetDefDrawEnv(&gGT->db[1].drawEnv, 0, 0x128, screenWidth, 0xd8);
@@ -652,6 +648,21 @@ void StateZero()
 	// Load Intro TIM for "SCEA Presents" from VRAM file
 	LOAD_VramFile(sdata->ptrBigfile1, 0x1fd, NULL, &vramSize, -1);
 	MainInit_VRAMDisplay();
+
+#if defined(CTR_NATIVE)
+	// Hor+ widescreen: now that the fixed-size splash image is done, widen
+	// the draw/display envs and re-center the GTE projection to match the
+	// real window's aspect ratio instead of the authored 512x216 (4:3).
+	// Height, and therefore vertical FOV, is untouched. Everything 3D that
+	// follows (menus, races) picks this up; only the splash above stays at
+	// its native size.
+	screenWidth = NativeRenderer_GetWideGeomWidth(0x200);
+	gGT->db[0].drawEnv.clip.w = screenWidth;
+	gGT->db[1].drawEnv.clip.w = screenWidth;
+	gGT->db[0].dispEnv.disp.w = screenWidth;
+	gGT->db[1].dispEnv.disp.w = screenWidth;
+	SetGeomOffset(screenWidth >> 1, 0x78);
+#endif
 
 	// \SOUNDS\KART.HWL;1
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c8e0-0x8003c928 for startup HOWL/music/XA setup.

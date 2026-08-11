@@ -263,12 +263,16 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 	JitPool_Init(&gGT->JitPools.oscillator, numParticle, 0x18, rdata.s_OscillatorPool);
 	JitPool_Init(&gGT->JitPools.rain, poolScale >> 9, sizeof(struct RainLocal), rdata.s_RainPool);
 
-#ifndef CTR_NATIVE
+	// NOTE: previously CTR_NATIVE pointed this at &rdata.s_STATIC_GNORMALZ[0] + 148
+	// - 148 bytes into a 16-byte scratch field - as a "PC memory headroom"
+	// shortcut instead of a real allocation. That silently overflows into
+	// whatever follows it in the rdata layout once more instances are queued
+	// per frame than retail's 4:3 FOV ever produced (e.g. with a widened
+	// FOV), corrupting unrelated state. Native heap is not the tight
+	// constraint real PSX RAM was, so just allocate it properly like retail
+	// does; the checkpoint system already relocates this pointer as a normal
+	// MEMPACK allocation (see NativeCheckpoint_RelocatePointerSlot below).
 	gGT->ptrRenderBucketInstance = MEMPACK_AllocMem(renderBucketSize);
-#else
-	// NOTE(aalhendi): Native reuses static RDATA scratch for existing PC memory headroom.
-	gGT->ptrRenderBucketInstance = (void *)((uintptr_t)&rdata.s_STATIC_GNORMALZ[0] + 148);
-#endif
 
 	for (int i = 0; i < 3; i++)
 	{

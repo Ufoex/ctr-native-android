@@ -130,12 +130,17 @@ TextureID NativeRenderer_GetWhiteTexture(void)
 int g_windowWidth = 0;
 int g_windowHeight = 0;
 
-// Hor+ widescreen: given the game's authored 4:3 dimensions for a screen/
+// Hor+ widescreen: given the game's authored raw buffer width for a screen/
 // viewport, return a widened width that matches the real window's aspect
 // ratio while keeping the same height (and therefore the same vertical FOV
 // once fed back into SetGeomOffset/SetGeomScreen). Never returns narrower
 // than the original, so 4:3 windows are unaffected.
-int NativeRenderer_GetWideGeomWidth(int originalWidth, int originalHeight)
+//
+// PSX pixels are non-square: CTR's 512-wide raw buffers (216 tall NTSC, 236
+// PAL) are already authored to display as 4:3 on a TV, not as a 512:216
+// square-pixel image. So the reference aspect to widen from is the fixed
+// 4:3 the game targets, not originalWidth:originalHeight.
+int NativeRenderer_GetWideGeomWidth(int originalWidth)
 {
 	int windowWidth = g_windowWidth;
 	int windowHeight = g_windowHeight;
@@ -149,12 +154,12 @@ int NativeRenderer_GetWideGeomWidth(int originalWidth, int originalHeight)
 		SDL_GetWindowSizeInPixels(g_window, &windowWidth, &windowHeight);
 	}
 
-	if ((windowWidth <= 0) || (windowHeight <= 0) || (originalHeight <= 0))
+	if ((windowWidth <= 0) || (windowHeight <= 0) || (originalWidth <= 0))
 	{
 		return originalWidth;
 	}
 
-	int wideWidth = (originalHeight * windowWidth) / windowHeight;
+	int wideWidth = (originalWidth * windowWidth * 3) / (windowHeight * 4);
 
 	if (wideWidth < originalWidth)
 	{
@@ -322,10 +327,10 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 	}
 
 	// Backends like Android always hand back the real display surface size
-	// regardless of what was requested; re-read it so the presentation
-	// letterbox matches reality instead of the original request.
+	// regardless of what was requested; re-read it so Hor+ widening and the
+	// presentation letterbox (see NativeRenderer_UpdatePresentationViewport)
+	// match reality instead of the original request.
 	SDL_GetWindowSizeInPixels(g_window, &g_windowWidth, &g_windowHeight);
-	NativeRenderer_SetPresentationAspect(g_windowWidth, g_windowHeight);
 
 	if (!NativeRenderer_InitialiseGLExt())
 	{
@@ -528,6 +533,16 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 {
 	int viewportW;
 	int viewportH;
+
+	// The active DISPENV's raw width is either the authored 512 (splash
+	// images and other flat content that was never widened) or a
+	// Hor+-widened value (see NativeRenderer_GetWideGeomWidth). Re-derive
+	// the presentation aspect from it every frame - rather than trusting a
+	// value fixed once at window-creation time - so 512-wide content keeps
+	// pillarboxing to true 4:3 even after the window itself has been
+	// widened for gameplay. 384 is 512 * 3/4: the height-equivalent of a
+	// 4:3 image at the reference width of 512.
+	NativeRenderer_SetPresentationAspect(activeDispEnv.disp.w > 0 ? activeDispEnv.disp.w : 512, 384);
 
 	if ((g_windowWidth <= 0) || (g_windowHeight <= 0) || (s_presentAspectW <= 0) || (s_presentAspectH <= 0))
 	{
