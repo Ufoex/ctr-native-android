@@ -7,6 +7,38 @@ NDK r27, CMake 3.22.1) installed fresh this session at `~/Android/Sdk`, and the 
 Odin 2 Portal (Android 13, Adreno 740, arm64 device that also supports armeabi-v7a) used for
 on-device verification over USB).
 
+## OPEN — user reports the texture glitch is still visible during a real, live-played race (2026-08-11)
+
+After the three fixes below, the user played a real race themselves (not a demo) at a
+resized-down window (1798x753, reached by resizing during the session) and reported: HUD
+bunched left (expected/known, see "Not yet checked"/Stage 2 gap elsewhere in this doc), AND
+a real striped/glitched texture on the canyon wall on the left side of the screen — the
+same class of symptom as the original bug report. A screenshot taken at that moment
+(`live_shot2.png`, session-local scratchpad, gone) confirms it: vertical striped corruption
+over the wall/water geometry, HUD crammed left.
+
+**My in-the-moment read (NOT confirmed, the user pushed back on it and asked to stop
+live-debugging to save tokens — do not treat this as settled):** a few follow-up screenshots
+taken seconds later, and again after resizing the window back to fullscreen, came back
+clean, which made it look transient/resize-triggered. **The user explicitly said they did
+not resize the window and that this is how it has always looked** — i.e. they do not agree
+with the "just a transient resize artifact" theory. This is unresolved. Do not assume the
+native_gpu.c fix (`117b130bf`) fully covers every occurrence of this bug class — there may
+be a second, still-live trigger path producing the same visual symptom during real
+(non-demo) gameplay specifically, which nothing in this session's testing (all demo-mode or
+short manual test races) exercised the same way a longer real race would.
+
+**Next step, cheaply, before spending more tokens on live back-and-forth:** get a same-frame
+screenshot + `F7` VRAM dump pair during an actual real race (not demo mode) without
+resizing the window at all mid-session, and check whether `NativeGpu_TPageOverlapsActiveDrawPage`
+truly never fires for the tpage involved (add a temporary log/breakpoint on the `return true`
+path rather than re-deriving everything from screenshots), OR check whether
+`Platform_EndScene`'s per-frame `NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, ...,
+activeDispEnv.disp.w, ...)` call (`platform/native_platform.c`, NOT touched by any fix this
+session) is a second, independent path that can still overwrite VRAM x>=512 under some
+condition the demo-mode testing never hit (e.g. a specific track's texture-page layout, or
+sustained play over a full lap rather than a few seconds).
+
 ## Where things stand
 
 Branch `master`, 3 commits ahead of `origin/master`'s `7eab5a6af` (docs: add handoff notes),
