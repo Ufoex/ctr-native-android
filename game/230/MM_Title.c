@@ -245,7 +245,14 @@ END_FUNCTION:
 		D230.titleCameraPos.z = D230.titleBaseCameraPos.z + D230.titleCameraZTransition.currX;
 	}
 
-	D230.menuMainMenu.posX_curr = D230.titleMainMenuPos.x + D230.titleMainMenuTransition.currX;
+	// NOTE(aalhendi): Hor+ widens gGT->pushBuffer[0].rect.w past the authored
+	// 0x200 and recenters the 3D title logo's GTE projection around the new
+	// half-width (see MainMain.c's SetGeomOffset(screenWidth>>1, ...)), so the
+	// logo visually shifts right as the screen widens. titleMainMenuPos.x is a
+	// retail-authored absolute pixel constant with no such adjustment, so add
+	// the same half-width delta here to keep the menu box offset from the
+	// (now-shifted) logo instead of drifting into it.
+	D230.menuMainMenu.posX_curr = D230.titleMainMenuPos.x + ((gGT->pushBuffer[0].rect.w - 0x200) / 2) + D230.titleMainMenuTransition.currX;
 	D230.menuMainMenu.posY_curr = D230.titleMainMenuPos.y + D230.titleMainMenuTransition.currY;
 	D230.menuAdventure.posX_curr = D230.titleAdventureMenuPos.x + D230.titleAdventureTransition.currX;
 	D230.menuAdventure.posY_curr = D230.titleAdventureMenuPos.y + D230.titleAdventureTransition.currY;

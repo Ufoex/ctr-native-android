@@ -573,7 +573,11 @@ SKIP_LOADING_TEXT:
 
 	gte_SetRotMatrix(&data.matrixTitleFlag);
 	gte_SetTransMatrix(&data.matrixTitleFlag);
-	gte_SetGeomOffset(0x100, 0x78);
+	// NOTE(aalhendi): Hor+ widens gGT->pushBuffer[0].rect.w past the authored
+	// 0x200; re-center here too (matching PushBuffer_SetPsyqGeom's pb->rect.w/2
+	// pattern) instead of the original fixed 0x100 half-width, or this flag
+	// mesh projects off-center once the screen is widened.
+	gte_SetGeomOffset(sdata->gGT->pushBuffer[0].rect.w / 2, 0x78);
 	gte_SetGeomScreen(0x100);
 
 	p = (POLY_G4 *)gGT->backBuffer->primMem.cursor;
