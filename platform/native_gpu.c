@@ -768,7 +768,22 @@ internal bool NativeGpu_TPageOverlapsActiveDrawPage(int tpage)
 		return false;
 	}
 
-	return NativeGpu_RectOverlaps(pageX, pageY, pageW, pageH, activeDrawEnv.clip.x, activeDrawEnv.clip.y, activeDrawEnv.clip.w, activeDrawEnv.clip.h);
+	// NOTE(aalhendi): Hor+ can widen activeDrawEnv.clip.w past PS1's real
+	// 512-wide VRAM framebuffer half. Retail self-texturing feedback effects
+	// (heat haze, etc.) were only ever authored against that original 512-wide
+	// bound, so clamp the comparison width here - otherwise ordinary texture
+	// pages that only fall within the Hor+-only overscan region (real wall/
+	// sand/etc. textures living in VRAM at x>=512, now geometrically "under"
+	// the widened clip) spuriously register as framebuffer-overlapping and get
+	// their real texture data replaced by a mid-frame screen snapshot (see
+	// NativeGpu_PrepareFramebufferFeedback).
+	int clipW = activeDrawEnv.clip.w;
+	if (activeDrawEnv.clip.x + clipW > VRAM_WIDTH / 2)
+	{
+		clipW = (VRAM_WIDTH / 2) - activeDrawEnv.clip.x;
+	}
+
+	return NativeGpu_RectOverlaps(pageX, pageY, pageW, pageH, activeDrawEnv.clip.x, activeDrawEnv.clip.y, clipW, activeDrawEnv.clip.h);
 }
 
 internal void NativeGpu_PrepareFramebufferFeedback(int tpage)
