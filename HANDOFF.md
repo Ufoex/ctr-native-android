@@ -7,6 +7,134 @@ NDK r27, CMake 3.22.1) installed fresh this session at `~/Android/Sdk`, and the 
 Odin 2 Portal (Android 13, Adreno 740, arm64 device that also supports armeabi-v7a) used for
 on-device verification over USB).
 
+## FOURTH PASS (2026-08-11, same day, different machine) — found and fixed the real "doesn't fill the screen" bug (boot-time-only Hor+ width); found and reverted a real architectural dead end for the texture-corruption bug
+
+**Fixed and kept**: `platform/native_platform.c`'s `Platform_Init` now sizes and positions the
+boot window from `SDL_GetPrimaryDisplay()`'s own usable bounds instead of the hardcoded
+`800x600`/`1280x720`. (Mid-session this was briefly pinned to this machine's laptop panel by
+connector name, `eDP-1`, at the user's request while testing on a specific monitor - reverted
+that hardcoded name back out before committing, since it's meaningless on any other machine;
+use `SDL_SetWindowPosition` after creation if a future session needs to target a specific
+monitor again.) Root cause this closes: `MainMain.c`'s `StateZero` computes the
+Hor+ width **exactly once, at boot**, from whatever `g_windowWidth`/`g_windowHeight` are at that
+instant — confirmed with a temporary debug log (`froze screenWidth=512` while the window was
+still the 800x600 default). Nothing else ever re-touches `clip.w`/`disp.w` afterward, so a
+window that starts small and gets resized/maximized later stays pillarboxed at plain 4:3
+forever, no matter how big the window becomes. Starting the window at the real display size
+from frame 1 sidesteps this entirely — verified clean (fills the whole window, no corruption)
+across several screens (crate/logo intro, paused in-race menu, main title screen).
+
+**Tried and reverted — do not repeat without solving the multi-pass problem first**: attempted a
+real fix for the still-open texture-corruption bug (see "OPEN" section below) by clamping
+`NativeRenderer_StoreFrameBuffer`'s write to the real 512-wide VRAM half (protecting the
+texture atlas) and adding a second draw path (`NativeRenderer_DrawRenderTargetRegion` + a new
+`ctr_present_target_shader`) that presents the Hor+-only overscan strip (x=512 to disp.w)
+directly from `s_mainRenderTarget`, bypassing VRAM only for that strip. Viewport math was
+verified correct with a diagnostic shader (gradient fill showed the exact right UV range, no
+gap). It still doesn't work: on the main title screen, the overscan strip showed a
+cropped/duplicated copy of the "ADVENTURE/TIME TRIAL/..." text box instead of a clean
+continuation. Root cause: **the menu logo+textbox are composited across multiple sub-passes
+within one frame, accumulating in VRAM between passes** (this is the exact same fact the
+"IMPORTANT CORRECTION" section below already documented breaking a *full* VRAM bypass) — the
+core (VRAM-routed) region correctly shows the accumulated result of all passes, but sampling
+`s_mainRenderTarget` directly for the overscan only sees whatever the *last* pass left behind,
+which is a different (partial) image. A real fix needs the overscan path to also see the
+accumulated multi-pass result, not a plain render-target snapshot - that's a bigger change than
+a two-shader split (e.g. teaching the store step to composite into a second, off-atlas VRAM
+region across all of the same passes, then presenting from *there* instead of the render
+target directly). Confirmed via a clean A/B (this exact fix stashed in/out) that the duplicate
+artifact is 100% caused by this change, not pre-existing.
+
+**Practical state after this pass**: the "doesn't fill the screen" complaint is fixed. The
+original texture-corruption complaint (canyon wall glitch) is **still open** - reproduced again
+this pass in a real (non-demo) race with the boot-size fix active (see screenshot description
+in chat: clear vertical stripe corruption top-left of a canyon/cliff race). Whoever picks this
+up next should read the "OPEN" section right below before trying anything - two different
+approaches (this pass's VRAM-store clamp, and a from-scratch full-bypass attempt in an earlier
+pass) have now both run into the same multi-pass-compositing wall from different angles.
+
+## THIRD PASS (2026-08-11, this session, different machine again) — fixed the second store call the previous pass flagged, but could NOT get a clean visual repro either way
+
+Picked up the "OPEN" item directly below: the previous pass's own hypothesis #2 was that
+`Platform_EndScene`'s per-frame `NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, ...,
+activeDispEnv.disp.w, ...)` call (`platform/native_platform.c:374`) is a second,
+independent VRAM-corruption path, separate from the already-fixed
+`NativeGpu_TPageOverlapsActiveDrawPage` overlap check. Confirmed by reading the code that
+this hypothesis is structurally sound and applied the fix — but this session's own live
+testing neither confirmed nor ruled out that it's *the* cause of the user's live "canyon
+wall" report. Read both parts below before deciding what to do next.
+
+**The fix (applied, committed to the working tree, not yet a separate commit as of this
+writing):** `platform/native_renderer.c`, `NativeRenderer_StoreFrameBuffer` — the VRAM
+texture (`s_vram.texture`/`s_glVramFramebuffer`) is a fixed `1024x512` GL texture
+(`VRAM_WIDTH`/`VRAM_HEIGHT`, `include/platform/native_renderer_types.h:17-18`), a real
+allocation mirroring PS1's 1MB VRAM — not something that scales with the window. Its left
+half (`x<512`) is PS1's addressable framebuffer space; `x>=512` is the texture atlas (this
+split is exactly what the earlier `native_gpu.c` fix's `VRAM_WIDTH/2` clamp assumes too).
+`NativeRenderer_StoreFrameBuffer(x, y, w, h)` packs `s_mainRenderTarget.texture` (which
+"stays at CTR's logical display size" per its own comment — i.e. it **is** widened by Hor+)
+into that fixed VRAM texture via `glViewport(x, y, w, h)`. Both of its callers
+(`native_gpu.c`'s framebuffer-feedback path, and `native_platform.c`'s unconditional
+per-frame `Platform_EndScene` call) can pass a Hor+-widened `w` that pushes `x+w` past 512 —
+at which point this call is writing into the texture-atlas half of the *real* VRAM texture
+every single frame, not just during an actual self-texturing feedback effect. Added the same
+clamp used in `NativeGpu_TPageOverlapsActiveDrawPage` (`if (x + w > VRAM_WIDTH / 2) { w =
+(VRAM_WIDTH/2) - x; }`, skipping the pack entirely if that leaves `w <= 0`) directly inside
+`NativeRenderer_StoreFrameBuffer` itself so both call sites are covered by one guard, per the
+"fix once where all callers route through" pattern the previous pass's own fix already
+established. This is a no-op whenever `x+w<=512` already (i.e. every retail/non-Hor+ case),
+confirmed by a byte-exact VRAM-dump diff below.
+
+**What this session's testing actually showed, precisely, so the next pass doesn't have to
+redo it:**
+- Built both with and without this fix (`git stash`/`git stash pop` to A/B on the same
+  checkout) and ran both at real ultrawide (2560x1080, via `xdotool windowsize` on the
+  resizable SDL window — window ID changes per launch, re-resolve with `xdotool search
+  --name "Crash Team Racing"` then `getwindowpid` to disambiguate from an unrelated stale
+  `mutter-x11-frames` window that also matches that title search on this machine).
+- **Confirmed no regression**: on a screen captured *before* Hor+'s widening has taken
+  effect (`MainMain.c`'s `StateZero` widens `disp.w` only once a race/menu state actually
+  starts — the boot-time Naughty Dog crate logo and checkered-flag transition run before
+  that), a `F7` VRAM dump's `x>=512` half was **byte-for-byte identical** between the fixed
+  and unfixed builds (`compare -metric AE` → `0`). Good: the clamp truly only engages once
+  `x+w` actually exceeds 512, exactly as intended.
+- **Did not get a clean same-frame repro either way**: tried to reach the same in-race
+  paused-HUD screen on both builds by replaying an identical `xdotool key Return` sequence
+  with fixed sleeps (relying on demo-mode being a scripted/deterministic replay), but landed
+  on visibly different moments each time (different HUD state, different lap/track content)
+  — real-world X11/process-startup timing jitter was enough to desync it. Diffing those
+  mismatched frames was meaningless (of course they differ, they're different frames) and is
+  **not included as evidence either way** — don't reuse those dumps
+  (`vram_prefix_race2.tga`/`vram_postfix_race.tga` if they're still in scratch, they're
+  already gone from this session's scratchpad) as if they proved anything.
+- **Found and ruled OUT a red herring**: every dump taken during an actual paused race
+  (fixed or unfixed build, any window width including narrow 800x600 with Hor+ not even
+  engaged) showed a small flat pink/salmon rectangle + black block + a tiny live-looking
+  race-scene thumbnail around VRAM `x≈512-940, y≈0-95`. Confirmed this is **unrelated** to
+  Hor+ or this fix: it's byte-identical regardless of fix/window-width, and traced to a
+  separate mechanism, `NativeRenderer_FlushOffscreenToVRAM` (`native_renderer.c:1994`, called
+  with its own explicit `s_previousOffscreen` rect, nothing to do with `disp`/`clip`) — almost
+  certainly a legitimate small live-preview compositing pass the pause menu (or similar UI)
+  uses intentionally. **Don't mistake this for corruption if you see it again.**
+- Net result: the fix is applied and reasoned through carefully, and is safe (proven
+  no-regression on the unwidened case), but **this session did not visually catch the
+  StoreFrameBuffer bleed in the act**, the same way the previous pass could not either.
+  Given the previous pass's note that the user explicitly asked to stop live-debugging this
+  interactively to save tokens once real evidence was in hand, this pass stopped chasing a
+  perfect manual repro rather than keep burning turns on it — the fix is justified by direct
+  code reading (matches the exact, already-validated pattern from the sibling
+  `native_gpu.c` fix) rather than by a fresh screenshot.
+
+**Recommended next step, cheaply**: the user's own original repro was a *real, sustained,
+player-controlled race* (not menu navigation, not demo mode) — that's the one scenario this
+pass (and the previous one) never actually reached manually. If the glitch is still visible
+next time the user plays for real (ideally on the Android device where it was field-reported),
+grab an `F7`/`adb`-equivalent VRAM dump right then and diff the `x>=512` half against a dump
+from the same build+resolution taken on a menu screen (unwidened) — if they now match (both
+clean atlas noise), this fix closed it; if the in-race one still shows a large-scale
+scene-shaped bleed (not the small `NativeRenderer_FlushOffscreenToVRAM` box above), there's a
+third path still open.
+
 ## OPEN — user reports the texture glitch is still visible during a real, live-played race (2026-08-11)
 
 After the three fixes below, the user played a real race themselves (not a demo) at a

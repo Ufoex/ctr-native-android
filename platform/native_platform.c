@@ -249,12 +249,41 @@ void Platform_Init(const char *title, int width, int height)
 
 	s_platformInitialized = 1;
 
+#if !defined(__ANDROID__)
+	// NOTE: MainMain.c's StateZero computes the Hor+ width exactly once, at
+	// boot, from whatever window size exists at that instant - nothing ever
+	// re-widens it later (see HANDOFF.md). Size (and position) the window
+	// from the primary display's own bounds instead of a hardcoded
+	// 800x600/1280x720, so Hor+ already computes correctly on that one and
+	// only pass, regardless of what the desktop's default window size is.
+	SDL_Rect targetDisplayBounds = {0, 0, 0, 0};
+	int haveTargetDisplayBounds = 0;
+	{
+		SDL_DisplayID targetDisplay = SDL_GetPrimaryDisplay();
+
+		if ((targetDisplay != 0) && SDL_GetDisplayUsableBounds(targetDisplay, &targetDisplayBounds) && (targetDisplayBounds.w > 0) &&
+		    (targetDisplayBounds.h > 0))
+		{
+			width = targetDisplayBounds.w;
+			height = targetDisplayBounds.h;
+			haveTargetDisplayBounds = 1;
+		}
+	}
+#endif
+
 	if (!NativeRenderer_InitialiseRender(windowName, width, height, 0))
 	{
 		Platform_LogError("[CTR Native] Failed to initialise window\n");
 		Platform_Shutdown();
 		return;
 	}
+
+#if !defined(__ANDROID__)
+	if (haveTargetDisplayBounds)
+	{
+		SDL_SetWindowPosition(g_window, targetDisplayBounds.x, targetDisplayBounds.y);
+	}
+#endif
 
 	if (!NativeRenderer_InitialisePSX())
 	{
