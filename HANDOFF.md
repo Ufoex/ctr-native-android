@@ -9,13 +9,14 @@ on-device verification over USB).
 
 ## Where things stand
 
-Branch `master`, on top of `origin/master`'s `7eab5a6af` (docs: add handoff notes).
-Working tree currently has THREE validated, uncommitted fixes (not yet committed):
-- `game/RaceFlag.c`: re-center the loading/countdown flag's GTE offset for Hor+.
-- `game/230/MM_Title.c`: re-center the main-menu text box for Hor+.
-- `platform/native_gpu.c`: clamp the framebuffer-feedback self-texturing overlap check to
-  PS1's real 512-wide bound — **this was the actual root cause of the "canyon-wall texture
-  glitch" / minimap-corruption bug from the original user report.**
+Branch `master`, 3 commits ahead of `origin/master`'s `7eab5a6af` (docs: add handoff notes),
+not yet pushed:
+- `95bf32e45` `game/RaceFlag.c` + `game/230/MM_Title.c`: re-center the loading flag and
+  main-menu text box for Hor+.
+- `117b130bf` `platform/native_gpu.c`: clamp the framebuffer-feedback self-texturing overlap
+  check to PS1's real 512-wide bound — **this was the actual root cause of the "canyon-wall
+  texture glitch" / minimap-corruption bug from the original user report.**
+- `232fe8436` `HANDOFF.md` update (this document, as of the previous revision).
 
 **All three are visually confirmed fixed on BOTH the Linux desktop build (real ultrawide
 2560x1080/3440x1440 and 4K 3840x2160) AND the actual Android device (Odin 2 Portal, real
@@ -95,7 +96,7 @@ Lesson for whoever continues this: a VRAM.TGA dump showing "noise" at x>=512 is 
 and proves nothing by itself. Always diff against the same dump taken on unmodified code
 before concluding something is corrupted.
 
-## Fixes made this session (uncommitted, validated by visual A/B testing)
+## Fixes made this session (committed as `95bf32e45`, validated by visual A/B testing)
 
 Both bugs below share one root cause pattern: **some piece of UI positioning is a hardcoded
 pixel constant authored for a 512-wide screen, while some other visually-related element
@@ -347,6 +348,57 @@ navigate faster/more precisely than `xdotool key` with fixed sleeps allows).
   packages. `android/local.properties` (gitignored, machine-specific) points at it. To
   rebuild: `cd android && JAVA_HOME=/usr/lib/jvm/java-17-openjdk
   PATH="$JAVA_HOME/bin:$PATH" ./gradlew assembleDebug`.
+
+## Minor cosmetic findings from a follow-up pass (not the original bug, not blocking)
+
+After committing the three fixes, went back to check the four sibling title submenus
+(Adventure/Race Type/Players/Difficulty) mentioned as unverified above. Never actually
+reached them cleanly — demo-mode auto-triggers before the Race Type/Players/Difficulty
+chain ever shows (confirmed this isn't an idle-timeout race: even a zero-delay `Down Down
+c` sequence right after landing on the main menu went straight to a demo race instead of
+`D230.menuRaceType`, so something about entering Arcade/Vs from a menu that's about to be
+superseded by the attract-mode cycle skips the submenu display entirely - not investigated
+further). Adventure mode, by contrast, WAS reachable (that's how the in-race minimap got
+confirmed above) but goes straight into the hub world, no `D230.menuAdventure` overlay was
+ever seen either. **The submenus remain unverified — this needs a cleaner way to disable/
+outlast the demo-mode timeout before it can be checked properly, not more manual retries.**
+
+While chasing that, spotted two small, separate, unrelated-looking visual details, both at
+real ultrawide (3440x1412) - noted here so they aren't lost, not treated as blocking:
+
+1. **A ~1px vertical fringe of RGB-noise pixels right at the boundary between rendered
+   content and the black pillarbar**, visible on at least one demo track (a
+   temple/coliseum-style track, screenshot was `fresh4.png` in that session's scratchpad,
+   already gone). Cosmetic scale (a single pixel column), plausibly a texture-edge-clamping/
+   bilinear-filtering artifact at the render target's boundary rather than anything related
+   to the `native_gpu.c` fix. Not investigated further - if picked up again, check
+   `NativeRenderer_SetOverrideTextureSize`/edge-clamp sampler state on the main render
+   target, and whether it reproduces at 2560x1080 too (only seen at 3440x1412 this pass).
+
+2. **A single flat, untextured, blank light-lavender quad floating near some ice/beach
+   scenery** on a different demo track (`fresh5.png`, also gone from scratchpad). Looked
+   like a billboard/sign sprite whose texture didn't bind. **Checked whether this is a
+   regression: built the exact pre-session commit (`7eab5a6af`, via a `git worktree`) and
+   ran its own attract loop for a comparable stretch of time** - did not happen to land on
+   the same quad/track to do a pixel-exact comparison, so this specific finding is
+   NOT confirmed either way (not proven pre-existing, not proven a regression). Given the
+   original bug reports never mentioned a blank/missing-texture quad (they described
+   striped/colorful static, the opposite failure mode - "wrong data" vs "no data"), this is
+   very likely a separate, unrelated, minor issue if it's a real bug at all (could also be
+   an intentional design element, e.g. an unlit sign catching flat light at a certain
+   angle) - worth a second look if seen again, but not chased further this session.
+
+Also worth noting: at the SAME 3440x1412 resolution, a screenshot of the main menu
+(`sub22.png`, gone from scratchpad) appeared to show the post-fix menu text box almost
+entirely cut off by the pillarbox, which briefly looked like a regression in the
+`MM_Title.c` fix. **Ruled out**: rebuilt and ran the pre-session (`7eab5a6af`) code at the
+identical resolution and it showed the exact same near-invisible box. So this is a
+pre-existing edge case in how the box's position/the pillarbox interact at this specific,
+very wide aspect ratio - NOT something introduced by the `MM_Title.c` fix (which remains
+correctly verified at 2560x1080/2560x1080-class ultrawide, the more common real-world
+ratio). Might be worth a look if someone tests on a monitor wider than ~2.4:1 - possibly the
+half-width-delta formula needs a different scaling behavior at extreme ratios, or the
+pillarbox math itself has a separate pre-existing bug at that range.
 
 ## Standing goal
 
