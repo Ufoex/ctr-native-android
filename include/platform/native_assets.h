@@ -4,7 +4,9 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "platform/native_android.h"
 #include "platform/native_str8.h"
+
 
 enum NativeAssetReadMode
 {

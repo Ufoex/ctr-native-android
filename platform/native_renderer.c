@@ -531,6 +531,12 @@ internal void NativeRenderer_SetPresentationAspect(int width, int height)
 
 internal void NativeRenderer_UpdatePresentationViewport(void)
 {
+#if defined(USE_16BY9) || defined(__ANDROID__)
+	s_presentViewport.x = 0;
+	s_presentViewport.y = 0;
+	s_presentViewport.w = (g_windowWidth > 0) ? g_windowWidth : 1;
+	s_presentViewport.h = (g_windowHeight > 0) ? g_windowHeight : 1;
+#else
 	int viewportW;
 	int viewportH;
 
@@ -575,7 +581,9 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 	s_presentViewport.h = viewportH;
 	s_presentViewport.x = (g_windowWidth - viewportW) / 2;
 	s_presentViewport.y = (g_windowHeight - viewportH) / 2;
+#endif
 }
+
 
 internal void NativeRenderer_InitRenderTarget(struct NativeRenderTarget *target)
 {

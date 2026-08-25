@@ -7,5 +7,6 @@ CompileFlags:
     - -DCTR_NATIVE
     - -DCTR_INTERNAL
     - -DBUILD=926
+    - -D__ANDROID__
     - -Iinclude
     - -Iexternals/SDL/include

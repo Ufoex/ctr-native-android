@@ -32,5 +32,6 @@ void Platform_InputClearInstalledPadSnapshots(void);
 int Platform_InputGetStateSize(void);
 int Platform_InputCaptureState(void *dst, int dstSize);
 int Platform_InputRestoreState(const void *src, int srcSize);
+void Platform_InputApplyTouchButtons(int slot, u16 buttons);
 
 #endif

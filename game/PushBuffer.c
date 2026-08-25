@@ -429,7 +429,17 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	// scale Y axis (3)
 	pb->matrix_ViewProj.m[1][2] = pb->matrix_ViewProj.m[1][2] * r360 / r600;
 
+#if defined(USE_16BY9) || defined(__ANDROID__)
+	// Widescreen (16:9+ Hor+ FOV): scale X axis by 3/4 (0.75) so 3D models and tracks
+	// retain their perfect geometry when displayed in widescreen fullscreen
+	pb->matrix_ViewProj.t[0] = pb->matrix_ViewProj.t[0] * 3 / 4;
+	pb->matrix_ViewProj.m[0][0] = pb->matrix_ViewProj.m[0][0] * 3 / 4;
+	pb->matrix_ViewProj.m[0][1] = pb->matrix_ViewProj.m[0][1] * 3 / 4;
+	pb->matrix_ViewProj.m[0][2] = pb->matrix_ViewProj.m[0][2] * 3 / 4;
+#endif
+
 	// store camera matrix,
+
 	// otherwise oxide intro cutscene bugs out,
 	// when crash is sleeping on the grassy hill
 

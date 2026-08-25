@@ -3,12 +3,15 @@
 #include <macros.h>
 
 #ifdef __ANDROID__
+#include <jni.h>
+#include <SDL3/SDL_system.h>
 #include <android/log.h>
 #define LOG_TAG "CTRNativeInput"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #else
 #define LOGI(...)
 #endif
+
 
 #include "psx/libpad.h"
 
@@ -742,12 +745,7 @@ internal void NativeInput_OpenKnownControllers(void)
 	SDL_free(gamepads);
 }
 
-#include <SDL3/SDL_system.h>
-
 #ifdef __ANDROID__
-
-#include <jni.h>
-
 internal void NativeInput_AndroidVibrate(int device_id, float low, float high, int len)
 {
     JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
@@ -846,8 +844,11 @@ int Platform_InputInit(void)
 		return 0;
 	}
 
+#ifdef __ANDROID__
     // Force SDL to discover the Android system vibrator
     NativeInput_AndroidPollHaptics();
+#endif
+
 
 	SDL_AddGamepadMappingsFromFile("gamecontrollerdb.txt");
 	NativeInput_OpenKnownControllers();
@@ -1230,6 +1231,7 @@ void Platform_InputPadVibrate(int port, unsigned char *table, int len)
         }
 	}
 
+#ifdef __ANDROID__
     if (slot == 0)
     {
         // Fallback to phone vibrator for player 1 (touch controls or non-rumble controller)
@@ -1238,4 +1240,10 @@ void Platform_InputPadVibrate(int port, unsigned char *table, int len)
         LOGI("Fallback to Android_JNI_HapticRumble: low=%.2f, high=%.2f", lowInt, highInt);
         NativeInput_AndroidVibrate(999999, lowInt, highInt, 32);
     }
+#else
+    (void)slot;
+    (void)freqLow;
+    (void)freqHigh;
+#endif
 }
+

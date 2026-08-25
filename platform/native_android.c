@@ -3,6 +3,9 @@
 #include <SDL3/SDL_system.h>
 #include <jni.h>
 #include "platform/native_log.h"
+#include "platform/native_android.h"
+#include "platform/native_input.h"
+
 
 void Platform_Android_PickFile(void) {
     JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
@@ -67,6 +70,16 @@ int Platform_Android_IsPickerActive(void) {
     (*env)->DeleteLocalRef(env, activity);
     (*env)->DeleteLocalRef(env, clazz);
     return result == JNI_TRUE;
+}
+
+void Platform_Android_ApplyTouchButtons(int slot, u16 buttons) {
+    Platform_InputApplyTouchButtons(slot, buttons);
+}
+
+JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeApplyTouchButtons(JNIEnv* env, jclass clazz, jint slot, jint buttons) {
+    (void)env;
+    (void)clazz;
+    Platform_Android_ApplyTouchButtons(slot, (u16)buttons);
 }
 
 #endif

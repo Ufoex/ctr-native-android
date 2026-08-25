@@ -95,10 +95,12 @@ target_include_directories(ctr_native PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
     BUILD=926
+    USE_16BY9
     CTR_INTERNAL
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
     CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
 )
+
 if(CTR_NATIVE_MSVC_FRONTEND)
     target_compile_options(ctr_native PRIVATE
         /W4 #TODO(aalhendi): fix warnings
@@ -119,10 +121,12 @@ else()
         -Wenum-compare
         -Wswitch-enum
         -Wformat
+        -Wno-format-security
         -Wparentheses
         $<$<CONFIG:Release>:-O2>
         $<$<CONFIG:Release>:-g>
     )
+
 
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
         target_compile_options(ctr_native PRIVATE -Wall -Wextra -Wstrict-aliasing=2)

@@ -9,22 +9,38 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="CTR Native"
+        android:resizeableActivity="false"
         android:requestLegacyExternalStorage="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
 
         <activity
-            android:name=".CTRNativeActivity"
+            android:name=".CTRNativeLauncherActivity"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
             android:label="CTR Native"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".CTRNativeActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
+            android:label="CTR Native"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="false"
+            android:exported="false">
+        </activity>
     </application>
+
+
+
+
 
 </manifest>

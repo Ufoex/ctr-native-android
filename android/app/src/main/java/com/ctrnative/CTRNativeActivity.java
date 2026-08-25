@@ -3,6 +3,7 @@ package com.ctrnative;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -10,6 +11,11 @@ import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
 import android.util.Log;
+
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.RelativeLayout;
 
 import org.libsdl.app.SDLActivity;
 
@@ -22,6 +28,38 @@ public class CTRNativeActivity extends SDLActivity {
     private static final String PREFS_NAME = "CTRNativePrefs";
     private static final String KEY_ASSET_PATH = "assetPath";
 
+    private void enableImmersiveMode() {
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        View decorView = getWindow().getDecorView();
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                  | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                  | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                  | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                  | View.SYSTEM_UI_FLAG_FULLSCREEN
+                  | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+        decorView.setSystemUiVisibility(flags);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            getWindow().getAttributes().layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            enableImmersiveMode();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        enableImmersiveMode();
+    }
+
     @Override
     protected String[] getLibraries() {
         return new String[] {
@@ -33,8 +71,20 @@ public class CTRNativeActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        enableImmersiveMode();
         checkStoragePermission();
+
+        // Add virtual gamepad controls
+        if (mLayout != null) {
+            VirtualGamepadView gamepad = new VirtualGamepadView(this);
+            RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            mLayout.addView(gamepad, params);
+        }
     }
+
+
 
     private void checkStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -77,6 +127,9 @@ public class CTRNativeActivity extends SDLActivity {
         Log.d("CTRNative", "getStoredAssetPath: " + path);
         return path;
     }
+
+    // Native method for applying touch button input
+    public static native void nativeApplyTouchButtons(int slot, int buttons);
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
