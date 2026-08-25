@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -45,10 +45,25 @@ jobs:
           ANDROID_NDK_VERSION: 26.3.11579264
         run: ./gradlew --no-daemon --stacktrace assembleDebug
 
-      - name: Publicar APK
+      - name: Publicar APK como artefato
         uses: actions/upload-artifact@v4
         with:
           name: crash-ctr-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Criar GitHub Release e anexar APK
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Crash CTR Android Build ${{ github.run_number }}
+          body: |
+            Build automática do Crash CTR Android.
+
+            - Commit: `${{ github.sha }}`
+            - Arquiteturas: `armeabi-v7a`, `x86`
+            - Tipo: Debug
+          prerelease: true
+          files: android/app/build/outputs/apk/debug/app-debug.apk
