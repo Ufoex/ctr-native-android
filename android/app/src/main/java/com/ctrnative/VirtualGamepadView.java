@@ -141,8 +141,10 @@ public class VirtualGamepadView extends View {
             new ButtonDef("X", centerX, centerY + vSpacing, bw, 0x4000), // Cross (bottom)
             new ButtonDef("START", w / 2f + bw*2.5f, h - bw*1.5f, bw*1.4f, bw*0.55f, 1, 0x8), // Start
             new ButtonDef("SELECT", w / 2f - bw*2.5f, h - bw*1.5f, bw*1.4f, bw*0.55f, 1, 0x1), // Select
-            new ButtonDef("L1", bw * 4f, bw * 1.2f, bw*2f, bw*0.7f, 1, 0x400), // L1
-            new ButtonDef("R1", w - bw * 4f, bw * 1.2f, bw*2f, bw*0.7f, 1, 0x800), // R1
+            new ButtonDef("L1", bw * 2.5f, bw * 1.2f, bw * 1.4f, bw * 0.6f, 1, 0x400), // L1
+            new ButtonDef("L2", bw * 5.6f, bw * 1.2f, bw * 1.4f, bw * 0.6f, 1, 0x100), // L2
+            new ButtonDef("R2", w - bw * 5.6f, bw * 1.2f, bw * 1.4f, bw * 0.6f, 1, 0x200), // R2
+            new ButtonDef("R1", w - bw * 2.5f, bw * 1.2f, bw * 1.4f, bw * 0.6f, 1, 0x800), // R1
             dpadUp, dpadDown, dpadLeft, dpadRight
         };
 
@@ -242,7 +244,8 @@ public class VirtualGamepadView extends View {
             }
         }
         if (buttons != null) {
-            for (int j = 0; j < 8; j++) {
+            int nonDpadCount = buttons.length - 4;
+            for (int j = 0; j < nonDpadCount; j++) {
                 ButtonDef b = buttons[j];
                 float bx = x - b.x;
                 float by = y - b.y;
@@ -373,14 +376,19 @@ public class VirtualGamepadView extends View {
                     analogActive = true;
                     currentFingerX = dx;
                     currentFingerY = dy;
-                    if (dy < -dpadR*0.3f) nextState[8] = true; // UP
-                    if (dy > dpadR*0.3f) nextState[9] = true; // DOWN
-                    if (dx < -dpadR*0.3f) nextState[10] = true; // LEFT
-                    if (dx > dpadR*0.3f) nextState[11] = true; // RIGHT
+                    int dpadUpIdx = buttons.length - 4;
+                    int dpadDownIdx = buttons.length - 3;
+                    int dpadLeftIdx = buttons.length - 2;
+                    int dpadRightIdx = buttons.length - 1;
+                    if (dy < -dpadR*0.3f) nextState[dpadUpIdx] = true; // UP
+                    if (dy > dpadR*0.3f) nextState[dpadDownIdx] = true; // DOWN
+                    if (dx < -dpadR*0.3f) nextState[dpadLeftIdx] = true; // LEFT
+                    if (dx > dpadR*0.3f) nextState[dpadRightIdx] = true; // RIGHT
                 }
 
                 // Check other buttons
-                for (int j=0; j<8; j++) {
+                int nonDpadCount = buttons.length - 4;
+                for (int j = 0; j < nonDpadCount; j++) {
                     ButtonDef b = buttons[j];
                     float bx = x - b.x;
                     float by = y - b.y;
