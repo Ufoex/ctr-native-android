@@ -37,6 +37,15 @@
             android:resizeableActivity="false"
             android:exported="false">
         </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
+            android:label="Settings"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="false"
+            android:exported="false">
+        </activity>
     </application>
 
 

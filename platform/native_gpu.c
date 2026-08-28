@@ -1379,6 +1379,66 @@ internal int ProcessGouraudLines(P_TAG *polyTag)
 	return 0;
 }
 
+#include "platform/native_texture_mod.h"
+
+internal void NativeGpu_CheckTextureModQuad(s16 tpage, s16 clut, u8 u0, u8 v0, u8 u1, u8 v1, u8 u2, u8 v2, u8 u3, u8 v3)
+{
+	u8 uMin = u0, uMax = u0;
+	u8 vMin = v0, vMax = v0;
+
+	if (u1 < uMin) uMin = u1; if (u1 > uMax) uMax = u1;
+	if (v1 < vMin) vMin = v1; if (v1 > vMax) vMax = v1;
+	if (u2 < uMin) uMin = u2; if (u2 > uMax) uMax = u2;
+	if (v2 < vMin) vMin = v2; if (v2 > vMax) vMax = v2;
+	if (u3 < uMin) uMin = u3; if (u3 > uMax) uMax = u3;
+	if (v3 < vMin) vMin = v3; if (v3 > vMax) vMax = v3;
+
+	if (NativeTextureMod_IsDumpEnabled())
+	{
+		NativeTextureMod_DumpTexture(tpage, clut, uMin, vMin, uMax, vMax);
+	}
+
+	CustomTextureEntry *repl = NativeTextureMod_GetReplacement(tpage, clut, uMin, vMin, uMax, vMax);
+	if (repl != NULL)
+	{
+		s_gpu.overrideTexture = repl->textureId;
+		s_gpu.overrideTextureWidth = repl->width;
+		s_gpu.overrideTextureHeight = repl->height;
+	}
+	else
+	{
+		s_gpu.overrideTexture = 0;
+	}
+}
+
+internal void NativeGpu_CheckTextureModTri(s16 tpage, s16 clut, u8 u0, u8 v0, u8 u1, u8 v1, u8 u2, u8 v2)
+{
+	u8 uMin = u0, uMax = u0;
+	u8 vMin = v0, vMax = v0;
+
+	if (u1 < uMin) uMin = u1; if (u1 > uMax) uMax = u1;
+	if (v1 < vMin) vMin = v1; if (v1 > vMax) vMax = v1;
+	if (u2 < uMin) uMin = u2; if (u2 > uMax) uMax = u2;
+	if (v2 < vMin) vMin = v2; if (v2 > vMax) vMax = v2;
+
+	if (NativeTextureMod_IsDumpEnabled())
+	{
+		NativeTextureMod_DumpTexture(tpage, clut, uMin, vMin, uMax, vMax);
+	}
+
+	CustomTextureEntry *repl = NativeTextureMod_GetReplacement(tpage, clut, uMin, vMin, uMax, vMax);
+	if (repl != NULL)
+	{
+		s_gpu.overrideTexture = repl->textureId;
+		s_gpu.overrideTextureWidth = repl->width;
+		s_gpu.overrideTextureHeight = repl->height;
+	}
+	else
+	{
+		s_gpu.overrideTexture = 0;
+	}
+}
+
 internal int ProcessFlatPoly(P_TAG *polyTag)
 {
 	const bool shadeTexOn = (polyTag->code & 1) == 0;
@@ -1410,7 +1470,9 @@ internal int ProcessFlatPoly(P_TAG *polyTag)
 		// It is an official hack from SCE devs to not use DR_TPAGE and instead use null polygon
 		if (!IsNull(poly))
 		{
+			NativeGpu_CheckTextureModTri(poly->tpage, poly->clut, poly->u0, poly->v0, poly->u1, poly->v1, poly->u2, poly->v2);
 			AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(poly->tpage));
+			s_gpu.overrideTexture = 0;
 
 			GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 			MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2);
@@ -1443,7 +1505,9 @@ internal int ProcessFlatPoly(P_TAG *polyTag)
 		POLY_FT4 *poly = (POLY_FT4 *)polyTag;
 		activeDrawEnv.tpage = poly->tpage;
 
+		NativeGpu_CheckTextureModQuad(poly->tpage, poly->clut, poly->u0, poly->v0, poly->u1, poly->v1, poly->u3, poly->v3, poly->u2, poly->v2);
 		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(poly->tpage));
+		s_gpu.overrideTexture = 0;
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2);
@@ -1489,7 +1553,9 @@ internal int ProcessGouraudPoly(P_TAG *polyTag)
 		POLY_GT3 *poly = (POLY_GT3 *)polyTag;
 		activeDrawEnv.tpage = poly->tpage;
 
+		NativeGpu_CheckTextureModTri(poly->tpage, poly->clut, poly->u0, poly->v0, poly->u1, poly->v1, poly->u2, poly->v2);
 		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(poly->tpage));
+		s_gpu.overrideTexture = 0;
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2);
@@ -1522,7 +1588,9 @@ internal int ProcessGouraudPoly(P_TAG *polyTag)
 		POLY_GT4 *poly = (POLY_GT4 *)polyTag;
 		activeDrawEnv.tpage = poly->tpage;
 
+		NativeGpu_CheckTextureModQuad(poly->tpage, poly->clut, poly->u0, poly->v0, poly->u1, poly->v1, poly->u3, poly->v3, poly->u2, poly->v2);
 		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(poly->tpage));
+		s_gpu.overrideTexture = 0;
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2);
@@ -1569,7 +1637,11 @@ internal int ProcessTileAndSprt(P_TAG *polyTag)
 	{
 		SPRT *poly = (SPRT *)polyTag;
 
+		u8 u0 = poly->u0, v0 = poly->v0;
+		u8 u1 = u0 + poly->w - 1, v1 = v0 + poly->h - 1;
+		NativeGpu_CheckTextureModQuad(activeDrawEnv.tpage, poly->clut, u0, v0, u1, v0, u0, v1, u1, v1);
 		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
+		s_gpu.overrideTexture = 0;
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexRect(firstVertex, &poly->x0, poly->w, poly->h);
@@ -1620,7 +1692,11 @@ internal int ProcessTileAndSprt(P_TAG *polyTag)
 	{
 		SPRT_8 *poly = (SPRT_8 *)polyTag;
 
+		u8 u0 = poly->u0, v0 = poly->v0;
+		u8 u1 = u0 + 7, v1 = v0 + 7;
+		NativeGpu_CheckTextureModQuad(activeDrawEnv.tpage, poly->clut, u0, v0, u1, v0, u0, v1, u1, v1);
 		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
+		s_gpu.overrideTexture = 0;
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexRect(firstVertex, &poly->x0, 8, 8);
@@ -1654,7 +1730,11 @@ internal int ProcessTileAndSprt(P_TAG *polyTag)
 	{
 		SPRT_16 *poly = (SPRT_16 *)polyTag;
 
+		u8 u0 = poly->u0, v0 = poly->v0;
+		u8 u1 = u0 + 15, v1 = v0 + 15;
+		NativeGpu_CheckTextureModQuad(activeDrawEnv.tpage, poly->clut, u0, v0, u1, v0, u0, v1, u1, v1);
 		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
+		s_gpu.overrideTexture = 0;
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexRect(firstVertex, &poly->x0, 16, 16);

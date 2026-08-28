@@ -483,6 +483,26 @@ void Platform_PollHostEvents(void)
 
 			Platform_UpdateHostAltKeyState(key, down);
 
+#include "platform/native_texture_mod.h"
+
+			if (key == SDL_SCANCODE_F9)
+			{
+				if ((down != 0) && (event.key.repeat == 0))
+				{
+					NativeTextureMod_SetDumpEnabled(!NativeTextureMod_IsDumpEnabled());
+				}
+				break;
+			}
+
+			if (key == SDL_SCANCODE_F10)
+			{
+				if ((down != 0) && (event.key.repeat == 0))
+				{
+					NativeTextureMod_ReloadTextures();
+				}
+				break;
+			}
+
 			if (key == SDL_SCANCODE_F11)
 			{
 				if ((down != 0) && (event.key.repeat == 0))

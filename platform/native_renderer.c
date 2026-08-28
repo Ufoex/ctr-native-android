@@ -177,6 +177,7 @@ int g_dbg_wireframeMode = 0;
 int g_dbg_texturelessMode = 0;
 
 int g_cfg_bilinearFiltering = 0;
+int g_cfg_filterMode = 0; // 0=nearest, 1=bilinear, 2=bicubic
 
 // NOTE(aalhendi): Pack native RGBA render targets into the persistent RG8 VRAM
 // texture on the GPU instead of a GPU-to-CPU-to-GPU round trip.
@@ -776,6 +777,7 @@ typedef struct
 
 	GLint projectionLoc;
 	GLint bilinearFilterLoc;
+	GLint filterModeLoc;
 	GLint texelSizeLoc;
 	GLint texLoc;
 	GLint lutLoc;
@@ -804,6 +806,7 @@ global_variable GTEShader s_gteShader32Rgba;
 
 GLint u_projectionLoc;
 GLint u_bilinearFilterLoc;
+GLint u_filterModeLoc;
 GLint u_texelSizeLoc;
 GLint u_psxSemiTransPassLoc;
 GLint u_psxDrawMaskSetLoc;
@@ -875,6 +878,7 @@ GLint u_psxTextureOutputStpLoc;
 	GPU_SAMPLE_TEXTURE_##bit##BIT_FUNC                                                                                                                \
 	    "	uniform sampler2D s_rgLut;\n"                                                                                                               \
 	    "	uniform int bilinearFilter;\n"                                                                                                              \
+	    "	uniform int filterMode;\n"                                                                                                                  \
 	    "	uniform int psxSemiTransPass;\n"                                                                                                            \
 	    "	uniform int psxDrawMaskSet;\n"                                                                                                              \
 	    "	uniform int psxTextureOutputStp;\n"                                                                                                         \
@@ -926,8 +930,39 @@ GLint u_psxTextureOutputStpLoc;
 	    "		t.w = 1.0 - t.w;\n"                                                                                                                        \
 	    "		return t;\n"                                                                                                                               \
 	    "	}\n"                                                                                                                                        \
+	    "	vec4 bicubicTextureSample(vec2 P) {\n"                                                                                                      \
+	    "		vec2 frac = fract(P);\n"                                                                                                                   \
+	    "		vec2 pixel = floor(P);\n"                                                                                                                  \
+	    "		frac = frac * frac * (3.0 - 2.0 * frac);\n"                                                                                               \
+	    "		vec2 C00 = samplePSX(pixel + vec2(-1.0, -1.0));\n"                                                                                        \
+	    "		vec2 C10 = samplePSX(pixel + vec2( 0.0, -1.0));\n"                                                                                        \
+	    "		vec2 C20 = samplePSX(pixel + vec2( 1.0, -1.0));\n"                                                                                        \
+	    "		vec2 C30 = samplePSX(pixel + vec2( 2.0, -1.0));\n"                                                                                        \
+	    "		vec2 C01 = samplePSX(pixel + vec2(-1.0,  0.0));\n"                                                                                        \
+	    "		vec2 C11 = samplePSX(pixel + vec2( 0.0,  0.0));\n"                                                                                        \
+	    "		vec2 C21 = samplePSX(pixel + vec2( 1.0,  0.0));\n"                                                                                        \
+	    "		vec2 C31 = samplePSX(pixel + vec2( 2.0,  0.0));\n"                                                                                        \
+	    "		vec2 C02 = samplePSX(pixel + vec2(-1.0,  1.0));\n"                                                                                        \
+	    "		vec2 C12 = samplePSX(pixel + vec2( 0.0,  1.0));\n"                                                                                        \
+	    "		vec2 C22 = samplePSX(pixel + vec2( 1.0,  1.0));\n"                                                                                        \
+	    "		vec2 C32 = samplePSX(pixel + vec2( 2.0,  1.0));\n"                                                                                        \
+	    "		vec2 C03 = samplePSX(pixel + vec2(-1.0,  2.0));\n"                                                                                        \
+	    "		vec2 C13 = samplePSX(pixel + vec2( 0.0,  2.0));\n"                                                                                        \
+	    "		vec2 C23 = samplePSX(pixel + vec2( 1.0,  2.0));\n"                                                                                        \
+	    "		vec2 C33 = samplePSX(pixel + vec2( 2.0,  2.0));\n"                                                                                        \
+	    "		vec4 col0 = mix(mix(lut(C00), lut(C10), frac.x), mix(lut(C20), lut(C30), frac.x), frac.x);\n"                                            \
+	    "		vec4 col1 = mix(mix(lut(C01), lut(C11), frac.x), mix(lut(C21), lut(C31), frac.x), frac.x);\n"                                            \
+	    "		vec4 col2 = mix(mix(lut(C02), lut(C12), frac.x), mix(lut(C22), lut(C32), frac.x), frac.x);\n"                                            \
+	    "		vec4 col3 = mix(mix(lut(C03), lut(C13), frac.x), mix(lut(C23), lut(C33), frac.x), frac.x);\n"                                            \
+	    "		vec4 t = mix(mix(col0, col1, frac.y), mix(col2, col3, frac.y), frac.y);\n"                                                                \
+	    "		t.w = 1.0 - t.w;\n"                                                                                                                        \
+	    "		return t;\n"                                                                                                                               \
+	    "	}\n"                                                                                                                                        \
 	    "	void main() {\n"                                                                                                                            \
-	    "		vec4 color = (bilinearFilter > 0) ? bilinearTextureSample(v_texcoord.xy) : nearestTextureSample(v_texcoord.xy);\n"                         \
+	    "		vec4 color;\n"                                                                                                                           \
+	    "		if (filterMode == 2) color = bicubicTextureSample(v_texcoord.xy);\n"                                                                       \
+	    "		else if (filterMode == 1) color = bilinearTextureSample(v_texcoord.xy);\n"                                                                 \
+	    "		else color = nearestTextureSample(v_texcoord.xy);\n"                                                                                      \
 	    "		fragColor = dither(color * v_color);\n"                                                                                                    \
 	    "		fragColor.a = (psxDrawMaskSet != 0 || (psxTextureOutputStp != 0 && sampledStp >= 0.5)) ? 1.0 : 0.0;\n"                                     \
 	    "	}\n"
@@ -1165,6 +1200,7 @@ internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source)
 	sh->shader = NativeRenderer_Shader_Compile(source, true);
 
 	sh->bilinearFilterLoc = glGetUniformLocation(sh->shader, "bilinearFilter");
+	sh->filterModeLoc = glGetUniformLocation(sh->shader, "filterMode");
 	sh->projectionLoc = glGetUniformLocation(sh->shader, "Projection");
 	sh->texelSizeLoc = glGetUniformLocation(sh->shader, "texelSize");
 	sh->texLoc = glGetUniformLocation(sh->shader, "s_texture");
@@ -1481,33 +1517,31 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 	case TF_4_BIT:
 		NativeRenderer_SetShader(s_gteShader4.shader);
 		u_bilinearFilterLoc = s_gteShader4.bilinearFilterLoc;
+		u_filterModeLoc = s_gteShader4.filterModeLoc;
 		u_projectionLoc = s_gteShader4.projectionLoc;
 		u_texelSizeLoc = -1;
 		u_psxSemiTransPassLoc = s_gteShader4.psxSemiTransPassLoc;
-		u_psxDrawMaskSetLoc = s_gteShader4.psxDrawMaskSetLoc;
-		u_psxTextureOutputStpLoc = s_gteShader4.psxTextureOutputStpLoc;
 		break;
 	case TF_8_BIT:
 		NativeRenderer_SetShader(s_gteShader8.shader);
 		u_bilinearFilterLoc = s_gteShader8.bilinearFilterLoc;
+		u_filterModeLoc = s_gteShader8.filterModeLoc;
 		u_projectionLoc = s_gteShader8.projectionLoc;
 		u_texelSizeLoc = -1;
 		u_psxSemiTransPassLoc = s_gteShader8.psxSemiTransPassLoc;
-		u_psxDrawMaskSetLoc = s_gteShader8.psxDrawMaskSetLoc;
-		u_psxTextureOutputStpLoc = s_gteShader8.psxTextureOutputStpLoc;
 		break;
 	case TF_16_BIT:
 		NativeRenderer_SetShader(s_gteShader16.shader);
 		u_bilinearFilterLoc = s_gteShader16.bilinearFilterLoc;
+		u_filterModeLoc = s_gteShader16.filterModeLoc;
 		u_projectionLoc = s_gteShader16.projectionLoc;
 		u_texelSizeLoc = -1;
 		u_psxSemiTransPassLoc = s_gteShader16.psxSemiTransPassLoc;
-		u_psxDrawMaskSetLoc = s_gteShader16.psxDrawMaskSetLoc;
-		u_psxTextureOutputStpLoc = s_gteShader16.psxTextureOutputStpLoc;
 		break;
 	case TF_32_BIT_RGBA:
 		NativeRenderer_SetShader(s_gteShader32Rgba.shader);
 		u_bilinearFilterLoc = s_gteShader32Rgba.bilinearFilterLoc;
+		u_filterModeLoc = s_gteShader32Rgba.filterModeLoc;
 		u_projectionLoc = s_gteShader32Rgba.projectionLoc;
 		u_texelSizeLoc = s_gteShader32Rgba.texelSizeLoc;
 		u_psxSemiTransPassLoc = s_gteShader32Rgba.psxSemiTransPassLoc;
@@ -1524,10 +1558,14 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 	// NOTE(penta3): s_texture (unit 0) and s_rgLut (unit 1) sampler bindings are baked
 	// into each program at compile time (NativeRenderer_Shader_Compile) and uniform
 	// values persist per-program, so re-setting them on every split was redundant GL
-	// churn. bilinearFilter stays here because it toggles at runtime (debug key).
+	// churn. bilinearFilter and filterMode stay here because they toggle at runtime.
 	if (u_bilinearFilterLoc >= 0)
 	{
 		glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
+	}
+	if (u_filterModeLoc >= 0)
+	{
+		glUniform1i(u_filterModeLoc, g_cfg_filterMode);
 	}
 	NativeRenderer_SetPSXTextureSemiTransPass(0);
 

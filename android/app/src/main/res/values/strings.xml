@@ -10,4 +10,15 @@
     <string name="setup_import_progress">Importing disc image: %1$d%%</string>
     <string name="setup_starting_game">Starting CTR Native&#8230;</string>
     <string name="setup_select_another_disc">Select another disc image</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_filter_mode">Texture Filter</string>
+    <string name="settings_texture_dump">Dump de Texturas (Exportar)</string>
+    <string name="settings_texture_load">Carregar Texturas (HD Mods)</string>
+    <string name="settings_reload_textures">Recarregar Texturas Modificadas</string>
+    <string name="settings_close">Tap anywhere to close</string>
+    <string-array name="filter_mode_entries">
+        <item>Nearest (Pixelated)</item>
+        <item>Bilinear (Smooth)</item>
+        <item>Bicubic (Smoother)</item>
+    </string-array>
 </resources>

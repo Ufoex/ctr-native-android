@@ -82,4 +82,45 @@ JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeApplyTouchButt
     Platform_Android_ApplyTouchButtons(slot, (u16)buttons);
 }
 
+#include "platform/native_texture_mod.h"
+
+extern int g_cfg_bilinearFiltering;
+extern int g_cfg_filterMode;
+
+JNIEXPORT void JNICALL Java_com_ctrnative_SettingsActivity_applyBilinearFilter(JNIEnv* env, jclass clazz, jint enabled) {
+    (void)env;
+    (void)clazz;
+    g_cfg_bilinearFiltering = enabled;
+    Platform_LogWarn("[CTR Native] Bilinear filter set to: %d\n", g_cfg_bilinearFiltering);
+}
+
+JNIEXPORT void JNICALL Java_com_ctrnative_SettingsActivity_applyFilterMode(JNIEnv* env, jclass clazz, jint mode) {
+    (void)env;
+    (void)clazz;
+    g_cfg_filterMode = mode;
+    g_cfg_bilinearFiltering = (mode > 0) ? 1 : 0;
+    Platform_LogWarn("[CTR Native] Filter mode set to: %d (0=nearest, 1=bilinear, 2=bicubic)\n", g_cfg_filterMode);
+}
+
+JNIEXPORT void JNICALL Java_com_ctrnative_SettingsActivity_applyTextureDump(JNIEnv* env, jclass clazz, jint enabled) {
+    (void)env;
+    (void)clazz;
+    NativeTextureMod_SetDumpEnabled(enabled != 0);
+    Platform_LogWarn("[CTR Native] Texture dump set to: %d\n", enabled);
+}
+
+JNIEXPORT void JNICALL Java_com_ctrnative_SettingsActivity_applyTextureLoad(JNIEnv* env, jclass clazz, jint enabled) {
+    (void)env;
+    (void)clazz;
+    NativeTextureMod_SetReplacementEnabled(enabled != 0);
+    Platform_LogWarn("[CTR Native] Texture load set to: %d\n", enabled);
+}
+
+JNIEXPORT void JNICALL Java_com_ctrnative_SettingsActivity_reloadTextures(JNIEnv* env, jclass clazz) {
+    (void)env;
+    (void)clazz;
+    NativeTextureMod_ReloadTextures();
+    Platform_LogWarn("[CTR Native] Reloading custom textures from crash/textura/load\n");
+}
+
 #endif

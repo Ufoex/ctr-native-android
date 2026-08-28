@@ -1,6 +1,7 @@
 package com.ctrnative;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -39,6 +40,10 @@ public class VirtualGamepadView extends View {
                         v.vibrate(60);
                     }
                 } catch (Exception ignored) {}
+
+                // Open settings activity
+                Intent intent = new Intent(getContext(), SettingsActivity.class);
+                getContext().startActivity(intent);
             }
         }
     };
@@ -141,7 +146,7 @@ public class VirtualGamepadView extends View {
             dpadUp, dpadDown, dpadLeft, dpadRight
         };
 
-        toggleButton = new ButtonDef("\uD83C\uDFAE", w / 2f, bw * 1.2f, bw * 0.5f, 0);
+        toggleButton = new ButtonDef("☰", w / 2f, bw * 1.2f, bw * 0.5f, 0);
     }
 
     @Override

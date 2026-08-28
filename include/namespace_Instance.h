@@ -392,8 +392,27 @@ enum
 
 force_inline u32 ModelName_ReadWord(const char *name, s32 wordIndex)
 {
-	u32 word;
-	memcpy(&word, &name[wordIndex * (s32)sizeof(word)], sizeof(word));
+	u32 word = 0;
+	if (name == NULL)
+	{
+		return 0;
+	}
+	s32 offset = wordIndex * (s32)sizeof(u32);
+	for (s32 i = 0; i < offset + (s32)sizeof(u32); i++)
+	{
+		if (name[i] == '\0')
+		{
+			if (i < offset)
+			{
+				return 0;
+			}
+			break;
+		}
+		if (i >= offset)
+		{
+			((u8 *)&word)[i - offset] = (u8)name[i];
+		}
+	}
 	return word;
 }
 

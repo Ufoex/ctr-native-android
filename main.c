@@ -68,6 +68,7 @@
 #include "platform/native_platform.c"
 #include "platform/native_replay_scheduler.c"
 #include "platform/native_renderer.c"
+#include "platform/native_texture_mod.c"
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
@@ -204,10 +205,13 @@ int main(int argc, char *argv[])
 	Platform_Init("Crash Team Racing", 800, 600);
 #endif
 
+	NativeTextureMod_Init();
+
 #if defined(CTR_INTERNAL)
 	if (NativePerf_ConfigureFromArgs(argc, argv) != 0)
 	{
 		Platform_LogFlush();
+		NativeTextureMod_Shutdown();
 		Platform_Shutdown();
 		return NativeConsole_Return(1);
 	}
@@ -220,6 +224,7 @@ int main(int argc, char *argv[])
 	if (NativeReplayScheduler_ConfigureFromArgs(argc, argv) != 0)
 	{
 		Platform_LogFlush();
+		NativeTextureMod_Shutdown();
 		Platform_Shutdown();
 		return NativeConsole_Return(1);
 	}
@@ -230,6 +235,7 @@ int main(int argc, char *argv[])
 
 	const int result = CTR_Main();
 
+	NativeTextureMod_Shutdown();
 	Platform_Shutdown();
 	return NativeConsole_Return(result);
 }
