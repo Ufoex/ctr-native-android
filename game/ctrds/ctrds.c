@@ -280,6 +280,19 @@ void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBotto
 
 // Tiny key=value reader. Only the handful of switches worth changing without a
 // rebuild; anything absent keeps its default.
+internal struct CtrdsOnlineConfig s_onlineConfig = {
+    0,
+    "127.0.0.1",
+    64001,
+    "CTRDS",
+    -1,
+};
+
+const struct CtrdsOnlineConfig *Ctrds_OnlineConfig(void)
+{
+	return &s_onlineConfig;
+}
+
 void Ctrds_LoadConfig(void)
 {
 	char path[1024];
@@ -317,6 +330,14 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "# vblank_mult: 1 = up to 60fps, 2 = up to 120fps.\n");
 			fprintf(f, "# Leave commented out to follow the panel automatically.\n");
 			fprintf(f, "#vblank_mult=2\n");
+			fprintf(f, "\n# --- OnlineCTR ---\n");
+			fprintf(f, "# online: connect to an OnlineCTR server on launch (0/1)\n");
+			fprintf(f, "online=%d\n", s_onlineConfig.enabled);
+			fprintf(f, "online_host=%s\n", s_onlineConfig.host);
+			fprintf(f, "online_port=%d\n", s_onlineConfig.port);
+			fprintf(f, "online_name=%s\n", s_onlineConfig.name);
+			fprintf(f, "# online_room: room to join automatically, -1 to wait\n");
+			fprintf(f, "online_room=%d\n", s_onlineConfig.room);
 			fclose(f);
 		}
 
@@ -339,6 +360,39 @@ void Ctrds_LoadConfig(void)
 		if (strncmp(line, "fxaa", 4) == 0)
 		{
 			g_ctrds.fxaa = value;
+		}
+		else if (strncmp(line, "online_host", 11) == 0)
+		{
+			// value is text, not a number
+			char *v = eq + 1;
+			size_t n = strlen(v);
+			while ((n > 0) && ((v[n - 1] == '\n') || (v[n - 1] == '\r') || (v[n - 1] == ' ')))
+			{
+				v[--n] = '\0';
+			}
+			snprintf(s_onlineConfig.host, sizeof(s_onlineConfig.host), "%s", v);
+		}
+		else if (strncmp(line, "online_room", 11) == 0)
+		{
+			s_onlineConfig.room = value;
+		}
+		else if (strncmp(line, "online_port", 11) == 0)
+		{
+			s_onlineConfig.port = value;
+		}
+		else if (strncmp(line, "online_name", 11) == 0)
+		{
+			char *v = eq + 1;
+			size_t n = strlen(v);
+			while ((n > 0) && ((v[n - 1] == '\n') || (v[n - 1] == '\r') || (v[n - 1] == ' ')))
+			{
+				v[--n] = '\0';
+			}
+			snprintf(s_onlineConfig.name, sizeof(s_onlineConfig.name), "%s", v);
+		}
+		else if (strncmp(line, "online", 6) == 0)
+		{
+			s_onlineConfig.enabled = value;
 		}
 		else if (strncmp(line, "crt", 3) == 0)
 		{

@@ -92,6 +92,28 @@ else()
 endif()
 set_target_properties(ctr_native PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(ctr_native PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+# ENet, vendored. OnlineCTR speaks ENet, so a compatible client needs the same
+# transport; it is a small zlib-licensed library with no dependencies of its own,
+# which is why it is checked in rather than fetched.
+add_library(enet STATIC
+    ${CMAKE_SOURCE_DIR}/externals/enet/callbacks.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/compress.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/host.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/list.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/packet.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/peer.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/protocol.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/unix.c
+    ${CMAKE_SOURCE_DIR}/externals/enet/win32.c)
+target_include_directories(enet PUBLIC ${CMAKE_SOURCE_DIR}/externals/enet/include)
+target_compile_definitions(enet PRIVATE HAS_SOCKLEN_T=1)
+target_compile_options(enet PRIVATE -w)
+if(NOT WIN32)
+    target_compile_definitions(enet PRIVATE HAS_FCNTL=1 HAS_POLL=1 HAS_GETADDRINFO=1 HAS_GETNAMEINFO=1 HAS_INET_PTON=1 HAS_INET_NTOP=1 HAS_MSGHDR_FLAGS=1)
+endif()
+
+target_link_libraries(ctr_native enet)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
     BUILD=926

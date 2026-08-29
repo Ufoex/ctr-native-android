@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include "ctrds_online.h"
+
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 #include <platform/native_perf.h>
 #define MAINFRAME_PERF_BEGIN(bucket) NativePerf_BeginScope(bucket)
@@ -1334,6 +1336,8 @@ void RenderSubmit(struct GameTracker *gGT)
 	{
 		Ctrds_DrawCompanionPass(gGT);
 	}
+
+	Ctrds_OnlinePump();
 #endif
 
 	DrawOTag(ot);

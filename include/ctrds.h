@@ -252,6 +252,21 @@ void Ctrds_InitLayout(void);
 // asset directory is known.
 void Ctrds_LoadConfig(void);
 
+// OnlineCTR connection settings, read from ctrds.cfg.
+struct CtrdsOnlineConfig
+{
+	int enabled;
+	char host[128];
+	int port;
+	char name[16];
+
+	// Room to join automatically once the room list arrives, or -1 to stay in
+	// the lobby and wait to be told.
+	int room;
+};
+
+const struct CtrdsOnlineConfig *Ctrds_OnlineConfig(void);
+
 static inline int Ctrds_Fxaa(void)
 {
 	return Ctrds_Enabled() && (g_ctrds.fxaa != 0);

@@ -65,6 +65,7 @@
 #include "platform/native_replay_scheduler.c"
 #include "platform/native_renderer.c"
 #include "platform/native_companion.c"
+#include "platform/native_online.c"
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
@@ -206,6 +207,10 @@ int main(int argc, char *argv[])
 	// window the VRAM blit is upscaled into.
 	Platform_Init("Crash Team Racing", 1920, 1080);
 #endif
+
+	// After Platform_Init: the online client uses SDL threads and mutexes, so it
+	// cannot start before SDL_Init has run.
+	Ctrds_OnlineInit();
 
 #if defined(CTR_INTERNAL)
 	if (NativePerf_ConfigureFromArgs(argc, argv) != 0)
