@@ -189,6 +189,9 @@ struct CtrdsLayout
 	// an app no way to read an environment variable.
 	int fxaa;
 
+	// CRT-Royale-style beam simulation on the presented image.
+	int crt;
+
 	// Swaps the face buttons: cross<->circle and square<->triangle, i.e. A/B and
 	// X/Y on an Xbox-labelled pad like the Thor's.
 	int swapFaceButtons;
@@ -252,6 +255,11 @@ void Ctrds_LoadConfig(void);
 static inline int Ctrds_Fxaa(void)
 {
 	return Ctrds_Enabled() && (g_ctrds.fxaa != 0);
+}
+
+static inline int Ctrds_Crt(void)
+{
+	return Ctrds_Enabled() && (g_ctrds.crt != 0);
 }
 
 static inline int Ctrds_SwapFaceButtons(void)

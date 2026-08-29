@@ -67,7 +67,8 @@ struct CtrdsLayout g_ctrds = {
     .vsyncsPerFlip = 1,
     .vblankMultiplier = 1,
     .vblankAuto = 1,
-    .fxaa = 1,
+    .fxaa = 0,
+    .crt = 1,
     .swapFaceButtons = 1,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
@@ -302,6 +303,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "# CTR-DS settings. Edit and restart the game.\n");
 			fprintf(f, "# fxaa: smooth jagged edges (0/1)\n");
 			fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
+			fprintf(f, "# crt: CRT-Royale-style scanlines, phosphor mask and halation (0/1)\n");
+			fprintf(f, "crt=%d\n", g_ctrds.crt);
 			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
 			fprintf(f, "swap_face_buttons=%d\n", g_ctrds.swapFaceButtons);
 			fprintf(f, "# widescreen: 16:9 field of view (0/1)\n");
@@ -332,6 +335,10 @@ void Ctrds_LoadConfig(void)
 		{
 			g_ctrds.fxaa = value;
 		}
+		else if (strncmp(line, "crt", 3) == 0)
+		{
+			g_ctrds.crt = value;
+		}
 		else if (strncmp(line, "swap_face_buttons", 17) == 0)
 		{
 			g_ctrds.swapFaceButtons = value;
@@ -349,7 +356,8 @@ void Ctrds_LoadConfig(void)
 
 	fclose(f);
 
-	Platform_Log("[CTR-DS] ctrds.cfg: fxaa=%d swapFaceButtons=%d widescreen=%d\n", g_ctrds.fxaa, g_ctrds.swapFaceButtons, g_ctrds.widescreen);
+	Platform_Log("[CTR-DS] ctrds.cfg: fxaa=%d crt=%d swapFaceButtons=%d widescreen=%d\n", g_ctrds.fxaa, g_ctrds.crt, g_ctrds.swapFaceButtons,
+	        g_ctrds.widescreen);
 }
 
 void Ctrds_InitLayout(void)

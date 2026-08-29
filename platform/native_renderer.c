@@ -171,6 +171,7 @@ global_variable GLint s_presentVramOutputScaleLoc = -1;
 global_variable GLuint s_fxaaShader = 0;
 global_variable GLint s_fxaaInvSrcSizeLoc = -1;
 global_variable GLuint s_sharpUpscaleShader = 0;
+global_variable GLint s_sharpUpscaleCrtLoc = -1;
 global_variable GLint s_sharpUpscaleSrcSizeLoc = -1;
 global_variable GLint s_sharpUpscaleOutputScaleLoc = -1;
 global_variable int s_lastViewportX = 0;
@@ -729,6 +730,7 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 	glUseProgram(s_sharpUpscaleShader);
 	glUniform2f(s_sharpUpscaleSrcSizeLoc, (float)width, (float)height);
 	glUniform2f(s_sharpUpscaleOutputScaleLoc, scaleX, scaleY);
+	glUniform1f(s_sharpUpscaleCrtLoc, Ctrds_Crt() ? 1.0f : 0.0f);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, upscaleSource);
@@ -1333,13 +1335,39 @@ global_variable const char *ctr_sharp_upscale_shader = "#ifdef VERTEX\n"
                                                        "uniform sampler2D s_src;\n"
                                                        "uniform vec2 srcSize;\n"
                                                        "uniform vec2 outputScale;\n"
+                                                       "uniform float crtEnable;\n"
                                                        "void main() {\n"
                                                        "\tvec2 texel = v_uv * srcSize;\n"
                                                        "\tvec2 base = floor(texel - 0.5) + 0.5;\n"
                                                        "\tvec2 f = texel - base;\n"
                                                        "\tvec2 w = clamp((f - 0.5) * outputScale + 0.5, 0.0, 1.0);\n"
                                                        "\tfragColor = texture2D(s_src, (base + w) / srcSize);\n"
-                                                       
+                                                       "\tif (crtEnable > 0.5) {\n"
+                                                       // Beam simulation in the spirit of crt-royale. What matters for it not
+                                                       // to read as a dirty overlay: work in linear light, give the beam a
+                                                       // gaussian profile that widens with brightness, and put the masked-out
+                                                       // energy back with halation and gain rather than just darkening rows.
+                                                       "\t\tfloat sx = base.x + w.x;\n"
+                                                       "\t\tfloat sy = texel.y - 0.5;\n"
+                                                       "\t\tfloat row0 = floor(sy);\n"
+                                                       "\t\tvec3 acc = vec3(0.0);\n"
+                                                       "\t\tfor (int i = -1; i <= 2; i++) {\n"
+                                                       "\t\t\tfloat row = row0 + float(i);\n"
+                                                       "\t\t\tvec3 c = texture2D(s_src, vec2(sx, row + 0.5) / srcSize).rgb;\n"
+                                                       "\t\t\tc = c * c;\n"
+                                                       "\t\t\tfloat lum = dot(c, vec3(0.2126, 0.7152, 0.0722));\n"
+                                                       "\t\t\tfloat width = 0.62 + 0.85 * lum;\n"
+                                                       "\t\t\tfloat d = (sy - row) / width;\n"
+                                                       "\t\t\tacc += c * exp(-d * d * 2.1);\n"
+                                                       "\t\t}\n"
+                                                       "\t\tvec3 halo = texture2D(s_src, vec2(sx, sy + 0.5) / srcSize).rgb;\n"
+                                                       "\t\tacc += halo * halo * 0.18;\n"
+                                                       "\t\tfloat col = mod(gl_FragCoord.x, 3.0);\n"
+                                                       "\t\tvec3 mask = (col < 1.0) ? vec3(1.0, 0.55, 0.55)\n"
+                                                       "\t\t          : ((col < 2.0) ? vec3(0.55, 1.0, 0.55) : vec3(0.55, 0.55, 1.0));\n"
+                                                       "\t\tacc *= mask * 1.65;\n"
+                                                       "\t\tfragColor = vec4(sqrt(clamp(acc, 0.0, 1.0)), fragColor.a);\n"
+                                                       "\t}\n"
                                                        "}\n"
                                                        "#endif\n";
 
@@ -1400,6 +1428,7 @@ internal void NativeRenderer_InitVRAMPipelines(void)
 	s_sharpUpscaleShader = NativeRenderer_Shader_Compile(ctr_sharp_upscale_shader, false);
 	s_sharpUpscaleSrcSizeLoc = glGetUniformLocation(s_sharpUpscaleShader, "srcSize");
 	s_sharpUpscaleOutputScaleLoc = glGetUniformLocation(s_sharpUpscaleShader, "outputScale");
+	s_sharpUpscaleCrtLoc = glGetUniformLocation(s_sharpUpscaleShader, "crtEnable");
 
 	s_fxaaShader = NativeRenderer_Shader_Compile(ctr_fxaa_shader, false);
 	s_fxaaInvSrcSizeLoc = glGetUniformLocation(s_fxaaShader, "invSrcSize");
