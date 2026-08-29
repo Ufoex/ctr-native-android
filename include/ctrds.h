@@ -158,10 +158,17 @@ static inline int Ctrds_TallFramebuffer(void)
 #define CTRDS_WIDE_NUM 750
 #define CTRDS_WIDE_DEN 1000
 
-static inline int Ctrds_VsyncsPerFlip(void)
-{
-	return (g_ctrds.vsyncsPerFlip > 0) ? g_ctrds.vsyncsPerFlip : 2;
-}
+// True while a race is actually running. Menus, the adventure hub and the
+// pre-race screens are not races.
+int Ctrds_InRace(void);
+
+// VBlanks to wait between flips. Racing runs as fast as the panel allows, but
+// menus must not: menu animation is counted in frames rather than delta-timed,
+// so an extra frame is an extra animation step and the whole front end plays
+// fast. Holding retail's every-other-VBlank cadence there keeps menus at the
+// 30fps they were authored for, and there is nothing to gain from a higher rate
+// on screens that are mostly static anyway.
+int Ctrds_VsyncsPerFlip(void);
 
 static inline int Ctrds_VBlankMultiplier(void)
 {

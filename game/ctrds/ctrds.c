@@ -146,6 +146,30 @@ int Ctrds_Is30HzTick(void)
 	return ((int)sdata->gGT->timer % step) == 0;
 }
 
+int Ctrds_InRace(void)
+{
+	const struct GameTracker *gGT = sdata->gGT;
+
+	return ((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && ((gGT->gameMode1 & ADVENTURE_ARENA) == 0);
+}
+
+int Ctrds_VsyncsPerFlip(void)
+{
+	if (!Ctrds_Enabled())
+	{
+		return 2;
+	}
+
+	if (Ctrds_InRace())
+	{
+		return (g_ctrds.vsyncsPerFlip > 0) ? g_ctrds.vsyncsPerFlip : 2;
+	}
+
+	// Retail flips every 2nd VBlank at the stock rate. Scale by the multiplier
+	// so the cadence stays 30fps however fast VBlanks are being emitted.
+	return 2 * Ctrds_VBlankMultiplier();
+}
+
 void Ctrds_UpdateAutoVBlank(float panelHz)
 {
 	int want;
@@ -321,7 +345,7 @@ void Ctrds_DrawCompanionPass(struct GameTracker *gGT)
 	// Only a race moves its HUD to the panel. Menus, the adventure hub and the
 	// pre-race screens keep their HUD on the top screen, so outside a race the
 	// UI table is left linked and the panel shows the idle screen instead.
-	const int inRace = ((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && ((gGT->gameMode1 & ADVENTURE_ARENA) == 0);
+	const int inRace = Ctrds_InRace();
 
 	// DrawOTag would otherwise open the frame itself and bind the game view.
 	Platform_BeginScene();
