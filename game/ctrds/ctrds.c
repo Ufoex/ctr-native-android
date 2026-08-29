@@ -31,38 +31,43 @@ struct CtrdsLayout g_ctrds = {
     .fbHeight = CTRDS_FB_HEIGHT,
     .fbPitch = CTRDS_FB_PITCH,
 
-    .screenW = 512,
-    .screenH = CTRDS_PANEL_HEIGHT,
+    .screenW = CTRDS_PANEL_W,
+    .screenH = CTRDS_PANEL_H,
 
     // --- top strip: time, item, fruit, lap ---
-    .clockX = 20,
-    .clockY = CTRDS_PANEL_TOP + 12,
+    .clockX = 14,
+    .clockY = 6,
 
-    // --- speedometer backdrop; needle position lives in the slot table ---
-    // Retail draws the backdrop at (480, 190) and the needle at (414, 145), so
-    // the backdrop keeps its +66/+45 offset from the needle.
-    .speedBgX = 372 + 66,
-    .speedBgY = CTRDS_PANEL_TOP + 300 + 45,
+    // --- speedometer: upper half of the right column. Retail draws the
+    // backdrop at (480,190) and the needle at (414,145), so the backdrop keeps
+    // its +66/+45 offset from the needle. ---
+    .speedBgX = 398 + 66,
+    .speedBgY = 60 + 45,
 
-    // --- left column: the full eight-driver order, not retail's top four ---
-    .rankIconX = 22,
-    .rankIconBaseY = CTRDS_PANEL_TOP + 96,
-    .rankSlotH = 40,
+    // --- left column: the full eight-driver order, not retail's top four.
+    // No vertical fudge any more: the panel itself now stretches art 1.78x. ---
+    .rankIconX = 16,
+    .rankIconBaseY = CTRDS_BODY_Y + 6,
+    .rankSlotH = 25,
     .rankVisible = 8,
-    .rankTextX = 66,
-    .rankTextStartY = CTRDS_PANEL_TOP + 100,
-    .rankIconScale = CTRDS_FP_ONE + (CTRDS_FP_ONE / 2),
+    .rankTextX = 54,
+    .rankTextStartY = CTRDS_BODY_Y + 8,
+    // Eight portraits share the column, so trim them slightly to stop the
+    // taller ones touching their neighbours.
+    .rankIconScale = (CTRDS_FP_ONE * 7) / 8,
 
-    // --- live map: big, anchored to the bottom-right corner of the panel ---
-    .mapX = 350,
-    .mapY = CTRDS_PANEL_TOP + 352,
-    .mapScale = CTRDS_FP_ONE * 3,
+    // --- live map: centre column. Scale and anchor are computed from the
+    // region by Ctrds_InitLayout, so changing the grid re-fits the map. ---
+    .mapX = CTRDS_MAP_RX + CTRDS_MAP_RW,
+    .mapY = CTRDS_BODY_Y + CTRDS_BODY_H,
+    .mapScale = CTRDS_FP_ONE,
     .mapIconScale = CTRDS_FP_ONE * 2,
 
     .widescreen = 1,
     .vsyncsPerFlip = 1,
     .vblankMultiplier = 1,
     .vblankAuto = 1,
+    .bigRankScale = (CTRDS_FP_ONE * 5) / 2,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -71,25 +76,25 @@ struct CtrdsLayout g_ctrds = {
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
 // (battle, relic, adventure rewards) keep their retail values.
 #define CTRDS_HUD_BLOCK                                                                                          \
-    /* 0x00 WEAPON           */ {200, CTRDS_PANEL_TOP + 14, 0, 4096},                                                    \
-    /* 0x01 LAP_COUNT        */ {466, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
-    /* 0x02 BIG1             */ {428, CTRDS_PANEL_TOP + 400, 256, 5120},                                                  \
-    /* 0x03 FRUIT_MODEL      */ {330, CTRDS_PANEL_TOP + 24, 512, 4096},                                                  \
-    /* 0x04 WUMPA_COUNT      */ {350, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
-    /* 0x05 RANK             */ {450, CTRDS_PANEL_TOP + 400, 0, 0},                                                       \
-    /* 0x06 JUMP_METER       */ {449, CTRDS_PANEL_TOP + 361, 0, 0},                                                       \
-    /* 0x07 (unused)         */ {475, 164, 0, 0},                                                                        \
-    /* 0x08 SLIDE_METER      */ {448, CTRDS_PANEL_TOP + 361, 0, 0},                                                       \
-    /* 0x09 SPEEDOMETER      */ {372, CTRDS_PANEL_TOP + 300, 0, 4096},                                                    \
-    /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                                       \
-    /* 0x0b BATTLE_WEAPON_BG */ {209, -5, 0, 4096},                                                                      \
-    /* 0x0c RACING_WEAPON_BG */ {254, CTRDS_PANEL_TOP + 18, 0, 2457},                                                    \
-    /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                          \
-    /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                                     \
-    /* 0x0f KEY              */ {256, 24, 512, 3072},                                                                    \
-    /* 0x10 TROPHY           */ {406, 24, 512, 6144},                                                                    \
-    /* 0x11 CRYSTAL          */ {389, 30, 512, 2048},                                                                    \
-    /* 0x12 TOKEN_OR_CTR     */ {145, 30, 512, 2048},                                                                    \
+    /* 0x00 WEAPON           */ {200, 10, 0, 4096},                                                              \
+    /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
+    /* 0x02 BIG1             */ {386, CTRDS_NUM_Y + 36, 256, 5120},                               \
+    /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
+    /* 0x04 WUMPA_COUNT      */ {350, 10, 0, 0},                                                                 \
+    /* 0x05 RANK             */ {466, CTRDS_NUM_Y + 52, 0, 0},                                   \
+    /* 0x06 JUMP_METER       */ {398 + 77, 60 + 61, 0, 0},                                 \
+    /* 0x07 (unused)         */ {475, 164, 0, 0},                                                                \
+    /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
+    /* 0x09 SPEEDOMETER      */ {398, 60, 0, 4096},                                             \
+    /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                               \
+    /* 0x0b BATTLE_WEAPON_BG */ {209, -5, 0, 4096},                                                              \
+    /* 0x0c RACING_WEAPON_BG */ {254, 14, 0, 2457},                                                              \
+    /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                  \
+    /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                             \
+    /* 0x0f KEY              */ {256, 24, 512, 3072},                                                            \
+    /* 0x10 TROPHY           */ {406, 24, 512, 6144},                                                            \
+    /* 0x11 CRYSTAL          */ {389, 30, 512, 2048},                                                            \
+    /* 0x12 TOKEN_OR_CTR     */ {145, 30, 512, 2048},                                                            \
     /* 0x13 TIMEBOX          */ {200, 30, 256, 768},
 
 struct UiElement2D g_ctrdsHud1P[UI_HUD_SLOT_COUNT * CTRDS_HUD_BLOCKS] = {
@@ -150,7 +155,10 @@ int Ctrds_InRace(void)
 {
 	const struct GameTracker *gGT = sdata->gGT;
 
-	return ((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && ((gGT->gameMode1 & ADVENTURE_ARENA) == 0);
+	// END_OF_RACE covers the results and podium screens, which keep the race HUD
+	// flag set but are menus: their HUD and menu belong on the main screen.
+	return ((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && ((gGT->gameMode1 & ADVENTURE_ARENA) == 0)
+	    && ((gGT->gameMode1 & END_OF_RACE) == 0);
 }
 
 int Ctrds_VsyncsPerFlip(void)
@@ -168,6 +176,29 @@ int Ctrds_VsyncsPerFlip(void)
 	// Retail flips every 2nd VBlank at the stock rate. Scale by the multiplier
 	// so the cadence stays 30fps however fast VBlanks are being emitted.
 	return 2 * Ctrds_VBlankMultiplier();
+}
+
+void Ctrds_InitLayout(void)
+{
+	int scaleX;
+	int scaleY;
+	int scale;
+	int mapH;
+
+	// Grow the map until it runs out of room in whichever direction binds
+	// first, so it fills its region without spilling into the neighbours.
+	scaleX = (CTRDS_MAP_RW * CTRDS_FP_ONE) / CTRDS_MAP_BASE_W;
+	scaleY = (CTRDS_BODY_H * CTRDS_FP_ONE) / CTRDS_MAP_BASE_H;
+	scale = (scaleX < scaleY) ? scaleX : scaleY;
+
+	g_ctrds.mapScale = (s16)scale;
+
+	// The map draws up and left from its anchor, so the anchor is the region's
+	// right edge, and low enough to centre the scaled map vertically.
+	mapH = (CTRDS_MAP_BASE_H * scale) / CTRDS_FP_ONE;
+
+	g_ctrds.mapX = (s16)(CTRDS_MAP_RX + CTRDS_MAP_RW);
+	g_ctrds.mapY = (s16)(CTRDS_BODY_Y + ((CTRDS_BODY_H + mapH) / 2));
 }
 
 void Ctrds_UpdateAutoVBlank(float panelHz)
@@ -249,6 +280,8 @@ void Ctrds_ScaleMap(struct UIMap *dst, const struct UIMap *src)
 
 void Ctrds_InitFromEnv(void)
 {
+	Ctrds_InitLayout();
+
 	const char *mode = getenv("CTRDS");
 	const char *tall = getenv("CTRDS_TALL_FB");
 

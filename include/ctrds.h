@@ -23,7 +23,7 @@
 //
 // 512x446 is 1.148:1 -- the AYN Thor's bottom panel (1240x1080) exactly.
 #define CTRDS_GAME_HEIGHT  216
-#define CTRDS_PANEL_HEIGHT 446
+#define CTRDS_PANEL_HEIGHT CTRDS_PANEL_H
 #define CTRDS_FB_HEIGHT    (CTRDS_GAME_HEIGHT + CTRDS_PANEL_HEIGHT)
 
 // Distance between the two buffers in VRAM. Must be >= CTRDS_FB_HEIGHT.
@@ -39,7 +39,56 @@
 // presenting it is an ordinary blit; that pack is a native GL call and is not
 // subject to the packet limit.
 #define CTRDS_PANEL_W 512
-#define CTRDS_PANEL_H 446
+
+// PS1 art is authored for a 512x216 buffer shown at 4:3, so one display pixel
+// is 0.5625 as wide as it is tall and every sprite is stretched 1.78x
+// vertically. The panel reproduces that by being 251 rows tall and filling the
+// 1240x1080 screen: (1240/512) / (1080/251) = 0.5625. At the old 446 the ratio
+// was 1.0 -- no vertical stretch at all -- which is why every icon looked
+// squashed and the rank portraits needed a hand-applied 1.5x to look right.
+#define CTRDS_PANEL_H 251
+
+// The panel is divided into fixed regions so that nothing can overlap: every
+// element below is placed inside exactly one of them, and the map is scaled to
+// fit its own region rather than carrying a hand-tuned constant.
+//
+//   +-----------------------------------------------+ 0
+//   | time        weapon      fruit           lap    |
+//   +--------+--------------------+-----------------+ 44
+//   | rank   |        map         |   speedometer   |
+//   | list   |                    +-----------------+ 148
+//   |        |                    |   position      |
+//   +--------+--------------------+-----------------+ 251
+//   0       104                  336               512
+#define CTRDS_TOP_H    44
+#define CTRDS_BODY_Y   CTRDS_TOP_H
+#define CTRDS_BODY_H   (CTRDS_PANEL_H - CTRDS_BODY_Y)
+
+#define CTRDS_RANK_X   0
+#define CTRDS_RANK_W   104
+
+#define CTRDS_MAP_RX   CTRDS_RANK_W
+#define CTRDS_MAP_RW   232
+
+#define CTRDS_RIGHT_X  (CTRDS_MAP_RX + CTRDS_MAP_RW)
+#define CTRDS_RIGHT_W  (CTRDS_PANEL_W - CTRDS_RIGHT_X)
+
+#define CTRDS_SPEEDO_Y CTRDS_BODY_Y
+#define CTRDS_SPEEDO_H 104
+#define CTRDS_NUM_Y    (CTRDS_SPEEDO_Y + CTRDS_SPEEDO_H)
+#define CTRDS_NUM_H    (CTRDS_PANEL_H - CTRDS_NUM_Y)
+
+// The panel's shape on screen, independent of how many source rows it holds:
+// 512 x 446 is 1.148:1, the AYN Thor's bottom panel (1240x1080) exactly. The
+// desktop preview lays the panel out at this ratio while sampling the real
+// CTRDS_PANEL_H rows, so the preview shows the same proportions as the device
+// instead of square pixels.
+#define CTRDS_PANEL_LAYOUT_H 446
+
+// Extent of the retail live map measured from its bottom-right anchor, used to
+// work out how much the map has to grow to fill the region above.
+#define CTRDS_MAP_BASE_W 104
+#define CTRDS_MAP_BASE_H 88
 
 // Where the finished panel is parked in VRAM. Needs VRAM_HEIGHT > 1470.
 #define CTRDS_VRAM_PANEL_X 0
@@ -129,6 +178,10 @@ struct CtrdsLayout
 	// system service resets its own 60Hz cap back under us, so the multiplier
 	// has to follow the panel at runtime rather than be decided at startup.
 	int vblankAuto;
+
+	// Scale for the big position numeral on the panel. DecalFont has no scaled
+	// draw, so the numeral is the big rank icon drawn through DecalHUD instead.
+	int bigRankScale;
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -177,6 +230,14 @@ static inline int Ctrds_VBlankMultiplier(void)
 
 // Feeds the measured panel refresh rate in. Safe to call every frame.
 void Ctrds_UpdateAutoVBlank(float panelHz);
+
+// Derives the map scale and anchor from the grid above. Call once at startup.
+void Ctrds_InitLayout(void);
+
+static inline int Ctrds_BigRankScale(void)
+{
+	return (g_ctrds.bigRankScale > 0) ? g_ctrds.bigRankScale : CTRDS_FP_ONE;
+}
 
 static inline int Ctrds_Widescreen(void)
 {

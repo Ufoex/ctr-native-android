@@ -2357,13 +2357,15 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 	// band of garbage beneath the game view.
 	int srcGameH = gameH;
 	int layoutGameH = gameH;
+	int srcPanelH = panelH;
+	int layoutPanelH = CTRDS_PANEL_LAYOUT_H;
 
 	if (Ctrds_Widescreen())
 	{
 		layoutGameH = (gameW * 9) / 16;
 	}
 
-	totalH = layoutGameH + panelH;
+	totalH = layoutGameH + layoutPanelH;
 
 	NativeRenderer_UpdateVRAM();
 
@@ -2394,7 +2396,7 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 	NativeRenderer_DrawVRAMRegion(gameX, gameY, gameW, srcGameH);
 
 	NativeRenderer_SetViewPort(vx + ((vw - (vw * panelW) / srcW) / 2), vy, (vw * panelW) / srcW, ph);
-	NativeRenderer_DrawVRAMRegion(panelX, panelY, panelW, panelH);
+	NativeRenderer_DrawVRAMRegion(panelX, panelY, panelW, srcPanelH);
 
 	glBindVertexArray(0);
 

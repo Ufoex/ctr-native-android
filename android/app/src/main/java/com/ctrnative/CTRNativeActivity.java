@@ -13,6 +13,8 @@ import android.hardware.display.DisplayManager;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 
 import org.libsdl.app.SDLActivity;
@@ -38,7 +40,66 @@ public class CTRNativeActivity extends SDLActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestHighestRefreshRate(getWindow(), getWindowManager().getDefaultDisplay());
+        enterImmersiveMode();
+
+        // Open the panel now rather than waiting for the first EndScene: the
+        // boot splash presents VRAM directly and never reaches that path, so the
+        // bottom screen would otherwise stay dark until the Naughty Dog logo.
+        // The Presentation's own background is black, so the panel lights up
+        // immediately and the idle art follows once assets are loaded.
+        startCompanionDisplay();
+
         checkStoragePermission();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            // The bars come back on their own after a swipe or a focus change,
+            // and each time they do the window shrinks and the game letterboxes.
+            enterImmersiveMode();
+        }
+    }
+
+    /**
+     * Theme.NoTitleBar.Fullscreen no longer hides the status and gesture-nav
+     * bars on modern Android: they stay, the window comes back short of the
+     * panel height (1920x970 rather than 1920x1080), and the game is letterboxed
+     * inside it. Hide them explicitly so the window is the whole display.
+     */
+    private void enterImmersiveMode() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                getWindow().setDecorFitsSystemWindows(false);
+
+                WindowInsetsController controller = getWindow().getInsetsController();
+                if (controller != null) {
+                    controller.hide(WindowInsets.Type.systemBars());
+                    controller.setSystemBarsBehavior(
+                            WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                }
+            } else {
+                getWindow().getDecorView().setSystemUiVisibility(
+                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                                | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            }
+
+            // Draw into the display cutout area too, rather than letterboxing
+            // away from it.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                WindowManager.LayoutParams lp = getWindow().getAttributes();
+                lp.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                getWindow().setAttributes(lp);
+            }
+        } catch (Exception e) {
+            Log.e(CTRDS_TAG, "immersive mode failed: " + e.getMessage());
+        }
     }
 
     private void checkStoragePermission() {

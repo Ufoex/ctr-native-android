@@ -488,10 +488,15 @@ void UI_RenderFrame_Racing()
 #if defined(CTR_NATIVE)
 				if (Ctrds_Enabled() && (numPlyr == 1))
 				{
-					char rankDigit[4];
+					// Retail only draws the big rank numeral with 3+ players, so
+					// 1P had nothing here. DecalFont has no scaled draw, so use
+					// the big rank icon (0x19 + rank) through DecalHUD, which
+					// does take a scale -- the panel has room for a large one.
+					u32 *bigColor = data.ptrColor[sVar17];
 
-					sprintf(rankDigit, "%d", (int)playerStruct->driverRank + 1);
-					DecalFont_DrawLine(rankDigit, hudStructPtr[UI_HUD_SLOT_BIG1].x, hudStructPtr[UI_HUD_SLOT_BIG1].y, FONT_BIG, (s16)partTimeVariable5);
+					DecalHUD_DrawPolyGT4(gGT->ptrIcons[(int)playerStruct->driverRank + 0x19], hudStructPtr[UI_HUD_SLOT_BIG1].x,
+					        hudStructPtr[UI_HUD_SLOT_BIG1].y, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, bigColor[0], bigColor[1],
+					        bigColor[2], bigColor[3], 0, (s16)Ctrds_BigRankScale());
 				}
 #endif
 

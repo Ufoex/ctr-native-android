@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include "ctrds.h"
+
 enum UIWeaponConstants
 {
 	UI_WEAPON_ITEM_TURBO = HELD_ITEM_TURBO,
@@ -243,7 +245,16 @@ void UI_Weapon_DrawBG(s16 posX, s16 posY, s16 scale, struct Driver *d)
 		    &gGT->backBuffer->primMem,
 
 		    // pointer to OTMem
+#if defined(CTR_NATIVE)
+		    // NOTE(ctrds): this juiced-up shine is the one HUD element retail
+		    // draws through the per-driver world push buffer instead of the UI
+		    // one. The panel redirect moves the UI ordering table, so left as
+		    // it was the shine stayed behind on the main screen while the
+		    // weapon and fruit it belongs to moved to the panel.
+		    Ctrds_Enabled() ? gGT->pushBuffer_UI.ptrOT : gGT->pushBuffer[d->driverID].ptrOT,
+#else
 		    gGT->pushBuffer[d->driverID].ptrOT,
+#endif
 
 		    UI_WEAPON_BG_SHINE_TRANSPARENCY_BASE + i, scaleInt, shineScale, UI_WEAPON_BG_SHINE_COLOR);
 	}
