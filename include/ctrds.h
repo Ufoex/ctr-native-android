@@ -183,6 +183,16 @@ struct CtrdsLayout
 	// has to follow the panel at runtime rather than be decided at startup.
 	int vblankAuto;
 
+	// Post-processing on the presented image. FXAA runs at source resolution,
+	// where it costs almost nothing; the CRT effect rides along in the upscale
+	// pass. Both are set from ctrds.cfg beside the assets, since Android gives
+	// an app no way to read an environment variable.
+	int fxaa;
+
+	// Swaps the face buttons: cross<->circle and square<->triangle, i.e. A/B and
+	// X/Y on an Xbox-labelled pad like the Thor's.
+	int swapFaceButtons;
+
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -234,6 +244,26 @@ void Ctrds_UpdateAutoVBlank(float panelHz);
 
 // Derives the map scale and anchor from the grid above. Call once at startup.
 void Ctrds_InitLayout(void);
+
+// Reads ctrds.cfg from the asset directory, if present. Must run after the
+// asset directory is known.
+void Ctrds_LoadConfig(void);
+
+static inline int Ctrds_Fxaa(void)
+{
+	return Ctrds_Enabled() && (g_ctrds.fxaa != 0);
+}
+
+static inline int Ctrds_SwapFaceButtons(void)
+{
+	return g_ctrds.swapFaceButtons != 0;
+}
+
+// True on frames where the frame-counted half of the game is allowed to step.
+// Level objects -- barrels, carts, platforms, mines -- advance by a fixed amount
+// per frame instead of by elapsed time, so above 30fps they run fast. Drivers,
+// camera and HUD are delta-timed and keep running every frame.
+int Ctrds_BucketRunsThisFrame(int bucket);
 
 // Scales the live map to its region and centres it there, from the actual
 // dimensions of the track's own map textures. Call before the map is drawn.

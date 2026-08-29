@@ -307,6 +307,13 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 			    // if threads exist
 			    (gGT->threadBuckets[iVar4].thread != 0))
 			{
+#if defined(CTR_NATIVE)
+				if (!Ctrds_BucketRunsThisFrame(iVar4))
+				{
+					continue;
+				}
+#endif
+
 				if (iVar4 == 0)
 				{
 					for (psVar12 = gGT->threadBuckets[iVar4].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)

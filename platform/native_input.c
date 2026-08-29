@@ -288,10 +288,21 @@ internal void NativeInput_DefaultMappings(void)
 	s_keyboardMapping.kc_select = SDL_SCANCODE_SPACE;
 	s_keyboardMapping.kc_start = SDL_SCANCODE_RETURN;
 
-	s_controllerMapping.gc_square = SDL_GAMEPAD_BUTTON_WEST;
-	s_controllerMapping.gc_circle = SDL_GAMEPAD_BUTTON_EAST;
-	s_controllerMapping.gc_triangle = SDL_GAMEPAD_BUTTON_NORTH;
-	s_controllerMapping.gc_cross = SDL_GAMEPAD_BUTTON_SOUTH;
+	if (Ctrds_SwapFaceButtons())
+	{
+		// A/B and X/Y swapped, which is what the Thor's labelling expects.
+		s_controllerMapping.gc_square = SDL_GAMEPAD_BUTTON_NORTH;
+		s_controllerMapping.gc_circle = SDL_GAMEPAD_BUTTON_SOUTH;
+		s_controllerMapping.gc_triangle = SDL_GAMEPAD_BUTTON_WEST;
+		s_controllerMapping.gc_cross = SDL_GAMEPAD_BUTTON_EAST;
+	}
+	else
+	{
+		s_controllerMapping.gc_square = SDL_GAMEPAD_BUTTON_WEST;
+		s_controllerMapping.gc_circle = SDL_GAMEPAD_BUTTON_EAST;
+		s_controllerMapping.gc_triangle = SDL_GAMEPAD_BUTTON_NORTH;
+		s_controllerMapping.gc_cross = SDL_GAMEPAD_BUTTON_SOUTH;
+	}
 
 	s_controllerMapping.gc_l1 = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
 	s_controllerMapping.gc_l2 = SDL_GAMEPAD_AXIS_LEFT_TRIGGER | NATIVE_INPUT_MAP_FLAG_AXIS;

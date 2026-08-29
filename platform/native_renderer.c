@@ -122,6 +122,8 @@ global_variable struct NativeRenderTarget s_offscreenRenderTarget;
 // needs four fetches and four unpacks per output pixel, which measured at half
 // the frame rate on the Thor (59.8fps against 118.5).
 global_variable struct NativeRenderTarget s_upscaleRenderTarget;
+// FXAA reads the unpacked image and writes here, both at source resolution.
+global_variable struct NativeRenderTarget s_postRenderTarget;
 
 // NOTE(ctrds): the dual-screen companion panel renders into its own GL target
 // rather than a VRAM band. PSX draw-env packets encode VRAM Y in 9 bits, so no
@@ -166,6 +168,8 @@ global_variable GLint s_packFlipYLoc = -1;
 global_variable GLuint s_presentVramShader = 0;
 global_variable GLint s_presentVramSourceRectLoc = -1;
 global_variable GLint s_presentVramOutputScaleLoc = -1;
+global_variable GLuint s_fxaaShader = 0;
+global_variable GLint s_fxaaInvSrcSizeLoc = -1;
 global_variable GLuint s_sharpUpscaleShader = 0;
 global_variable GLint s_sharpUpscaleSrcSizeLoc = -1;
 global_variable GLint s_sharpUpscaleOutputScaleLoc = -1;
@@ -352,6 +356,7 @@ void NativeRenderer_Shutdown(void)
 	NativeRenderer_DestroyRenderTarget(&s_companionRenderTarget);
 	NativeRenderer_DestroyRenderTarget(&s_offscreenRenderTarget);
 	NativeRenderer_DestroyRenderTarget(&s_upscaleRenderTarget);
+	NativeRenderer_DestroyRenderTarget(&s_postRenderTarget);
 	glDeleteFramebuffers(1, &s_glVramFramebuffer);
 
 	NativeRenderer_DestroyTexture(s_vram.texture);
@@ -361,6 +366,7 @@ void NativeRenderer_Shutdown(void)
 	glDeleteProgram(s_packShader);
 	glDeleteProgram(s_presentVramShader);
 	glDeleteProgram(s_sharpUpscaleShader);
+	glDeleteProgram(s_fxaaShader);
 	glDeleteVertexArrays(1, &s_vramQuadVAO);
 	glDeleteBuffers(1, &s_vramQuadVBO);
 
@@ -668,6 +674,7 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 	const int viewH = s_lastViewportH;
 
 	GLint previousFramebuffer = 0;
+	GLuint upscaleSource;
 	float scaleX;
 	float scaleY;
 
@@ -687,6 +694,31 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 	glViewport(0, 0, width, height);
 	NativeRenderer_DrawVRAMRegionRaw(x, y, width, height);
 
+	upscaleSource = s_upscaleRenderTarget.texture;
+
+	// Pass 1b: optional FXAA, still at source resolution.
+	if (Ctrds_Fxaa())
+	{
+		NativeRenderer_EnsureRenderTarget(&s_postRenderTarget, width, height);
+		glBindFramebuffer(GL_FRAMEBUFFER, s_postRenderTarget.framebuffer);
+		glViewport(0, 0, width, height);
+
+		glUseProgram(s_fxaaShader);
+		glUniform2f(s_fxaaInvSrcSizeLoc, 1.0f / (float)width, 1.0f / (float)height);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, s_upscaleRenderTarget.texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		glBindVertexArray(s_vramQuadVAO);
+		NativeRenderer_DrawTriangles(0, 2);
+
+		upscaleSource = s_postRenderTarget.texture;
+	}
+
 	// Pass 2: upscale that with one filtered fetch.
 	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previousFramebuffer);
 	glViewport(viewX, viewY, viewW, viewH);
@@ -699,7 +731,7 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 	glUniform2f(s_sharpUpscaleOutputScaleLoc, scaleX, scaleY);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, s_upscaleRenderTarget.texture);
+	glBindTexture(GL_TEXTURE_2D, upscaleSource);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1244,6 +1276,44 @@ global_variable const char *ctr_pack_shader = "#ifdef VERTEX\n"
                                               "}\n"
                                               "#endif\n";
 
+// FXAA, run at source resolution rather than at output. The jaggies come from
+// the 512x216 raster, so treating them there costs ~110k pixels a frame instead
+// of two million, and the upscale afterwards carries the smoothing with it.
+global_variable const char *ctr_fxaa_shader = "#ifdef VERTEX\n"
+                                              "attribute vec2 a_position;\n"
+                                              "varying vec2 v_uv;\n"
+                                              "void main() {\n"
+                                              "\tv_uv = a_position * 0.5 + 0.5;\n"
+                                              "\tgl_Position = vec4(a_position, 0.0, 1.0);\n"
+                                              "}\n"
+                                              "#endif\n"
+                                              "#ifdef FRAGMENT\n"
+                                              "varying vec2 v_uv;\n"
+                                              "uniform sampler2D s_src;\n"
+                                              "uniform vec2 invSrcSize;\n"
+                                              "float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }\n"
+                                              "void main() {\n"
+                                              "\tvec3 m  = texture2D(s_src, v_uv).rgb;\n"
+                                              "\tvec3 nw = texture2D(s_src, v_uv + vec2(-1.0, -1.0) * invSrcSize).rgb;\n"
+                                              "\tvec3 ne = texture2D(s_src, v_uv + vec2( 1.0, -1.0) * invSrcSize).rgb;\n"
+                                              "\tvec3 sw = texture2D(s_src, v_uv + vec2(-1.0,  1.0) * invSrcSize).rgb;\n"
+                                              "\tvec3 se = texture2D(s_src, v_uv + vec2( 1.0,  1.0) * invSrcSize).rgb;\n"
+                                              "\tfloat lm = luma(m), lnw = luma(nw), lne = luma(ne), lsw = luma(sw), lse = luma(se);\n"
+                                              "\tfloat lmin = min(lm, min(min(lnw, lne), min(lsw, lse)));\n"
+                                              "\tfloat lmax = max(lm, max(max(lnw, lne), max(lsw, lse)));\n"
+                                              "\tvec2 dir = vec2(-((lnw + lne) - (lsw + lse)), ((lnw + lsw) - (lne + lse)));\n"
+                                              "\tfloat reduce = max((lnw + lne + lsw + lse) * 0.03125, 0.0078125);\n"
+                                              "\tfloat rcp = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);\n"
+                                              "\tdir = clamp(dir * rcp, -8.0, 8.0) * invSrcSize;\n"
+                                              "\tvec3 a = 0.5 * (texture2D(s_src, v_uv + dir * -0.1666667).rgb\n"
+                                              "\t              + texture2D(s_src, v_uv + dir *  0.1666667).rgb);\n"
+                                              "\tvec3 b = a * 0.5 + 0.25 * (texture2D(s_src, v_uv + dir * -0.5).rgb\n"
+                                              "\t                        + texture2D(s_src, v_uv + dir *  0.5).rgb);\n"
+                                              "\tfloat lb = luma(b);\n"
+                                              "\tfragColor = vec4((lb < lmin || lb > lmax) ? a : b, 1.0);\n"
+                                              "}\n"
+                                              "#endif\n";
+
 // Sharp bilinear. Snap the sample point so the blend happens across exactly one
 // output pixel at a texel boundary and is flat inside the texel: upscaling then
 // loses the staircase without going soft the way plain bilinear does. One
@@ -1269,6 +1339,7 @@ global_variable const char *ctr_sharp_upscale_shader = "#ifdef VERTEX\n"
                                                        "\tvec2 f = texel - base;\n"
                                                        "\tvec2 w = clamp((f - 0.5) * outputScale + 0.5, 0.0, 1.0);\n"
                                                        "\tfragColor = texture2D(s_src, (base + w) / srcSize);\n"
+                                                       
                                                        "}\n"
                                                        "#endif\n";
 
@@ -1329,6 +1400,9 @@ internal void NativeRenderer_InitVRAMPipelines(void)
 	s_sharpUpscaleShader = NativeRenderer_Shader_Compile(ctr_sharp_upscale_shader, false);
 	s_sharpUpscaleSrcSizeLoc = glGetUniformLocation(s_sharpUpscaleShader, "srcSize");
 	s_sharpUpscaleOutputScaleLoc = glGetUniformLocation(s_sharpUpscaleShader, "outputScale");
+
+	s_fxaaShader = NativeRenderer_Shader_Compile(ctr_fxaa_shader, false);
+	s_fxaaInvSrcSizeLoc = glGetUniformLocation(s_fxaaShader, "invSrcSize");
 
 	glGenVertexArrays(1, &s_vramQuadVAO);
 	glGenBuffers(1, &s_vramQuadVBO);
@@ -1404,6 +1478,7 @@ int NativeRenderer_InitialisePSX(void)
 	NativeRenderer_InitRenderTarget(&s_companionRenderTarget);
 	NativeRenderer_InitRenderTarget(&s_offscreenRenderTarget);
 	NativeRenderer_InitRenderTarget(&s_upscaleRenderTarget);
+	NativeRenderer_InitRenderTarget(&s_postRenderTarget);
 
 	// gen VRAM texture (single, persistent - mirrors PS1's single 1MB VRAM)
 	{

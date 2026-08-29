@@ -67,6 +67,8 @@ struct CtrdsLayout g_ctrds = {
     .vsyncsPerFlip = 1,
     .vblankMultiplier = 1,
     .vblankAuto = 1,
+    .fxaa = 1,
+    .swapFaceButtons = 1,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -129,6 +131,34 @@ int Ctrds_ScaleFrames(int frames30)
 	}
 
 	return (frames30 * CTRDS_RETAIL_FRAME_MS) / ms;
+}
+
+int Ctrds_BucketRunsThisFrame(int bucket)
+{
+	if (!Ctrds_Enabled())
+	{
+		return 1;
+	}
+
+	switch (bucket)
+	{
+	// Delta-timed off elapsedTimeMS, so these are already correct at any frame
+	// rate and need every frame to stay smooth.
+	case PLAYER:
+	case ROBOT:
+	case GHOST:
+	case TRACKING:
+	case CAMERA:
+	case HUD:
+	case PAUSE:
+		return 1;
+
+	// Everything else steps by a fixed amount per frame -- barrels, carts,
+	// platforms, mines, warp pads, the start banner -- and would run at two or
+	// four times speed if it ran on every frame at 60 or 120fps.
+	default:
+		return Ctrds_Is30HzTick();
+	}
 }
 
 int Ctrds_Is30HzTick(void)
@@ -240,6 +270,86 @@ void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBotto
 	// region. Measured at ~6 units; there is no way to see it from texLayout,
 	// which describes the rect and not what is opaque inside it.
 	g_ctrds.mapY = (s16)(CTRDS_BODY_Y + ((CTRDS_BODY_H + h) / 2) + CTRDS_MAP_ART_PAD_Y);
+}
+
+// Tiny key=value reader. Only the handful of switches worth changing without a
+// rebuild; anything absent keeps its default.
+void Ctrds_LoadConfig(void)
+{
+	char path[1024];
+	char line[128];
+	FILE *f;
+
+	const char *dir = NativeAssets_GetAssetDir();
+
+	if ((dir == NULL) || (dir[0] == '\0'))
+	{
+		return;
+	}
+
+	snprintf(path, sizeof(path), "%s/ctrds.cfg", dir);
+
+	f = fopen(path, "r");
+	if (f == NULL)
+	{
+		// Write the defaults out so there is something to edit on the device.
+		// The game creates it rather than adb pushing one in: a shell-owned file
+		// in the app's own files directory makes the next install fail to stage
+		// its assets.
+		f = fopen(path, "w");
+		if (f != NULL)
+		{
+			fprintf(f, "# CTR-DS settings. Edit and restart the game.\n");
+			fprintf(f, "# fxaa: smooth jagged edges (0/1)\n");
+			fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
+			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
+			fprintf(f, "swap_face_buttons=%d\n", g_ctrds.swapFaceButtons);
+			fprintf(f, "# widescreen: 16:9 field of view (0/1)\n");
+			fprintf(f, "widescreen=%d\n", g_ctrds.widescreen);
+			fprintf(f, "# vblank_mult: 1 = up to 60fps, 2 = up to 120fps.\n");
+			fprintf(f, "# Leave commented out to follow the panel automatically.\n");
+			fprintf(f, "#vblank_mult=2\n");
+			fclose(f);
+		}
+
+		return;
+	}
+
+	while (fgets(line, sizeof(line), f) != NULL)
+	{
+		char *eq = strchr(line, '=');
+		int value;
+
+		if ((line[0] == '#') || (eq == NULL))
+		{
+			continue;
+		}
+
+		*eq = '\0';
+		value = atoi(eq + 1);
+
+		if (strncmp(line, "fxaa", 4) == 0)
+		{
+			g_ctrds.fxaa = value;
+		}
+		else if (strncmp(line, "swap_face_buttons", 17) == 0)
+		{
+			g_ctrds.swapFaceButtons = value;
+		}
+		else if (strncmp(line, "widescreen", 10) == 0)
+		{
+			g_ctrds.widescreen = value;
+		}
+		else if (strncmp(line, "vblank_mult", 11) == 0)
+		{
+			g_ctrds.vblankMultiplier = value;
+			g_ctrds.vblankAuto = 0;
+		}
+	}
+
+	fclose(f);
+
+	Platform_Log("[CTR-DS] ctrds.cfg: fxaa=%d swapFaceButtons=%d widescreen=%d\n", g_ctrds.fxaa, g_ctrds.swapFaceButtons, g_ctrds.widescreen);
 }
 
 void Ctrds_InitLayout(void)

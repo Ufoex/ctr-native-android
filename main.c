@@ -172,6 +172,8 @@ int main(int argc, char *argv[])
 		return NativeConsole_Return(1);
 	}
 
+	Ctrds_LoadConfig();
+
 	Platform_Log("[CTR Native] Version: %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
 	Platform_Log("[CTR Native] Built with: " CC "\n");
 	Platform_Log("[CTR Native] Base: %s\n", NativeAssets_GetBaseDir());
