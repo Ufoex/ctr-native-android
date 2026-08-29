@@ -427,7 +427,11 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	// NOTE(ctrds): widescreen. The Y scaling above is what makes the 512x216
 	// buffer read as 4:3. Narrowing X by 9/16 x 4/3 widens the frustum to 16:9,
 	// showing more of the world rather than stretching the same image.
-	if (Ctrds_Widescreen())
+	// The HUD's item icon is a 3D model projected through this same matrix, but
+	// via the UI push buffer. Narrowing its X squashes that model into garbage
+	// where a TNT crate or mask should be, so widescreen applies to the world
+	// view only.
+	if (Ctrds_Widescreen() && pb != &sdata->gGT->pushBuffer_UI)
 	{
 		pb->matrix_ViewProj.t[0] = pb->matrix_ViewProj.t[0] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
 		pb->matrix_ViewProj.m[0][0] = pb->matrix_ViewProj.m[0][0] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;

@@ -2350,14 +2350,20 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 
 	srcW = (gameW > panelW) ? gameW : panelW;
 
-	// NOTE(ctrds): in widescreen the game view is a 16:9 window on the world,
-	// so lay it out at 16:9 instead of the raw 512x216 buffer ratio.
+	// NOTE(ctrds): in widescreen the game view is a 16:9 window on the world, so
+	// lay it out at 16:9 instead of the raw buffer ratio. Only the on-screen
+	// shape changes: the source rectangle must stay the real framebuffer, since
+	// the rows below it in VRAM hold textures and blitting them shows up as a
+	// band of garbage beneath the game view.
+	int srcGameH = gameH;
+	int layoutGameH = gameH;
+
 	if (Ctrds_Widescreen())
 	{
-		gameH = (gameW * 9) / 16;
+		layoutGameH = (gameW * 9) / 16;
 	}
 
-	totalH = gameH + panelH;
+	totalH = layoutGameH + panelH;
 
 	NativeRenderer_UpdateVRAM();
 
@@ -2380,12 +2386,12 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 	vx = (g_windowWidth - vw) / 2;
 	vy = (g_windowHeight - vh) / 2;
 
-	gh = (vh * gameH) / totalH;
+	gh = (vh * layoutGameH) / totalH;
 	ph = vh - gh;
 
 	// GL viewport origin is bottom-left, so the game view takes the upper strip.
 	NativeRenderer_SetViewPort(vx + ((vw - (vw * gameW) / srcW) / 2), vy + ph, (vw * gameW) / srcW, gh);
-	NativeRenderer_DrawVRAMRegion(gameX, gameY, gameW, gameH);
+	NativeRenderer_DrawVRAMRegion(gameX, gameY, gameW, srcGameH);
 
 	NativeRenderer_SetViewPort(vx + ((vw - (vw * panelW) / srcW) / 2), vy, (vw * panelW) / srcW, ph);
 	NativeRenderer_DrawVRAMRegion(panelX, panelY, panelW, panelH);
