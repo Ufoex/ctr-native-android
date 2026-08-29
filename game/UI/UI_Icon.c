@@ -286,12 +286,28 @@ void UI_DrawDriverIcon(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *pr
 	int topX = posX;
 	int bottomX = topX + scaledWidth;
 #if BUILD != EurRetail
-	int topY = (posY < UI_DRIVER_ICON_NTSC_CLIP_LIMIT) ? posY : UI_DRIVER_ICON_NTSC_CLIP_MAX;
-	int bottomY = ((posY + scaledHeight) < UI_DRIVER_ICON_NTSC_CLIP_LIMIT) ? (posY + scaledHeight) : UI_DRIVER_ICON_NTSC_CLIP_MAX;
+	int clipLimit = UI_DRIVER_ICON_NTSC_CLIP_LIMIT;
+	int clipMax = UI_DRIVER_ICON_NTSC_CLIP_MAX;
 #else
-	int topY = (posY < UI_DRIVER_ICON_EUR_CLIP_LIMIT) ? posY : UI_DRIVER_ICON_EUR_CLIP_MAX;
-	int bottomY = ((posY + scaledHeight) < UI_DRIVER_ICON_EUR_CLIP_LIMIT) ? (posY + scaledHeight) : UI_DRIVER_ICON_EUR_CLIP_MAX;
+	int clipLimit = UI_DRIVER_ICON_EUR_CLIP_LIMIT;
+	int clipMax = UI_DRIVER_ICON_EUR_CLIP_MAX;
 #endif
+
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): retail clamps driver icons to the bottom of the TV-safe area,
+	// which silently collapses any icon below row 166 to zero height. On the
+	// companion panel the ranked column is far taller than that, so the clamp
+	// follows the panel instead -- without this only the first three of eight
+	// icons ever appear.
+	if (Ctrds_Enabled())
+	{
+		clipLimit = CTRDS_PANEL_H;
+		clipMax = CTRDS_PANEL_H - 1;
+	}
+#endif
+
+	int topY = (posY < clipLimit) ? posY : clipMax;
+	int bottomY = ((posY + scaledHeight) < clipLimit) ? (posY + scaledHeight) : clipMax;
 
 	p->tag.size = (sizeof(*p) - sizeof(p->tag)) / sizeof(u32);
 	p->colorCode.code.code = UI_DRIVER_ICON_FT4_CODE;

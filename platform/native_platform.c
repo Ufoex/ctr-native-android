@@ -373,13 +373,14 @@ void Platform_EndScene(void)
 	// effects without forcing a CPU readback.
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 
-	// NOTE(ctrds): with the companion enabled the frame is two rectangles of the
-	// same buffer -- the game view the display env points at, and the companion
-	// band drawn directly below it.
-	if (Ctrds_TallFramebuffer() && (g_ctrds.fbHeight > activeDispEnv.disp.h))
+	// NOTE(ctrds): in second-screen mode the frame is two surfaces -- the game
+	// view, and the companion panel the UI pass rendered and parked in VRAM.
+	// Stacking them in one window here previews what the Thor shows on its two
+	// physical displays.
+	if (Ctrds_SecondScreen())
 	{
-		NativeRenderer_PresentStacked(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h,
-		        g_ctrds.fbHeight - activeDispEnv.disp.h);
+		NativeRenderer_PresentTwo(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h, CTRDS_VRAM_PANEL_X,
+		        CTRDS_VRAM_PANEL_Y, CTRDS_PANEL_W, CTRDS_PANEL_H);
 	}
 	else
 	{

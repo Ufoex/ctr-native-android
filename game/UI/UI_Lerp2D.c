@@ -16,20 +16,38 @@ void UI_Lerp2D_Angular(SVec2 *pos, s16 drawnPosition, s16 absolutePosition, s16 
 {
 	int drawnPositionInt = (int)drawnPosition;
 	int absolutePositionInt = (int)absolutePosition;
+
+	// NOTE(ctrds): this swing carries its own copy of the ranked-column geometry,
+	// identical to the constants in UI_Rank.c. Left alone it snaps every icon
+	// mid-transition back to the retail column, which reads as the whole list
+	// bunching up. Keep it on the same layout as the static positions.
+	s16 iconX = UI_LERP2D_RANK_ICON_RADIUS;
+	s16 baseY = UI_LERP2D_RANK_ICON_BASE_Y;
+	s16 slotH = UI_LERP2D_RANK_ICON_SLOT_H;
+
+#if defined(CTR_NATIVE)
+	if (Ctrds_Enabled())
+	{
+		iconX = g_ctrds.rankIconX;
+		baseY = g_ctrds.rankIconBaseY;
+		slotH = g_ctrds.rankSlotH;
+	}
+#endif
+
 	int angle = MATH_Sin(((int)frameCounter << UI_LERP2D_ANGULAR_FRAME_SHIFT) / UI_LERP2D_TRANSITION_FRAMES);
-	s16 horizontalOffset = (s16)(angle * UI_LERP2D_RANK_ICON_RADIUS >> UI_LERP2D_FIXED_SHIFT);
+	s16 horizontalOffset = (s16)(angle * iconX >> UI_LERP2D_FIXED_SHIFT);
 
 	if (absolutePositionInt < drawnPositionInt)
 	{
-		pos->x = horizontalOffset + UI_LERP2D_RANK_ICON_RADIUS;
+		pos->x = horizontalOffset + iconX;
 	}
 	else
 	{
-		pos->x = UI_LERP2D_RANK_ICON_RADIUS - horizontalOffset;
+		pos->x = iconX - horizontalOffset;
 	}
 
-	pos->y = UI_LERP2D_RANK_ICON_BASE_Y + (drawnPosition * UI_LERP2D_RANK_ICON_SLOT_H) +
-	         ((((absolutePositionInt - drawnPositionInt) * UI_LERP2D_RANK_ICON_SLOT_H) * (int)frameCounter) * UI_LERP2D_TRANSITION_SCALE) /
+	pos->y = baseY + (drawnPosition * slotH) +
+	         ((((absolutePositionInt - drawnPositionInt) * slotH) * (int)frameCounter) * UI_LERP2D_TRANSITION_SCALE) /
 	             (UI_LERP2D_TRANSITION_FRAMES * UI_LERP2D_TRANSITION_SCALE);
 }
 

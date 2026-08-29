@@ -61,6 +61,16 @@ struct Instance *UI_INSTANCE_BirthWithThread(int modelID, int tickFunc, int hudS
 	}
 
 	hudStruct = data.hudStructPtr[gGT->numPlyrCurrGame - 1];
+
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): the big position numeral is a 3D instance positioned once, at
+	// birth. Without this it keeps the retail coordinates while the rest of the
+	// HUD moves to the companion panel.
+	if (Ctrds_Enabled() && (gGT->numPlyrCurrGame == 1))
+	{
+		hudStruct = &g_ctrdsHud1P[0];
+	}
+#endif
 	driverThread = gGT->threadBuckets[PLAYER].thread;
 
 	while (driverThread != 0)

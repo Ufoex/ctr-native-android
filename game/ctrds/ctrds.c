@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_renderer.h>
 
 // CTR-DS companion HUD: layout data and the few helpers the UI code calls.
 //
@@ -33,28 +34,28 @@ struct CtrdsLayout g_ctrds = {
     .screenH = CTRDS_PANEL_HEIGHT,
 
     // --- top strip: time, item, fruit, lap ---
-    .clockX = 16,
-    .clockY = CTRDS_PANEL_TOP + 8,
+    .clockX = 20,
+    .clockY = CTRDS_PANEL_TOP + 12,
 
     // --- speedometer backdrop; needle position lives in the slot table ---
     // Retail draws the backdrop at (480, 190) and the needle at (414, 145), so
     // the backdrop keeps its +66/+45 offset from the needle.
-    .speedBgX = 110 + 66,
-    .speedBgY = CTRDS_PANEL_TOP + 150 + 45,
+    .speedBgX = 372 + 66,
+    .speedBgY = CTRDS_PANEL_TOP + 372 + 45,
 
     // --- left column: the full eight-driver order, not retail's top four ---
-    .rankIconX = 16,
-    .rankIconBaseY = CTRDS_PANEL_TOP + 30,
-    .rankSlotH = 17,
+    .rankIconX = 26,
+    .rankIconBaseY = CTRDS_PANEL_TOP + 78,
+    .rankSlotH = 29,
     .rankVisible = 8,
-    .rankTextX = 46,
-    .rankTextStartY = CTRDS_PANEL_TOP + 28,
+    .rankTextX = 62,
+    .rankTextStartY = CTRDS_PANEL_TOP + 76,
 
     // --- live map: big, anchored to the bottom-right corner of the panel ---
-    .mapX = 500,
-    .mapY = CTRDS_PANEL_TOP + 212,
-    .mapScale = CTRDS_FP_ONE * 2,
-    .mapIconScale = CTRDS_FP_ONE + (CTRDS_FP_ONE / 4),
+    .mapX = 366,
+    .mapY = CTRDS_PANEL_TOP + 336,
+    .mapScale = (CTRDS_FP_ONE * 5) / 2,
+    .mapIconScale = CTRDS_FP_ONE + (CTRDS_FP_ONE / 2),
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -62,27 +63,30 @@ struct CtrdsLayout g_ctrds = {
 
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
 // (battle, relic, adventure rewards) keep their retail values.
-struct UiElement2D g_ctrdsHud1P[UI_HUD_SLOT_COUNT] = {
-    /* 0x00 WEAPON           */ {180, CTRDS_PANEL_TOP + 10, 0, 4096},
-    /* 0x01 LAP_COUNT        */ {460, CTRDS_PANEL_TOP + 10, 0, 0},
-    /* 0x02 BIG1             */ {22, CTRDS_PANEL_TOP + 208, 256, 5120},
-    /* 0x03 FRUIT_MODEL      */ {300, CTRDS_PANEL_TOP + 18, 512, 4096},
-    /* 0x04 WUMPA_COUNT      */ {320, CTRDS_PANEL_TOP + 10, 0, 0},
-    /* 0x05 RANK             */ {48, CTRDS_PANEL_TOP + 190, 0, 0},
-    /* 0x06 JUMP_METER       */ {62, CTRDS_PANEL_TOP + 200, 0, 0},
-    /* 0x07 (unused)         */ {475, 164, 0, 0},
-    /* 0x08 SLIDE_METER      */ {61, CTRDS_PANEL_TOP + 200, 0, 0},
-    /* 0x09 SPEEDOMETER      */ {110, CTRDS_PANEL_TOP + 150, 0, 4096},
-    /* 0x0a (unused)         */ {20, 57, 0, 4096},
-    /* 0x0b BATTLE_WEAPON_BG */ {209, -5, 0, 4096},
-    /* 0x0c RACING_WEAPON_BG */ {234, CTRDS_PANEL_TOP + 14, 0, 2457},
-    /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},
-    /* 0x0e RELIC            */ {50, 24, 256, 1536},
-    /* 0x0f KEY              */ {256, 24, 512, 3072},
-    /* 0x10 TROPHY           */ {406, 24, 512, 6144},
-    /* 0x11 CRYSTAL          */ {389, 30, 512, 2048},
-    /* 0x12 TOKEN_OR_CTR     */ {145, 30, 512, 2048},
+#define CTRDS_HUD_BLOCK                                                                                          \
+    /* 0x00 WEAPON           */ {200, CTRDS_PANEL_TOP + 14, 0, 4096},                                                    \
+    /* 0x01 LAP_COUNT        */ {466, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
+    /* 0x02 BIG1             */ {426, CTRDS_PANEL_TOP + 206, 256, 5120},                                                  \
+    /* 0x03 FRUIT_MODEL      */ {330, CTRDS_PANEL_TOP + 24, 512, 4096},                                                  \
+    /* 0x04 WUMPA_COUNT      */ {350, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
+    /* 0x05 RANK             */ {466, CTRDS_PANEL_TOP + 188, 0, 0},                                                       \
+    /* 0x06 JUMP_METER       */ {449, CTRDS_PANEL_TOP + 433, 0, 0},                                                       \
+    /* 0x07 (unused)         */ {475, 164, 0, 0},                                                                        \
+    /* 0x08 SLIDE_METER      */ {448, CTRDS_PANEL_TOP + 433, 0, 0},                                                       \
+    /* 0x09 SPEEDOMETER      */ {372, CTRDS_PANEL_TOP + 372, 0, 4096},                                                    \
+    /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                                       \
+    /* 0x0b BATTLE_WEAPON_BG */ {209, -5, 0, 4096},                                                                      \
+    /* 0x0c RACING_WEAPON_BG */ {254, CTRDS_PANEL_TOP + 18, 0, 2457},                                                    \
+    /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                          \
+    /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                                     \
+    /* 0x0f KEY              */ {256, 24, 512, 3072},                                                                    \
+    /* 0x10 TROPHY           */ {406, 24, 512, 6144},                                                                    \
+    /* 0x11 CRYSTAL          */ {389, 30, 512, 2048},                                                                    \
+    /* 0x12 TOKEN_OR_CTR     */ {145, 30, 512, 2048},                                                                    \
     /* 0x13 TIMEBOX          */ {200, 30, 256, 768},
+
+struct UiElement2D g_ctrdsHud1P[UI_HUD_SLOT_COUNT * CTRDS_HUD_BLOCKS] = {
+    CTRDS_HUD_BLOCK CTRDS_HUD_BLOCK CTRDS_HUD_BLOCK CTRDS_HUD_BLOCK CTRDS_HUD_BLOCK CTRDS_HUD_BLOCK CTRDS_HUD_BLOCK CTRDS_HUD_BLOCK
 };
 
 // Live-map scale is only applied while the companion map is being built, so
@@ -175,4 +179,26 @@ void Ctrds_InitFromEnv(void)
 
 	Platform_Log("[CTR-DS] mode=%d tallFB=%d fb=%dx%d pitch=%d panel=%dx%d\n", g_ctrds.mode, g_ctrds.tallFramebuffer, 512, g_ctrds.fbHeight,
 	        g_ctrds.fbPitch, g_ctrds.screenW, g_ctrds.screenH);
+}
+
+void Ctrds_DrawCompanionPass(struct GameTracker *gGT)
+{
+	// The UI region is the head of the shared ordering table: ClearOTagR builds
+	// one reversed chain, pushBuffer_UI.ptrOT sits at entry 1, and the camera
+	// tables start at entry 6. Entries 5..0 are therefore the UI, drawn last in
+	// the normal walk. Drawing that sub-chain on its own gives the panel exactly
+	// the HUD and map, with no 3D.
+	uint32_t *uiChainHead = &gGT->pushBuffer_UI.ptrOT[4];
+	uint32_t *otBase = gGT->pushBuffer_UI.ptrOT - 1;
+
+	// DrawOTag would otherwise open the frame itself and bind the game view.
+	Platform_BeginScene();
+
+	NativeRenderer_BeginCompanionTarget(CTRDS_PANEL_W, CTRDS_PANEL_H);
+	DrawOTag(uiChainHead);
+	NativeRenderer_EndCompanionTarget(CTRDS_VRAM_PANEL_X, CTRDS_VRAM_PANEL_Y);
+
+	// Empty the UI buckets so the main pass renders a HUD-free game view. The
+	// prims stay in frame memory, they are simply no longer linked.
+	ClearOTagR(otBase, 6);
 }

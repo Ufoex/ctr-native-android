@@ -114,6 +114,17 @@ struct NativeRenderTarget
 global_variable struct NativeRenderTarget s_mainRenderTarget;
 global_variable struct NativeRenderTarget s_offscreenRenderTarget;
 
+// NOTE(ctrds): the dual-screen companion panel renders into its own GL target
+// rather than a VRAM band. PSX draw-env packets encode VRAM Y in 9 bits, so no
+// second framebuffer can live above y=511 through the normal draw path; a
+// native render target sidesteps that entirely and can be sized above PSX
+// resolution later. While this target is bound, the placement calls driven by
+// draw-env packets are overridden so every split lands on the panel.
+global_variable struct NativeRenderTarget s_companionRenderTarget;
+global_variable int s_companionActive = 0;
+global_variable int s_companionWidth = 0;
+global_variable int s_companionHeight = 0;
+
 global_variable TextureID s_whiteTexture = (TextureID)-1;
 global_variable TextureID s_lastBoundTexture = (TextureID)-1;
 
@@ -303,6 +314,7 @@ void NativeRenderer_Shutdown(void)
 	glDeleteBuffers(2, s_glVertexBuffer);
 
 	NativeRenderer_DestroyRenderTarget(&s_mainRenderTarget);
+	NativeRenderer_DestroyRenderTarget(&s_companionRenderTarget);
 	NativeRenderer_DestroyRenderTarget(&s_offscreenRenderTarget);
 	glDeleteFramebuffers(1, &s_glVramFramebuffer);
 
@@ -1254,6 +1266,7 @@ int NativeRenderer_InitialisePSX(void)
 	// main target stays at CTR's logical display size; host scaling is deferred
 	// to presentation.
 	NativeRenderer_InitRenderTarget(&s_mainRenderTarget);
+	NativeRenderer_InitRenderTarget(&s_companionRenderTarget);
 	NativeRenderer_InitRenderTarget(&s_offscreenRenderTarget);
 
 	// gen VRAM texture (single, persistent - mirrors PS1's single 1MB VRAM)
@@ -1336,6 +1349,13 @@ internal void NativeRenderer_Ortho2D(float left, float right, float bottom, floa
 
 void NativeRenderer_SetupClipMode(const RECT16 *rect, const DISPENV *displayEnv, int enable)
 {
+	if (s_companionActive)
+	{
+		// The panel is its own surface; the game's scissor rect means nothing here.
+		NativeRenderer_SetScissorState(0);
+		return;
+	}
+
 	if ((displayEnv->disp.w <= 0) || (displayEnv->disp.h <= 0))
 	{
 		NativeRenderer_SetScissorState(0);
@@ -1970,6 +1990,11 @@ internal void NativeRenderer_SetScissorState(int enable)
 
 void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, int enable)
 {
+	if (s_companionActive)
+	{
+		return;
+	}
+
 	const int sameOffscreenRect = NativeRenderer_RectEquals(&s_previousOffscreen, offscreenRect);
 	if (!enable && !s_previousOffscreenState)
 	{
@@ -2005,6 +2030,14 @@ void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, int enable)
 
 void NativeRenderer_SetProjection(const RECT16 *drawRect, const DISPENV *displayEnv, int offscreen)
 {
+	if (s_companionActive)
+	{
+		// The UI chain still carries the game's draw-env packet; ignore it and
+		// keep the panel's own projection.
+		NativeRenderer_Ortho2D(0, s_companionWidth, s_companionHeight, 0, -1.0f, 1.0f);
+		return;
+	}
+
 	if (offscreen)
 	{
 		NativeRenderer_Ortho2D(0, drawRect->w, drawRect->h, 0, -1.0f, 1.0f);
@@ -2230,18 +2263,75 @@ void NativeRenderer_PresentVRAMDisplay(void)
 	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 }
 
-// NOTE(ctrds): presents the game view and the companion band as two stacked
-// rectangles in one window, mirroring how the Thor's two panels sit above each
-// other. Aspect is fitted to srcW x (gameH + panelH) so neither half stretches.
-void NativeRenderer_PresentStacked(int srcX, int srcY, int srcW, int gameH, int panelH)
+// NOTE(ctrds): binds the companion panel target. The caller draws the UI
+// ordering table while this is active; every placement call is overridden so
+// the game's own draw-env packet cannot pull the splits back to the game view.
+void NativeRenderer_BeginCompanionTarget(int width, int height)
 {
-	const int totalH = gameH + panelH;
-	int vw, vh, vx, vy, gh, ph;
-
-	if ((totalH <= 0) || (srcW <= 0) || (gameH <= 0) || (panelH <= 0) || (g_windowWidth <= 0) || (g_windowHeight <= 0))
+	if ((width < 1) || (height < 1))
 	{
 		return;
 	}
+
+	// Anything still rendering offscreen has to land in VRAM before we leave
+	// the main target, or it would be flushed onto the panel instead.
+	if (s_previousOffscreenState)
+	{
+		NativeRenderer_SetOffscreenState(&s_previousOffscreen, 0);
+	}
+
+	NativeRenderer_EnsureRenderTarget(&s_companionRenderTarget, width, height);
+
+	s_companionWidth = width;
+	s_companionHeight = height;
+	s_companionActive = 1;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, s_companionRenderTarget.framebuffer);
+
+	NativeRenderer_SetScissorState(0);
+	NativeRenderer_SetViewPort(0, 0, width, height);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearStencil(0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+	NativeRenderer_Ortho2D(0, width, height, 0, -1.0f, 1.0f);
+}
+
+// Publishes the panel into VRAM at (vramX, vramY) so presenting it is an
+// ordinary VRAM blit. This pack is a native GL call, not a PSX packet, so it
+// is free to target rows above the 9-bit packet limit.
+void NativeRenderer_EndCompanionTarget(int vramX, int vramY)
+{
+	if (!s_companionActive)
+	{
+		return;
+	}
+
+	NativeRenderer_GpuPackTextureToVRAM(s_companionRenderTarget.texture, vramX, vramY, s_companionWidth, s_companionHeight, true);
+
+	s_companionActive = 0;
+
+	NativeRenderer_BindMainRenderTarget();
+	NativeRenderer_SetViewPort(0, 0, s_mainRenderTarget.width, s_mainRenderTarget.height);
+}
+
+// Presents two VRAM rectangles stacked in one window -- the game view above the
+// companion panel -- mirroring how the Thor's two displays sit relative to each
+// other. On device these become one surface each instead.
+void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int panelX, int panelY, int panelW, int panelH)
+{
+	int totalH;
+	int srcW;
+	int vw, vh, vx, vy, gh, ph;
+
+	if ((gameW <= 0) || (gameH <= 0) || (panelW <= 0) || (panelH <= 0) || (g_windowWidth <= 0) || (g_windowHeight <= 0))
+	{
+		return;
+	}
+
+	srcW = (gameW > panelW) ? gameW : panelW;
+	totalH = gameH + panelH;
 
 	NativeRenderer_UpdateVRAM();
 
@@ -2268,11 +2358,11 @@ void NativeRenderer_PresentStacked(int srcX, int srcY, int srcW, int gameH, int 
 	ph = vh - gh;
 
 	// GL viewport origin is bottom-left, so the game view takes the upper strip.
-	NativeRenderer_SetViewPort(vx, vy + ph, vw, gh);
-	NativeRenderer_DrawVRAMRegion(srcX, srcY, srcW, gameH);
+	NativeRenderer_SetViewPort(vx + ((vw - (vw * gameW) / srcW) / 2), vy + ph, (vw * gameW) / srcW, gh);
+	NativeRenderer_DrawVRAMRegion(gameX, gameY, gameW, gameH);
 
-	NativeRenderer_SetViewPort(vx, vy, vw, ph);
-	NativeRenderer_DrawVRAMRegion(srcX, srcY + gameH, srcW, panelH);
+	NativeRenderer_SetViewPort(vx + ((vw - (vw * panelW) / srcW) / 2), vy, (vw * panelW) / srcW, ph);
+	NativeRenderer_DrawVRAMRegion(panelX, panelY, panelW, panelH);
 
 	glBindVertexArray(0);
 

@@ -29,6 +29,22 @@
 // Distance between the two buffers in VRAM. Must be >= CTRDS_FB_HEIGHT.
 #define CTRDS_FB_PITCH 1024
 
+// Companion panel, rendered into its own GL target.
+//
+// It cannot live in a VRAM band: PSX draw-env packets encode VRAM Y in 9 bits
+// (0..511), so a second framebuffer above y=511 silently draws at y & 0x1ff --
+// measured as a black screen at pitch 1024 and a correct one at pitch 296. Two
+// double-buffered 512x446 regions do not fit under y=512 either. So the panel
+// gets a native render target, and is packed into VRAM afterwards purely so
+// presenting it is an ordinary blit; that pack is a native GL call and is not
+// subject to the packet limit.
+#define CTRDS_PANEL_W 512
+#define CTRDS_PANEL_H 446
+
+// Where the finished panel is parked in VRAM. Needs VRAM_HEIGHT > 1470.
+#define CTRDS_VRAM_PANEL_X 0
+#define CTRDS_VRAM_PANEL_Y 1024
+
 enum CtrdsMode
 {
 	CTRDS_DISABLED = 0,
@@ -95,7 +111,13 @@ struct CtrdsLayout
 extern struct CtrdsLayout g_ctrds;
 
 // Companion replacement for data.hud_1P_P1. Same 20 slots, same meaning.
-extern struct UiElement2D g_ctrdsHud1P[UI_HUD_SLOT_COUNT];
+//
+// Eight identical blocks, not one: UI_INSTANCE walks this table with
+// `hudStruct += UI_HUD_SLOT_COUNT` once per driver, so a single block would
+// read off the end for drivers 1..7. Retail gets away with it because its 1P,
+// 2P and 4P tables are contiguous in the data segment.
+#define CTRDS_HUD_BLOCKS 8
+extern struct UiElement2D g_ctrdsHud1P[UI_HUD_SLOT_COUNT * CTRDS_HUD_BLOCKS];
 
 static inline int Ctrds_Enabled(void)
 {
@@ -107,8 +129,18 @@ static inline int Ctrds_TallFramebuffer(void)
 	return (g_ctrds.mode != CTRDS_DISABLED) && (g_ctrds.tallFramebuffer != 0);
 }
 
+static inline int Ctrds_SecondScreen(void)
+{
+	return g_ctrds.mode == CTRDS_SECOND_SCREEN;
+}
+
 // Reads CTRDS (0 off, 1 inline, 2 second screen) and CTRDS_TALL_FB (0/1).
 void Ctrds_InitFromEnv(void);
+
+// Renders the UI ordering table into the companion panel, then empties those OT
+// buckets so the main pass draws a HUD-free game view. Call once per frame,
+// immediately before the frame's DrawOTag.
+void Ctrds_DrawCompanionPass(struct GameTracker *gGT);
 
 // Scale currently applied to live-map geometry. CTRDS_FP_ONE outside the
 // companion map draw, so the track-select and adventure maps stay 1:1.

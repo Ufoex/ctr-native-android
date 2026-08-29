@@ -1326,6 +1326,16 @@ void RenderSubmit(struct GameTracker *gGT)
 
 	void *ot = &gGT->pushBuffer[0].ptrOT[0x3ff];
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): the companion panel takes the UI ordering table before the
+	// main pass runs, which both fills the second screen and leaves the game
+	// view HUD-free.
+	if (Ctrds_SecondScreen())
+	{
+		Ctrds_DrawCompanionPass(gGT);
+	}
+#endif
+
 	DrawOTag(ot);
 
 	gGT->frameTimer_notPaused = gGT->frameTimer_VsyncCallback;
