@@ -89,10 +89,10 @@
 // 1.78x, so equal margins on screen need a smaller number vertically: 10 x 2.42
 // and 6 x 4.30 are both about 24 physical pixels.
 #define CTRDS_MAP_MARGIN_X 10
-#define CTRDS_MAP_MARGIN_Y 6
+#define CTRDS_MAP_MARGIN_Y 3
 
 // Transparent rows along the bottom of the map art (see Ctrds_FitMapToRegion).
-#define CTRDS_MAP_ART_PAD_Y 6
+#define CTRDS_MAP_ART_PAD_Y 9
 
 // Where the finished panel is parked in VRAM. Needs VRAM_HEIGHT > 1470.
 #define CTRDS_VRAM_PANEL_X 0
