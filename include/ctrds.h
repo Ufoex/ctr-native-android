@@ -117,6 +117,18 @@ struct CtrdsLayout
 	// delta-timed off gGT->elapsedTimeMS and stay correct at any rate; timers
 	// counted in frames do not, and are scaled separately.
 	int vsyncsPerFlip;
+
+	// Multiplies the emulated PS1 VBlank rate. The platform paces VBlanks from
+	// NTSC video timing (~59.817Hz) in software, independent of the panel, so
+	// even flipping every VBlank caps at ~60fps. 2 emits them twice as fast for
+	// ~120fps. Everything that matters downstream is delta-timed.
+	int vblankMultiplier;
+
+	// When set, vblankMultiplier tracks the panel's actual refresh rate instead
+	// of a fixed value. The panel rate is not ours to choose: this device's
+	// system service resets its own 60Hz cap back under us, so the multiplier
+	// has to follow the panel at runtime rather than be decided at startup.
+	int vblankAuto;
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -150,6 +162,14 @@ static inline int Ctrds_VsyncsPerFlip(void)
 {
 	return (g_ctrds.vsyncsPerFlip > 0) ? g_ctrds.vsyncsPerFlip : 2;
 }
+
+static inline int Ctrds_VBlankMultiplier(void)
+{
+	return (g_ctrds.vblankMultiplier > 0) ? g_ctrds.vblankMultiplier : 1;
+}
+
+// Feeds the measured panel refresh rate in. Safe to call every frame.
+void Ctrds_UpdateAutoVBlank(float panelHz);
 
 static inline int Ctrds_Widescreen(void)
 {

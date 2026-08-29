@@ -61,6 +61,8 @@ struct CtrdsLayout g_ctrds = {
 
     .widescreen = 1,
     .vsyncsPerFlip = 1,
+    .vblankMultiplier = 1,
+    .vblankAuto = 1,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -144,6 +146,26 @@ int Ctrds_Is30HzTick(void)
 	return ((int)sdata->gGT->timer % step) == 0;
 }
 
+void Ctrds_UpdateAutoVBlank(float panelHz)
+{
+	int want;
+
+	if (!g_ctrds.vblankAuto)
+	{
+		return;
+	}
+
+	// Emit VBlanks fast enough to feed the panel. Below 100Hz there is nothing
+	// to gain: extra VBlanks would burn CPU on frames the panel never shows.
+	want = (panelHz >= 100.0f) ? 2 : 1;
+
+	if (want != g_ctrds.vblankMultiplier)
+	{
+		g_ctrds.vblankMultiplier = want;
+		Platform_Log("[CTR-DS] panel %.1fHz -> vblankMult=%d\n", (double)panelHz, want);
+	}
+}
+
 s16 Ctrds_MapScale(void)
 {
 	return s_ctrdsMapScale;
@@ -224,6 +246,15 @@ void Ctrds_InitFromEnv(void)
 	}
 
 	{
+		const char *mult = getenv("CTRDS_VBLANK_MULT");
+		if (mult != NULL)
+		{
+			g_ctrds.vblankMultiplier = atoi(mult);
+			g_ctrds.vblankAuto = 0;
+		}
+	}
+
+	{
 		const char *wide = getenv("CTRDS_WIDE");
 		if (wide != NULL)
 		{
@@ -249,8 +280,8 @@ void Ctrds_InitFromEnv(void)
 		}
 	}
 
-	Platform_Log("[CTR-DS] mode=%d tallFB=%d panel=%dx%d widescreen=%d\n", g_ctrds.mode, g_ctrds.tallFramebuffer, g_ctrds.screenW, g_ctrds.screenH,
-	        g_ctrds.widescreen);
+	Platform_Log("[CTR-DS] mode=%d panel=%dx%d widescreen=%d vsyncsPerFlip=%d vblankMult=%d\n", g_ctrds.mode, g_ctrds.screenW, g_ctrds.screenH,
+	        g_ctrds.widescreen, g_ctrds.vsyncsPerFlip, g_ctrds.vblankMultiplier);
 }
 
 // The panel needs an ordering table of its own for the idle screen, because

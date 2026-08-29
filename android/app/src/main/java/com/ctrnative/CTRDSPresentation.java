@@ -46,6 +46,7 @@ public class CTRDSPresentation extends Presentation implements SurfaceHolder.Cal
                     | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
             getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
+            CTRNativeActivity.requestHighestRefreshRate(getWindow(), getDisplay());
         }
 
         surfaceView = new SurfaceView(getContext());

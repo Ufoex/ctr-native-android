@@ -581,19 +581,48 @@ internal u64 Native_CounterFromMicroseconds(u64 freq, u64 microseconds)
 	return (freq * microseconds) / 1000000;
 }
 
+// The panel rate can change under a running game -- this device's system
+// service resets its own refresh cap -- so sample it rather than trusting the
+// value present at startup. Throttled: SDL re-queries the display each call.
+internal void Native_PollPanelRefresh(void)
+{
+	local_persist int s_pollCountdown = 0;
+
+	const SDL_DisplayMode *mode;
+
+	if (s_pollCountdown-- > 0)
+	{
+		return;
+	}
+	s_pollCountdown = 120;
+
+	mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
+	if (mode != NULL && mode->refresh_rate > 0.0f)
+	{
+		Ctrds_UpdateAutoVBlank(mode->refresh_rate);
+	}
+}
+
 internal void Native_AdvanceVBlankTarget(void)
 {
+	Native_PollPanelRefresh();
+
 	const u64 freq = SDL_GetPerformanceFrequency();
 	// counter ticks per vblank = freq * (897619 / 53693175) sec, kept exact with a
 	// running remainder. freq*897619 fits u64 for any realistic QPC frequency.
 	const u64 numer = freq * NATIVE_VBLANK_GPU_CYCLES;
 
-	s_nextVBlankCounter += numer / NATIVE_GPU_CLOCK_HZ;
-	s_vblankRemainder += numer % NATIVE_GPU_CLOCK_HZ;
-	if (s_vblankRemainder >= NATIVE_GPU_CLOCK_HZ)
+	// NOTE(ctrds): dividing the VBlank period by this emits VBlanks proportionally
+	// faster, which is the only way past ~60fps -- the pacing here is emulated PS1
+	// NTSC timing and takes no notice of the panel's refresh rate.
+	const u64 denom = NATIVE_GPU_CLOCK_HZ * (u64)Ctrds_VBlankMultiplier();
+
+	s_nextVBlankCounter += numer / denom;
+	s_vblankRemainder += numer % denom;
+	if (s_vblankRemainder >= denom)
 	{
 		s_nextVBlankCounter++;
-		s_vblankRemainder -= NATIVE_GPU_CLOCK_HZ;
+		s_vblankRemainder -= denom;
 	}
 }
 

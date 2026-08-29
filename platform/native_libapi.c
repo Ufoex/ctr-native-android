@@ -8,6 +8,8 @@
 
 #include <psx/libapi.h>
 
+#include "ctrds.h"
+
 // CTR's retail timer reads root counter 1 once per VSync and converts units
 // through divisor 0x147e before MainFrame_GameLogic scales to elapsedTimeMS.
 // Native owns VBlank emission, so advance RCNT1 from emitted VBlanks instead
@@ -16,10 +18,31 @@
 
 global_variable u64 s_rootCounterValue = 0;
 global_variable u64 s_rootCounterBase = 0;
+global_variable unsigned s_rootCounterRemainder = 0;
 
 void NativeRCnt_EmitVBlank(void)
 {
-	s_rootCounterValue += CTR_NATIVE_RCNT1_TICKS_PER_VBLANK;
+	// NOTE(ctrds): the game's whole clock is this counter, so ticks-per-VBlank
+	// has to shrink by exactly the factor the VBlank rate grew by. Otherwise a
+	// doubled VBlank rate doubles the game's sense of time and everything
+	// delta-timed -- physics, timers, cameras -- runs at double speed.
+	// 263/2 is not an integer, so carry the remainder rather than truncating:
+	// truncation alone would lose 0.5 ticks per VBlank and drift the clock slow.
+	const unsigned mult = (unsigned)Ctrds_VBlankMultiplier();
+
+	if (mult <= 1)
+	{
+		s_rootCounterValue += CTR_NATIVE_RCNT1_TICKS_PER_VBLANK;
+		return;
+	}
+
+	s_rootCounterValue += CTR_NATIVE_RCNT1_TICKS_PER_VBLANK / mult;
+	s_rootCounterRemainder += CTR_NATIVE_RCNT1_TICKS_PER_VBLANK % mult;
+	if (s_rootCounterRemainder >= mult)
+	{
+		s_rootCounterValue++;
+		s_rootCounterRemainder -= mult;
+	}
 }
 
 int SetRCnt(int spec, unsigned short target, int mode)

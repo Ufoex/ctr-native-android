@@ -13,6 +13,7 @@ import android.hardware.display.DisplayManager;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
+import android.view.WindowManager;
 
 import org.libsdl.app.SDLActivity;
 
@@ -36,6 +37,7 @@ public class CTRNativeActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestHighestRefreshRate(getWindow(), getWindowManager().getDefaultDisplay());
         checkStoragePermission();
     }
 
@@ -216,6 +218,40 @@ public class CTRNativeActivity extends SDLActivity {
     // caller is on the game thread.
 
     private static final String CTRDS_TAG = "CTR-DS";
+
+    /**
+     * Android hands an app the display's default mode, which on this device is
+     * 60Hz even though both panels also advertise 120Hz. Ask for the highest
+     * refresh rate available at the mode's current resolution; without this the
+     * frame loop can never exceed 60fps no matter how it is paced.
+     */
+    static void requestHighestRefreshRate(android.view.Window window, Display display) {
+        if (window == null || display == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return;
+        }
+
+        try {
+            Display.Mode current = display.getMode();
+            Display.Mode best = current;
+
+            for (Display.Mode mode : display.getSupportedModes()) {
+                if (mode.getPhysicalWidth() == current.getPhysicalWidth()
+                        && mode.getPhysicalHeight() == current.getPhysicalHeight()
+                        && mode.getRefreshRate() > best.getRefreshRate()) {
+                    best = mode;
+                }
+            }
+
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.preferredDisplayModeId = best.getModeId();
+            window.setAttributes(lp);
+
+            Log.i(CTRDS_TAG, "display " + display.getDisplayId() + " requested "
+                    + best.getRefreshRate() + "Hz (mode " + best.getModeId() + ")");
+        } catch (Exception e) {
+            Log.e(CTRDS_TAG, "refresh rate request failed: " + e.getMessage());
+        }
+    }
     private static CTRDSPresentation ctrdsPresentation;
 
     public static native void nativeCompanionSurfaceChanged(Surface surface, int width, int height);
