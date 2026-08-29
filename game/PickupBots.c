@@ -118,7 +118,11 @@ static int PickupBots_IsCloseToPlayer(struct Driver *player, struct Driver *bot)
 
 static void PickupBots_SetCooldown(struct Driver *bot)
 {
-	bot->botData.weaponCooldown = (MixRNG_Scramble() & PICKUPBOTS_COOLDOWN_RANDOM_MASK) + PICKUPBOTS_COOLDOWN_BASE_FRAMES;
+	// NOTE(ctrds): counted in frames, so it has to grow with the frame rate or
+	// the bots throw twice as often at 60fps. ModSDK doubles the two constants
+	// by patching them; scaling the result is the same thing.
+	bot->botData.weaponCooldown =
+	    (s16)Ctrds_ScaleFrames((MixRNG_Scramble() & PICKUPBOTS_COOLDOWN_RANDOM_MASK) + PICKUPBOTS_COOLDOWN_BASE_FRAMES);
 }
 
 static void PickupBots_PlayVoice(u32 voiceID, struct Driver *attacker, struct Driver *victim)
@@ -251,9 +255,10 @@ static void PickupBots_SetBossCooldown(struct MetaDataBOSS *bossMeta)
 {
 	struct GameTracker *gGT = sdata->gGT;
 
-	sdata->bossWeaponCooldown = (RngDeadCoed(&sdata->advRng) & PICKUPBOTS_BOSS_COOLDOWN_RANDOM_MASK) + bossMeta->weaponCooldown +
-	                            PICKUPBOTS_BOSS_COOLDOWN_BASE_FRAMES +
-	                            ((s8)sdata->advProgress.timesLostBossRace[gGT->bossID] * PICKUPBOTS_BOSS_LOSS_COOLDOWN_STEP);
+	// NOTE(ctrds): frame-counted, same as the racer cooldown above.
+	sdata->bossWeaponCooldown =
+	    Ctrds_ScaleFrames((RngDeadCoed(&sdata->advRng) & PICKUPBOTS_BOSS_COOLDOWN_RANDOM_MASK) + bossMeta->weaponCooldown +
+	                      PICKUPBOTS_BOSS_COOLDOWN_BASE_FRAMES + ((s8)sdata->advProgress.timesLostBossRace[gGT->bossID] * PICKUPBOTS_BOSS_LOSS_COOLDOWN_STEP));
 }
 
 static struct MetaDataBOSS *PickupBots_GetInitialBossMeta(void)

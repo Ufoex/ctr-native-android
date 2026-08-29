@@ -1496,6 +1496,17 @@ struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, struct Particl
 
 	(void)param_1;
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): emitters spawn once per frame, so at a higher frame rate the
+	// same effect emits proportionally more particles and both looks wrong and
+	// drains the pool. Hold spawning to retail's 30fps cadence. ModSDK does this
+	// by replacing this very LIST_RemoveFront call with a gated wrapper.
+	if (!Ctrds_Is30HzTick())
+	{
+		return NULL;
+	}
+#endif
+
 	p = (struct Particle *)LIST_RemoveFront(&gGT->JitPools.particle.free);
 	if (p == NULL)
 	{

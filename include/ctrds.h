@@ -110,6 +110,13 @@ struct CtrdsLayout
 
 	// Widen the 3D frustum to 16:9 instead of stretching the 4:3 image.
 	int widescreen;
+
+	// VSYNCs the frame loop waits before flipping. Retail waits 2, which is
+	// 30fps on a 60Hz panel; 1 flips every VSYNC so the rate follows the
+	// display -- 60Hz gives 60fps, the Thor's 120Hz mode gives 120. Physics are
+	// delta-timed off gGT->elapsedTimeMS and stay correct at any rate; timers
+	// counted in frames do not, and are scaled separately.
+	int vsyncsPerFlip;
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -139,6 +146,11 @@ static inline int Ctrds_TallFramebuffer(void)
 #define CTRDS_WIDE_NUM 750
 #define CTRDS_WIDE_DEN 1000
 
+static inline int Ctrds_VsyncsPerFlip(void)
+{
+	return (g_ctrds.vsyncsPerFlip > 0) ? g_ctrds.vsyncsPerFlip : 2;
+}
+
 static inline int Ctrds_Widescreen(void)
 {
 	return g_ctrds.widescreen != 0;
@@ -163,6 +175,20 @@ void Ctrds_RegisterGpuRanges(void);
 
 // Scale currently applied to live-map geometry. CTRDS_FP_ONE outside the
 // companion map draw, so the track-select and adventure maps stay 1:1.
+// Converts a duration written in 30fps frames into frames at the rate actually
+// being rendered. Physics and race timing are delta-timed off elapsedTimeMS and
+// need no help, but anything counted in frames -- weapon cooldowns, banner
+// threads, spawn rates -- would elapse proportionally faster without this.
+// Derived from the measured frame time, so it is correct at 60 and at 120
+// rather than assuming a fixed doubling the way CTR-ModSDK's FPS_DOUBLE does.
+int Ctrds_ScaleFrames(int frames30);
+
+// True on the subset of frames that corresponds to retail's 30fps cadence.
+// Effects that spawn once per frame -- exhaust, tyre smoke, sparks -- would
+// otherwise emit proportionally more at a higher rate and look like a different
+// game. CTR-ModSDK gates the same way with an explicit timer&1 / timer&2.
+int Ctrds_Is30HzTick(void);
+
 s16 Ctrds_MapScale(void);
 
 // Scale for the dots drawn on the live map. Separate from the background scale

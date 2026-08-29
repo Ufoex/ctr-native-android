@@ -1293,7 +1293,7 @@ void RenderSubmit(struct GameTracker *gGT)
 
 #if defined(CTR_NATIVE)
 
-	sdata->vsyncTillFlip = 2;
+	sdata->vsyncTillFlip = Ctrds_VsyncsPerFlip();
 
 	// Native still renders immediately through PsyCross, so keep the host GPU's
 	// active draw/display envs in step with the retail DB selected this frame.
@@ -1306,7 +1306,7 @@ void RenderSubmit(struct GameTracker *gGT)
 	// do I need the "if"? will it ever be nullptr?
 	if (gGT->frontBuffer != 0)
 	{
-		sdata->vsyncTillFlip = 2;
+		sdata->vsyncTillFlip = Ctrds_VsyncsPerFlip();
 		gGT->unk1cc4[5] = gGT->unk1cc4[0];
 
 		if ((sdata->boolDebugDispEnv & 1) != 0)

@@ -60,6 +60,7 @@ struct CtrdsLayout g_ctrds = {
     .mapIconScale = CTRDS_FP_ONE * 2,
 
     .widescreen = 1,
+    .vsyncsPerFlip = 1,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -96,6 +97,52 @@ struct UiElement2D g_ctrdsHud1P[UI_HUD_SLOT_COUNT * CTRDS_HUD_BLOCKS] = {
 // Live-map scale is only applied while the companion map is being built, so
 // the track-select and adventure-hub maps keep drawing at 1:1.
 internal s16 s_ctrdsMapScale = CTRDS_FP_ONE;
+
+// 0x20 is the elapsed-time value a 30fps frame produces. Never scale below 1x:
+// a slow frame should not shorten cooldowns.
+#define CTRDS_RETAIL_FRAME_MS 0x20
+
+int Ctrds_ScaleFrames(int frames30)
+{
+	int ms;
+
+	if (!Ctrds_Enabled())
+	{
+		return frames30;
+	}
+
+	ms = sdata->gGT->elapsedTimeMS;
+
+	if (ms < 4)
+	{
+		ms = 4;
+	}
+	if (ms > CTRDS_RETAIL_FRAME_MS)
+	{
+		ms = CTRDS_RETAIL_FRAME_MS;
+	}
+
+	return (frames30 * CTRDS_RETAIL_FRAME_MS) / ms;
+}
+
+int Ctrds_Is30HzTick(void)
+{
+	int step;
+
+	if (!Ctrds_Enabled())
+	{
+		return 1;
+	}
+
+	// 1 at 30fps, 2 at 60, 4 at 120.
+	step = Ctrds_ScaleFrames(1);
+	if (step < 2)
+	{
+		return 1;
+	}
+
+	return ((int)sdata->gGT->timer % step) == 0;
+}
 
 s16 Ctrds_MapScale(void)
 {
@@ -165,6 +212,14 @@ void Ctrds_InitFromEnv(void)
 		if ((g_ctrds.mode < CTRDS_DISABLED) || (g_ctrds.mode > CTRDS_SECOND_SCREEN))
 		{
 			g_ctrds.mode = CTRDS_DISABLED;
+		}
+	}
+
+	{
+		const char *flip = getenv("CTRDS_VSYNCS");
+		if (flip != NULL)
+		{
+			g_ctrds.vsyncsPerFlip = atoi(flip);
 		}
 	}
 
