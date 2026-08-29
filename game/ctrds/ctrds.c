@@ -25,7 +25,7 @@ enum CtrdsRetailAnchors
 };
 
 struct CtrdsLayout g_ctrds = {
-    .mode = CTRDS_INLINE,
+    .mode = CTRDS_SECOND_SCREEN,
     .tallFramebuffer = 0,
     .fbHeight = CTRDS_FB_HEIGHT,
     .fbPitch = CTRDS_FB_PITCH,

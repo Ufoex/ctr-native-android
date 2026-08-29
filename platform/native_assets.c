@@ -935,8 +935,24 @@ int NativeAssets_Validate(void)
 	// ISO9660 filesystem and are commonly stripped. Neither is needed to reach
 	// gameplay, so allow a developer opt-in that skips just those two checks.
 	// Off by default: a normal build still demands a complete disc.
+	// Android has no practical way to set an environment variable for the app,
+	// so a marker file next to the assets does the same job there.
 	const char *skipAv = getenv("CTR_SKIP_AV_ASSETS");
-	const int allowMissingAv = (skipAv != NULL) && (skipAv[0] == '1');
+	int allowMissingAv = (skipAv != NULL) && (skipAv[0] == '1');
+
+	if (!allowMissingAv)
+	{
+		char markerPath[NATIVE_ASSETS_PATH_MAX];
+		if (NativePath_Join(markerPath, sizeof(markerPath), NativeStr8_FromCString(NativeAssets_GetAssetDir()), NATIVE_STR8_LIT("ctrds_skip_av")))
+		{
+			FILE *marker = fopen(markerPath, "rb");
+			if (marker != NULL)
+			{
+				fclose(marker);
+				allowMissingAv = 1;
+			}
+		}
+	}
 
 	ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_BIGFILE_PATH);
 	ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_KART_HWL_PATH);

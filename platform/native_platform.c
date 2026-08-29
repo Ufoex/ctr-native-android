@@ -1,3 +1,4 @@
+#include <platform/native_companion.h>
 #include <platform.h>
 
 #include <macros.h>
@@ -379,8 +380,22 @@ void Platform_EndScene(void)
 	// physical displays.
 	if (Ctrds_SecondScreen())
 	{
-		NativeRenderer_PresentTwo(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h, CTRDS_VRAM_PANEL_X,
-		        CTRDS_VRAM_PANEL_Y, CTRDS_PANEL_W, CTRDS_PANEL_H);
+		NativeCompanion_Init();
+
+		if (NativeCompanion_IsReady())
+		{
+			// Real second display: the window shows only the game view, and the
+			// panel goes to the Presentation's own surface.
+			NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
+			NativeCompanion_Present(CTRDS_VRAM_PANEL_X, CTRDS_VRAM_PANEL_Y, CTRDS_PANEL_W, CTRDS_PANEL_H);
+		}
+		else
+		{
+			// No second display (desktop, or the panel has not opened yet):
+			// stack both rectangles in the one window as a preview.
+			NativeRenderer_PresentTwo(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h, CTRDS_VRAM_PANEL_X,
+			        CTRDS_VRAM_PANEL_Y, CTRDS_PANEL_W, CTRDS_PANEL_H);
+		}
 	}
 	else
 	{

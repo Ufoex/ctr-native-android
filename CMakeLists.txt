@@ -137,7 +137,9 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
 endif()
 target_link_libraries(ctr_native SDL3::SDL3)
 if(ANDROID)
-    target_link_libraries(ctr_native log GLESv2 android)
+    # EGL: the dual-screen companion creates its own window surface against
+    # SDL's context (platform/native_companion.c).
+    target_link_libraries(ctr_native log GLESv2 EGL android)
 endif()
 target_link_options(ctr_native PRIVATE -static-libgcc)
 if(WIN32)

@@ -9,7 +9,10 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
+import android.hardware.display.DisplayManager;
 import android.util.Log;
+import android.view.Display;
+import android.view.Surface;
 
 import org.libsdl.app.SDLActivity;
 
@@ -202,5 +205,86 @@ public class CTRNativeActivity extends SDLActivity {
         }
 
         return path;
+    }
+
+    // ---------------------------------------------------------------- CTR-DS
+    //
+    // Dual-screen companion panel. Native code calls startCompanionDisplay()
+    // once the renderer is up; this opens a Presentation on the secondary
+    // display and hands its Surface back down so native can make an EGLSurface
+    // out of it. Everything here has to happen on the UI thread, while the
+    // caller is on the game thread.
+
+    private static final String CTRDS_TAG = "CTR-DS";
+    private static CTRDSPresentation ctrdsPresentation;
+
+    public static native void nativeCompanionSurfaceChanged(Surface surface, int width, int height);
+
+    public static native void nativeCompanionSurfaceDestroyed();
+
+    /** Called from native. Safe to call more than once. */
+    public static void startCompanionDisplay() {
+        final Activity activity = (Activity) SDLActivity.getContext();
+        if (activity == null) {
+            Log.e(CTRDS_TAG, "no activity; cannot open the companion display");
+            return;
+        }
+
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (ctrdsPresentation != null && ctrdsPresentation.isShowing()) {
+                    return;
+                }
+
+                DisplayManager dm = (DisplayManager) activity.getSystemService(DISPLAY_SERVICE);
+                if (dm == null) {
+                    Log.e(CTRDS_TAG, "no DisplayManager");
+                    return;
+                }
+
+                // DISPLAY_CATEGORY_PRESENTATION is the sanctioned way to find a
+                // secondary panel; on the AYN Thor this is display 4, "Screen-2",
+                // which reports FLAG_PRESENTATION.
+                Display[] displays = dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION);
+                if (displays == null || displays.length == 0) {
+                    Log.w(CTRDS_TAG, "no presentation display; companion stays off");
+                    return;
+                }
+
+                Display target = displays[0];
+                Log.i(CTRDS_TAG, "companion display id=" + target.getDisplayId() + " name=" + target.getName());
+
+                try {
+                    ctrdsPresentation = new CTRDSPresentation(activity, target);
+                    ctrdsPresentation.show();
+                } catch (Exception e) {
+                    Log.e(CTRDS_TAG, "failed to show companion presentation: " + e.getMessage());
+                    ctrdsPresentation = null;
+                }
+            }
+        });
+    }
+
+    /** Called from native on shutdown. */
+    public static void stopCompanionDisplay() {
+        final Activity activity = (Activity) SDLActivity.getContext();
+        if (activity == null) {
+            return;
+        }
+
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (ctrdsPresentation != null) {
+                    try {
+                        ctrdsPresentation.dismiss();
+                    } catch (Exception e) {
+                        Log.e(CTRDS_TAG, "dismiss failed: " + e.getMessage());
+                    }
+                    ctrdsPresentation = null;
+                }
+            }
+        });
     }
 }

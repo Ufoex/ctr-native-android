@@ -16,6 +16,7 @@ void NativeRenderer_SwapWindow(void);
 void NativeRenderer_BeginCompanionTarget(int width, int height);
 void NativeRenderer_EndCompanionTarget(int vramX, int vramY);
 void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int panelX, int panelY, int panelW, int panelH);
+void NativeRenderer_PresentVRAMRectToViewport(int x, int y, int w, int h, int viewportW, int viewportH);
 void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h);
 void NativeRenderer_PresentVRAMDisplay(void);
 void NativeRenderer_PresentVRAMRect(int x, int y, int w, int h);

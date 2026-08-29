@@ -32,4 +32,13 @@ int NativeAssets_ReadBytes(const char *path, int readMode, struct NativeAssetsBy
 void NativeAssets_FreeBytes(struct NativeAssetsByteBuffer *bytes);
 int NativeAssets_Validate(void);
 
+
+#if defined(__ANDROID__)
+// Defined in platform/native_android.c. Declared here because the unity build
+// compiles native_assets.c before it, and without a prototype the Android build
+// fails on an implicit declaration returning int.
+char *Platform_Android_GetStoredPath(void);
+void Platform_Android_PickFile(void);
+#endif
+
 #endif

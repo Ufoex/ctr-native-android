@@ -3,6 +3,8 @@ apply plugin: 'com.android.application'
 android {
     namespace 'com.ctrnative'
     compileSdk 34
+    // Pin the NDK that ships the EGL/JNI headers the companion display needs.
+    ndkVersion '27.2.12479018'
 
     defaultConfig {
         applicationId "com.ctrnative"

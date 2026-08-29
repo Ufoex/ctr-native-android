@@ -745,6 +745,9 @@ internal void NativeInput_OpenKnownControllers(void)
 #include <SDL3/SDL_system.h>
 
 #if defined(__ANDROID__)
+// NOTE(ctrds): SDL_system.h declares SDL_GetAndroidJNIEnv but does not pull in
+// the JNI types these helpers use, so the Android build did not compile.
+#include <jni.h>
 
 internal void NativeInput_AndroidVibrate(int device_id, float low, float high, int len)
 {

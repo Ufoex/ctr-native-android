@@ -305,6 +305,24 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 		return 0;
 	}
 
+	// NOTE(ctrds): the requested size is only a hint. Android hands back a
+	// fullscreen surface instead and never sends a resize event for it, so the
+	// presentation viewport stayed sized for the requested 800x600 and the game
+	// rendered into a corner of the panel. Take the real drawable size.
+	{
+		int pixelWidth = 0;
+		int pixelHeight = 0;
+
+		if (SDL_GetWindowSizeInPixels(g_window, &pixelWidth, &pixelHeight) && (pixelWidth > 0) && (pixelHeight > 0))
+		{
+			g_windowWidth = pixelWidth;
+			g_windowHeight = pixelHeight;
+			NATIVE_RENDERER_LOG("*Drawable: %dx%d\n", pixelWidth, pixelHeight);
+		}
+	}
+
+	NativeRenderer_UpdatePresentationViewport();
+
 	return 1;
 }
 
@@ -2363,6 +2381,36 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 
 	NativeRenderer_SetViewPort(vx + ((vw - (vw * panelW) / srcW) / 2), vy, (vw * panelW) / srcW, ph);
 	NativeRenderer_DrawVRAMRegion(panelX, panelY, panelW, panelH);
+
+	glBindVertexArray(0);
+
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
+}
+
+// NOTE(ctrds): blits a VRAM rectangle to the whole of the currently bound
+// surface. The companion display uses this after making its own EGLSurface
+// current, which is why the viewport size is passed in rather than read from
+// the main window.
+void NativeRenderer_PresentVRAMRectToViewport(int x, int y, int w, int h, int viewportW, int viewportH)
+{
+	if ((w <= 0) || (h <= 0) || (viewportW <= 0) || (viewportH <= 0))
+	{
+		return;
+	}
+
+	NativeRenderer_UpdateVRAM();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	NativeRenderer_SetScissorState(0);
+	NativeRenderer_EnableDepth(0);
+	NativeRenderer_SetBlendMode(BM_NONE);
+
+	NativeRenderer_SetViewPort(0, 0, viewportW, viewportH);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	NativeRenderer_DrawVRAMRegion(x, y, w, h);
 
 	glBindVertexArray(0);
 
