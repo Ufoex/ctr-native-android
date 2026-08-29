@@ -50,6 +50,11 @@ struct CtrdsOnlineStatus
 void Ctrds_OnlineInit(void);
 void Ctrds_OnlineShutdown(void);
 
+// Start, stop or flip the client while the game runs. Toggling does not need a
+// restart: the thread and socket are created and torn down on demand.
+void Ctrds_OnlineStart(void);
+void Ctrds_OnlineToggle(void);
+
 // Snapshot of the current state. Cheap; safe from the game thread.
 void Ctrds_OnlineGetStatus(struct CtrdsOnlineStatus *out);
 

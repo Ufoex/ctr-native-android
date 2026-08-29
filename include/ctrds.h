@@ -196,6 +196,9 @@ struct CtrdsLayout
 	// X/Y on an Xbox-labelled pad like the Thor's.
 	int swapFaceButtons;
 
+	// On-screen controls: 0 automatic (shown only with no pad), 1 always, 2 never.
+	int touchControls;
+
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -229,6 +232,15 @@ static inline int Ctrds_TallFramebuffer(void)
 // pre-race screens are not races.
 int Ctrds_InRace(void);
 
+// True on the main menu, where the panel offers the online switch.
+int Ctrds_OnMainMenu(void);
+
+// 0 auto, 1 always, 2 never.
+int Ctrds_TouchControlsMode(void);
+
+// Handles panel-only controls. Called once per frame from the game thread.
+void Ctrds_PollPanelInput(void);
+
 // VBlanks to wait between flips. Racing runs as fast as the panel allows, but
 // menus must not: menu animation is counted in frames rather than delta-timed,
 // so an extra frame is an extra animation step and the whole front end plays
@@ -251,6 +263,11 @@ void Ctrds_InitLayout(void);
 // Reads ctrds.cfg from the asset directory, if present. Must run after the
 // asset directory is known.
 void Ctrds_LoadConfig(void);
+
+// Called when the platform reports that no second display exists. The panel has
+// nowhere to go, so the HUD goes back on the main screen and the game looks like
+// the unmodified port rather than a letterboxed split.
+void Ctrds_DisableSecondScreen(void);
 
 // OnlineCTR connection settings, read from ctrds.cfg.
 struct CtrdsOnlineConfig

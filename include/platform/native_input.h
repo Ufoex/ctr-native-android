@@ -21,6 +21,13 @@ void Platform_InputUpdate(void);
 void Platform_InputControllerAdded(int deviceIndex);
 void Platform_InputControllerRemoved(int instanceId);
 int Platform_InputCycleKeyboardController(void);
+
+// On-screen controls, used when no physical pad is present.
+void Platform_InputApplyTouchButtons(int slot, unsigned short buttons);
+void Platform_InputApplyTouchAxes(int slot, int leftX, int leftY);
+void Platform_InputSetTouchActive(int active);
+int Platform_InputTouchActive(void);
+int Platform_InputGetGamepadCount(void);
 int Platform_InputCycleGamepadController(void);
 
 void Platform_InputPadInit(int slot, unsigned char *padData);

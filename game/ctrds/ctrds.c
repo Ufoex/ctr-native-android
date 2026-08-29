@@ -1,4 +1,6 @@
 #include <common.h>
+
+#include "ctrds_online.h"
 #include <platform/native_renderer.h>
 #include <platform/native_gpu_links.h>
 
@@ -70,6 +72,7 @@ struct CtrdsLayout g_ctrds = {
     .fxaa = 0,
     .crt = 1,
     .swapFaceButtons = 1,
+    .touchControls = 0,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -179,6 +182,44 @@ int Ctrds_Is30HzTick(void)
 	}
 
 	return ((int)sdata->gGT->timer % step) == 0;
+}
+
+int Ctrds_TouchControlsMode(void)
+{
+	return g_ctrds.touchControls;
+}
+
+int Ctrds_OnMainMenu(void)
+{
+	return (sdata->gGT->gameMode1 & MAIN_MENU) != 0;
+}
+
+// Reads the pad directly rather than going through the menu code, which has no
+// notion of a setting that lives on the other screen.
+void Ctrds_PollPanelInput(void)
+{
+	local_persist int s_wasOnMenu = 0;
+
+	int onMenu;
+
+	if (!Ctrds_Enabled())
+	{
+		return;
+	}
+
+	onMenu = Ctrds_OnMainMenu();
+
+	// Ignore the frame the menu opens on, so a Select press that got us here
+	// does not immediately toggle.
+	if (onMenu && s_wasOnMenu)
+	{
+		if ((sdata->gGamepads->gamepad[0].buttonsTapped & BTN_SELECT) != 0)
+		{
+			Ctrds_OnlineToggle();
+		}
+	}
+
+	s_wasOnMenu = onMenu;
 }
 
 int Ctrds_InRace(void)
@@ -323,6 +364,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
 			fprintf(f, "# crt: CRT-Royale-style scanlines, phosphor mask and halation (0/1)\n");
 			fprintf(f, "crt=%d\n", g_ctrds.crt);
+			fprintf(f, "# touch_controls: 0 auto (only with no pad), 1 always, 2 never\n");
+			fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
 			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
 			fprintf(f, "swap_face_buttons=%d\n", g_ctrds.swapFaceButtons);
 			fprintf(f, "# widescreen: 16:9 field of view (0/1)\n");
@@ -398,6 +441,10 @@ void Ctrds_LoadConfig(void)
 		{
 			g_ctrds.crt = value;
 		}
+		else if (strncmp(line, "touch_controls", 14) == 0)
+		{
+			g_ctrds.touchControls = value;
+		}
 		else if (strncmp(line, "swap_face_buttons", 17) == 0)
 		{
 			g_ctrds.swapFaceButtons = value;
@@ -417,6 +464,21 @@ void Ctrds_LoadConfig(void)
 
 	Platform_Log("[CTR-DS] ctrds.cfg: fxaa=%d crt=%d swapFaceButtons=%d widescreen=%d\n", g_ctrds.fxaa, g_ctrds.crt, g_ctrds.swapFaceButtons,
 	        g_ctrds.widescreen);
+}
+
+void Ctrds_DisableSecondScreen(void)
+{
+	if (g_ctrds.mode == CTRDS_DISABLED)
+	{
+		return;
+	}
+
+	// Everything the mod does keys off this: the HUD stops being redirected to
+	// the panel, the frame pacing stops treating menus specially, and the
+	// presentation goes back to a single rectangle.
+	g_ctrds.mode = CTRDS_DISABLED;
+
+	Platform_Log("[CTR-DS] no second display -- running as a single-screen game\n");
 }
 
 void Ctrds_InitLayout(void)
@@ -587,8 +649,29 @@ internal void Ctrds_DrawIdlePanel(void)
 
 	ClearOTagR(s_ctrdsIdleOT, CTRDS_IDLE_OT_LEN);
 
-	DecalFont_DrawLineOT("CTR", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 20, FONT_BIG, JUSTIFY_CENTER, head);
-	DecalFont_DrawLineOT("CRASH TEAM RACING", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 16, FONT_SMALL, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT("CTR", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 46, FONT_BIG, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT("CRASH TEAM RACING", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 10, FONT_SMALL, JUSTIFY_CENTER, head);
+
+	// Online switch, on the main menu only. The panel is otherwise idle there,
+	// so it is the natural place for a setting that has nowhere to live in the
+	// game's own menus.
+	if (Ctrds_OnMainMenu())
+	{
+		struct CtrdsOnlineStatus st;
+		char line[96];
+
+		Ctrds_OnlineGetStatus(&st);
+
+		snprintf(line, sizeof(line), "ONLINE  %s", Ctrds_OnlineEnabled() ? "ON" : "OFF");
+		DecalFont_DrawLineOT(line, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 24, FONT_SMALL, JUSTIFY_CENTER, head);
+
+		if (Ctrds_OnlineEnabled() && (st.message[0] != '\0'))
+		{
+			DecalFont_DrawLineOT(st.message, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 42, FONT_SMALL, JUSTIFY_CENTER, head);
+		}
+
+		DecalFont_DrawLineOT("SELECT TO TOGGLE", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 62, FONT_SMALL, JUSTIFY_CENTER, head);
+	}
 
 	DrawOTag(head);
 }

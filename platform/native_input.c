@@ -108,6 +108,13 @@ global_variable const bool *s_keyboardState;
 global_variable s32 s_inputInitialized;
 global_variable s32 s_installedSnapshotsActive;
 global_variable u16 s_touchButtons = 0xffff;
+
+// On-screen controls. Active-low like the pad itself: a cleared bit is a press.
+// The stick drives both the analog bytes and the d-pad bits, because the d-pad
+// path is the one every menu and both steering modes already read.
+global_variable int s_touchActive = 0;
+global_variable u8 s_touchAnalogLX = 0x80;
+global_variable u8 s_touchAnalogLY = 0x80;
 global_variable s32 s_keyboardControllerSlot = NATIVE_INPUT_DEFAULT_KEYBOARD_SLOT;
 global_variable s32 s_lastActiveControllerSlot = -1;
 
@@ -909,9 +916,24 @@ void Platform_InputUpdate(void)
 		NativeInput_ResetSnapshot(slot);
 		NativeInput_ApplyController(slot);
 		NativeInput_ApplyKeyboard(slot, keyboardButtons);
-		if (slot == 0) {
+		// Touch drives whichever slot the game is actually reading. This device
+		// enumerates two pads, so pinning the overlay to slot 0 left the presses
+		// going to a pad nothing looks at.
+		if ((slot == 0) || s_touchActive) {
 			u16 buttons = NativeInput_GetSnapshotButtons(&s_controllers[slot].snapshot);
 			NativeInput_SetSnapshotButtons(&s_controllers[slot].snapshot, buttons & s_touchButtons);
+
+			if (s_touchActive)
+			{
+				// analog[2]/[3] are the left stick; see NativeInput_ApplyController.
+				s_controllers[slot].snapshot.analog[2] = s_touchAnalogLX;
+				s_controllers[slot].snapshot.analog[3] = s_touchAnalogLY;
+
+				// Without this the game treats port 1 as empty and asks for a
+				// controller, since nothing physical is plugged in.
+				s_controllers[slot].snapshot.connected = 1;
+				s_controllers[slot].snapshot.status = PadStateStable;
+			}
 		}
 	}
 	NativeInput_WritePadBus();
@@ -967,6 +989,33 @@ void Platform_InputApplyTouchButtons(int slot, u16 buttons)
 {
 	(void)slot;
 	s_touchButtons = buttons;
+}
+
+// leftX/leftY are SDL-style axis values, -32768..32767, centre 0.
+void Platform_InputApplyTouchAxes(int slot, int leftX, int leftY)
+{
+	(void)slot;
+
+	s_touchAnalogLX = NativeInput_AxisToByte(leftX);
+	s_touchAnalogLY = NativeInput_AxisToByte(leftY);
+	s_touchActive = 1;
+}
+
+void Platform_InputSetTouchActive(int active)
+{
+	s_touchActive = active;
+
+	if (!active)
+	{
+		s_touchButtons = 0xffff;
+		s_touchAnalogLX = 0x80;
+		s_touchAnalogLY = 0x80;
+	}
+}
+
+int Platform_InputTouchActive(void)
+{
+	return s_touchActive;
 }
 
 int Platform_InputCycleKeyboardController(void)
@@ -1241,3 +1290,42 @@ void Platform_InputPadVibrate(int port, unsigned char *table, int len)
     }
 #endif
 }
+
+#if defined(__ANDROID__)
+
+// Called from the on-screen controls overlay. buttonMask is active-low, matching
+// the pad; stickX/stickY are -32768..32767.
+JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeTouchInput(JNIEnv *env, jclass cls, jint buttonMask, jint stickX, jint stickY)
+{
+	(void)env;
+	(void)cls;
+
+	Platform_InputApplyTouchButtons(0, (u16)buttonMask);
+	Platform_InputApplyTouchAxes(0, (int)stickX, (int)stickY);
+}
+
+JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeTouchSetActive(JNIEnv *env, jclass cls, jboolean active)
+{
+	(void)env;
+	(void)cls;
+
+	Platform_InputSetTouchActive(active ? 1 : 0);
+}
+
+JNIEXPORT jint JNICALL Java_com_ctrnative_CTRNativeActivity_nativeTouchControlsMode(JNIEnv *env, jclass cls)
+{
+	(void)env;
+	(void)cls;
+
+	return (jint)Ctrds_TouchControlsMode();
+}
+
+JNIEXPORT jint JNICALL Java_com_ctrnative_CTRNativeActivity_nativeGetGamepadCount(JNIEnv *env, jclass cls)
+{
+	(void)env;
+	(void)cls;
+
+	return (jint)Platform_InputGetGamepadCount();
+}
+
+#endif

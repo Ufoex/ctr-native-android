@@ -442,11 +442,13 @@ void Ctrds_OnlineJoinRoom(int room)
 	SDL_UnlockMutex(s_octrlock);
 }
 
-void Ctrds_OnlineInit(void)
+// Starting and stopping are separate from Init so the panel can switch online on
+// and off while the game runs -- no restart.
+void Ctrds_OnlineStart(void)
 {
 	const struct CtrdsOnlineConfig *cfg = Ctrds_OnlineConfig();
 
-	if ((cfg == NULL) || (cfg->enabled == 0))
+	if (s_octrenabled || (cfg == NULL))
 	{
 		return;
 	}
@@ -473,6 +475,28 @@ void Ctrds_OnlineInit(void)
 	if (s_octrthread == NULL)
 	{
 		s_octrenabled = 0;
+	}
+}
+
+void Ctrds_OnlineInit(void)
+{
+	const struct CtrdsOnlineConfig *cfg = Ctrds_OnlineConfig();
+
+	if ((cfg != NULL) && (cfg->enabled != 0))
+	{
+		Ctrds_OnlineStart();
+	}
+}
+
+void Ctrds_OnlineToggle(void)
+{
+	if (s_octrenabled)
+	{
+		Ctrds_OnlineShutdown();
+	}
+	else
+	{
+		Ctrds_OnlineStart();
 	}
 }
 
@@ -520,4 +544,8 @@ void Ctrds_OnlineShutdown(void)
 	}
 
 	s_octrenabled = 0;
+	s_octrautoJoined = 0;
+	s_octrmessageSeqLogged = 0;
+	memset(&s_octrstatus, 0, sizeof(s_octrstatus));
+	s_octrstatus.clientID = -1;
 }

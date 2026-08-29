@@ -95,6 +95,16 @@ internal void NativeCompanion_CallJavaStatic(const char *method)
 	(*env)->DeleteLocalRef(env, cls);
 }
 
+JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeCompanionUnavailable(JNIEnv *env, jclass cls)
+{
+	(void)env;
+	(void)cls;
+
+	// Java looked for a presentation display and found none, so this device has
+	// only one screen. Fall back rather than stacking both rectangles into it.
+	Ctrds_DisableSecondScreen();
+}
+
 void NativeCompanion_Init(void)
 {
 	if (s_companionRequested)

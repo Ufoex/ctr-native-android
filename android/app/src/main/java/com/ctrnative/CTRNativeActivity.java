@@ -12,7 +12,13 @@ import android.provider.OpenableColumns;
 import android.hardware.display.DisplayManager;
 import android.util.Log;
 import android.view.Display;
+import android.view.View;
 import android.view.Surface;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
@@ -41,6 +47,8 @@ public class CTRNativeActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
         requestHighestRefreshRate(getWindow(), getWindowManager().getDefaultDisplay());
         enterImmersiveMode();
+
+        startTouchControls();
 
         // Open the panel now rather than waiting for the first EndScene: the
         // boot splash presents VRAM directly and never reaches that path, so the
@@ -99,6 +107,75 @@ public class CTRNativeActivity extends SDLActivity {
             }
         } catch (Exception e) {
             Log.e(CTRDS_TAG, "immersive mode failed: " + e.getMessage());
+        }
+    }
+
+    private CTRTouchOverlay touchOverlay;
+    private Handler touchHandler;
+
+    /**
+     * Adds the on-screen controls and keeps their visibility in step with
+     * whether a physical pad is attached. Polled rather than event-driven
+     * because SDL owns the controller callbacks and the answer only needs to be
+     * right within a second or two.
+     */
+    private void startTouchControls() {
+        try {
+            touchOverlay = new CTRTouchOverlay(this);
+            touchOverlay.setVisibility(View.GONE);
+
+            addContentView(touchOverlay, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    Gravity.FILL));
+
+            touchHandler = new Handler(Looper.getMainLooper());
+            touchHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    updateTouchControls();
+                    touchHandler.postDelayed(this, 1500);
+                }
+            }, 2500);
+        } catch (Exception e) {
+            Log.e(CTRDS_TAG, "touch controls unavailable: " + e.getMessage());
+        }
+    }
+
+    private void updateTouchControls() {
+        if (touchOverlay == null) {
+            return;
+        }
+
+        int pads;
+        try {
+            pads = nativeGetGamepadCount();
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(CTRDS_TAG, "nativeGetGamepadCount not bound: " + e.getMessage());
+            return;
+        }
+
+        int mode = 0;
+        try {
+            mode = nativeTouchControlsMode();
+        } catch (UnsatisfiedLinkError e) {
+            // leave on automatic
+        }
+
+        final boolean wanted = (mode == 1) || ((mode != 2) && (pads == 0));
+        final boolean shown = touchOverlay.getVisibility() == View.VISIBLE;
+
+        if (wanted != shown) {
+            touchOverlay.setVisibility(wanted ? View.VISIBLE : View.GONE);
+
+            try {
+                nativeTouchSetActive(wanted);
+            } catch (UnsatisfiedLinkError e) {
+                // native not up yet
+            }
+
+            Log.i(CTRDS_TAG, "on-screen controls " + (wanted ? "shown" : "hidden")
+                    + " (gamepads=" + pads + ", mode=" + mode + ")");
         }
     }
 
@@ -319,6 +396,19 @@ public class CTRNativeActivity extends SDLActivity {
 
     public static native void nativeCompanionSurfaceDestroyed();
 
+    /** Tells native this device has no second screen, so the HUD stays on the main one. */
+    public static native void nativeCompanionUnavailable();
+
+    /** On-screen controls -> pad. Mask is active-low in PSX bit order. */
+    public static native void nativeTouchInput(int buttonMask, int stickX, int stickY);
+
+    public static native void nativeTouchSetActive(boolean active);
+
+    public static native int nativeGetGamepadCount();
+
+    /** 0 auto, 1 always, 2 never -- from touch_controls in ctrds.cfg. */
+    public static native int nativeTouchControlsMode();
+
     /** Called from native. Safe to call more than once. */
     public static void startCompanionDisplay() {
         final Activity activity = (Activity) SDLActivity.getContext();
@@ -345,7 +435,12 @@ public class CTRNativeActivity extends SDLActivity {
                 // which reports FLAG_PRESENTATION.
                 Display[] displays = dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION);
                 if (displays == null || displays.length == 0) {
-                    Log.w(CTRDS_TAG, "no presentation display; companion stays off");
+                    Log.w(CTRDS_TAG, "no presentation display; running single-screen");
+                    try {
+                        nativeCompanionUnavailable();
+                    } catch (UnsatisfiedLinkError e) {
+                        Log.e(CTRDS_TAG, "nativeCompanionUnavailable missing: " + e.getMessage());
+                    }
                     return;
                 }
 
