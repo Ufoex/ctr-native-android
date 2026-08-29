@@ -423,6 +423,19 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	// scale Y axis (3)
 	pb->matrix_ViewProj.m[1][2] = pb->matrix_ViewProj.m[1][2] * r360 / r600;
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): widescreen. The Y scaling above is what makes the 512x216
+	// buffer read as 4:3. Narrowing X by 9/16 x 4/3 widens the frustum to 16:9,
+	// showing more of the world rather than stretching the same image.
+	if (Ctrds_Widescreen())
+	{
+		pb->matrix_ViewProj.t[0] = pb->matrix_ViewProj.t[0] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
+		pb->matrix_ViewProj.m[0][0] = pb->matrix_ViewProj.m[0][0] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
+		pb->matrix_ViewProj.m[0][1] = pb->matrix_ViewProj.m[0][1] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
+		pb->matrix_ViewProj.m[0][2] = pb->matrix_ViewProj.m[0][2] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
+	}
+#endif
+
 	// store camera matrix,
 	// otherwise oxide intro cutscene bugs out,
 	// when crash is sleeping on the grassy hill

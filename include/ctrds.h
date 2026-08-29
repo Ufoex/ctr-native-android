@@ -107,6 +107,9 @@ struct CtrdsLayout
 	// Retail anchor, needed to re-derive dot positions after a rescale.
 	s16 mapRetailX;
 	s16 mapRetailY;
+
+	// Widen the 3D frustum to 16:9 instead of stretching the 4:3 image.
+	int widescreen;
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -128,6 +131,17 @@ static inline int Ctrds_Enabled(void)
 static inline int Ctrds_TallFramebuffer(void)
 {
 	return (g_ctrds.mode != CTRDS_DISABLED) && (g_ctrds.tallFramebuffer != 0);
+}
+
+// 9/16 x 4/3 = 0.75. The view-projection's Y axis is already scaled so the
+// 512x216 buffer reads as 4:3; narrowing X by this widens it to 16:9. Same
+// factor the CTR-ModSDK 16BY9 mod uses.
+#define CTRDS_WIDE_NUM 750
+#define CTRDS_WIDE_DEN 1000
+
+static inline int Ctrds_Widescreen(void)
+{
+	return g_ctrds.widescreen != 0;
 }
 
 static inline int Ctrds_SecondScreen(void)

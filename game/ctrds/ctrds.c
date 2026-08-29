@@ -59,6 +59,8 @@ struct CtrdsLayout g_ctrds = {
     .mapScale = CTRDS_FP_ONE * 3,
     .mapIconScale = CTRDS_FP_ONE * 2,
 
+    .widescreen = 1,
+
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
 };
@@ -166,6 +168,14 @@ void Ctrds_InitFromEnv(void)
 		}
 	}
 
+	{
+		const char *wide = getenv("CTRDS_WIDE");
+		if (wide != NULL)
+		{
+			g_ctrds.widescreen = (wide[0] == '1');
+		}
+	}
+
 	if (tall != NULL)
 	{
 		g_ctrds.tallFramebuffer = (tall[0] == '1');
@@ -184,8 +194,8 @@ void Ctrds_InitFromEnv(void)
 		}
 	}
 
-	Platform_Log("[CTR-DS] mode=%d tallFB=%d fb=%dx%d pitch=%d panel=%dx%d\n", g_ctrds.mode, g_ctrds.tallFramebuffer, 512, g_ctrds.fbHeight,
-	        g_ctrds.fbPitch, g_ctrds.screenW, g_ctrds.screenH);
+	Platform_Log("[CTR-DS] mode=%d tallFB=%d panel=%dx%d widescreen=%d\n", g_ctrds.mode, g_ctrds.tallFramebuffer, g_ctrds.screenW, g_ctrds.screenH,
+	        g_ctrds.widescreen);
 }
 
 // The panel needs an ordering table of its own for the idle screen, because

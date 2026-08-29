@@ -2349,6 +2349,14 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 	}
 
 	srcW = (gameW > panelW) ? gameW : panelW;
+
+	// NOTE(ctrds): in widescreen the game view is a 16:9 window on the world,
+	// so lay it out at 16:9 instead of the raw 512x216 buffer ratio.
+	if (Ctrds_Widescreen())
+	{
+		gameH = (gameW * 9) / 16;
+	}
+
 	totalH = gameH + panelH;
 
 	NativeRenderer_UpdateVRAM();
