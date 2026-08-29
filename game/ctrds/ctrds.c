@@ -261,6 +261,11 @@ void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBotto
 	scaleY = ((CTRDS_BODY_H - (2 * CTRDS_MAP_MARGIN_Y)) * CTRDS_FP_ONE) / baseH;
 	scale = (scaleX < scaleY) ? scaleX : scaleY;
 
+	// Sit at 90% of the fit so the map has some air around it rather than
+	// running right up to the neighbouring regions. Centring below uses the
+	// scaled size, so the margins grow evenly on all four sides.
+	scale = (scale * 9) / 10;
+
 	w = (baseW * scale) / CTRDS_FP_ONE;
 	h = (baseH * scale) / CTRDS_FP_ONE;
 
