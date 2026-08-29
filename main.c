@@ -200,7 +200,9 @@ int main(int argc, char *argv[])
 	Platform_Init("Crash Team Racing", 1280, 720);
 #else
 	Platform_Log("[CTR Native] 4:3\n");
-	Platform_Init("Crash Team Racing", 800, 600);
+	// 1080p output. The internal render is still PSX resolution -- this is the
+	// window the VRAM blit is upscaled into.
+	Platform_Init("Crash Team Racing", 1440, 1080);
 #endif
 
 #if defined(CTR_INTERNAL)

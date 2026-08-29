@@ -143,6 +143,10 @@ void Ctrds_InitFromEnv(void);
 // immediately before the frame's DrawOTag.
 void Ctrds_DrawCompanionPass(struct GameTracker *gGT);
 
+// Registers the companion's own ordering table with the native GPU link
+// tokeniser. Must run alongside the frame's other range registrations.
+void Ctrds_RegisterGpuRanges(void);
+
 // Scale currently applied to live-map geometry. CTRDS_FP_ONE outside the
 // companion map draw, so the track-select and adventure maps stay 1:1.
 s16 Ctrds_MapScale(void);

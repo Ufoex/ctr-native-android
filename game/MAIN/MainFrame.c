@@ -19,6 +19,8 @@ static void MainFrame_RegisterGpuLinkRanges(struct GameTracker *gGT)
 		NativeGpuLinks_RegisterRangeChecked(otLabels[i], db->otMem.start, db->otMem.capacityBytes);
 	}
 
+	Ctrds_RegisterGpuRanges();
+
 	u32 swapchainOTBytes = ((u32)gGT->numPlyrCurrGame << 12) | 0x18u;
 	for (int i = 0; i < 2; i++)
 	{

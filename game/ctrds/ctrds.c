@@ -1,5 +1,6 @@
 #include <common.h>
 #include <platform/native_renderer.h>
+#include <platform/native_gpu_links.h>
 
 // CTR-DS companion HUD: layout data and the few helpers the UI code calls.
 //
@@ -187,6 +188,30 @@ void Ctrds_InitFromEnv(void)
 	        g_ctrds.fbPitch, g_ctrds.screenW, g_ctrds.screenH);
 }
 
+// The panel needs an ordering table of its own for the idle screen, because
+// outside a race the UI table belongs to the top screen and must be left alone.
+#define CTRDS_IDLE_OT_LEN 16
+global_variable uint32_t s_ctrdsIdleOT[CTRDS_IDLE_OT_LEN];
+
+void Ctrds_RegisterGpuRanges(void)
+{
+	NativeGpuLinks_RegisterRangeChecked("ctrds idle OT", s_ctrdsIdleOT, sizeof(s_ctrdsIdleOT));
+}
+
+// Outside a race the panel shows the game's wordmark on black rather than
+// mirroring menus, which stay on the top screen where they belong.
+internal void Ctrds_DrawIdlePanel(void)
+{
+	uint32_t *head = &s_ctrdsIdleOT[CTRDS_IDLE_OT_LEN - 1];
+
+	ClearOTagR(s_ctrdsIdleOT, CTRDS_IDLE_OT_LEN);
+
+	DecalFont_DrawLineOT("CTR", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 20, FONT_BIG, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT("CRASH TEAM RACING", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 16, FONT_SMALL, JUSTIFY_CENTER, head);
+
+	DrawOTag(head);
+}
+
 void Ctrds_DrawCompanionPass(struct GameTracker *gGT)
 {
 	// The UI region is the head of the shared ordering table: ClearOTagR builds
@@ -197,14 +222,31 @@ void Ctrds_DrawCompanionPass(struct GameTracker *gGT)
 	uint32_t *uiChainHead = &gGT->pushBuffer_UI.ptrOT[4];
 	uint32_t *otBase = gGT->pushBuffer_UI.ptrOT - 1;
 
+	// Only a race moves its HUD to the panel. Menus, the adventure hub and the
+	// pre-race screens keep their HUD on the top screen, so outside a race the
+	// UI table is left linked and the panel shows the idle screen instead.
+	const int inRace = ((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && ((gGT->gameMode1 & ADVENTURE_ARENA) == 0);
+
 	// DrawOTag would otherwise open the frame itself and bind the game view.
 	Platform_BeginScene();
 
 	NativeRenderer_BeginCompanionTarget(CTRDS_PANEL_W, CTRDS_PANEL_H);
-	DrawOTag(uiChainHead);
+
+	if (inRace)
+	{
+		DrawOTag(uiChainHead);
+	}
+	else
+	{
+		Ctrds_DrawIdlePanel();
+	}
+
 	NativeRenderer_EndCompanionTarget(CTRDS_VRAM_PANEL_X, CTRDS_VRAM_PANEL_Y);
 
-	// Empty the UI buckets so the main pass renders a HUD-free game view. The
-	// prims stay in frame memory, they are simply no longer linked.
-	ClearOTagR(otBase, 6);
+	if (inRace)
+	{
+		// Empty the UI buckets so the main pass renders a HUD-free game view.
+		// The prims stay in frame memory, they are simply no longer linked.
+		ClearOTagR(otBase, 6);
+	}
 }
