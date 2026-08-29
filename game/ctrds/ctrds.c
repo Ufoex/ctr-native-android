@@ -41,7 +41,7 @@ struct CtrdsLayout g_ctrds = {
     // Retail draws the backdrop at (480, 190) and the needle at (414, 145), so
     // the backdrop keeps its +66/+45 offset from the needle.
     .speedBgX = 372 + 66,
-    .speedBgY = CTRDS_PANEL_TOP + 327 + 45,
+    .speedBgY = CTRDS_PANEL_TOP + 300 + 45,
 
     // --- left column: the full eight-driver order, not retail's top four ---
     .rankIconX = 22,
@@ -67,14 +67,14 @@ struct CtrdsLayout g_ctrds = {
 #define CTRDS_HUD_BLOCK                                                                                          \
     /* 0x00 WEAPON           */ {200, CTRDS_PANEL_TOP + 14, 0, 4096},                                                    \
     /* 0x01 LAP_COUNT        */ {466, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
-    /* 0x02 BIG1             */ {436, CTRDS_PANEL_TOP + 196, 256, 5120},                                                  \
+    /* 0x02 BIG1             */ {428, CTRDS_PANEL_TOP + 400, 256, 5120},                                                  \
     /* 0x03 FRUIT_MODEL      */ {330, CTRDS_PANEL_TOP + 24, 512, 4096},                                                  \
     /* 0x04 WUMPA_COUNT      */ {350, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
-    /* 0x05 RANK             */ {476, CTRDS_PANEL_TOP + 178, 0, 0},                                                       \
-    /* 0x06 JUMP_METER       */ {449, CTRDS_PANEL_TOP + 388, 0, 0},                                                       \
+    /* 0x05 RANK             */ {450, CTRDS_PANEL_TOP + 400, 0, 0},                                                       \
+    /* 0x06 JUMP_METER       */ {449, CTRDS_PANEL_TOP + 361, 0, 0},                                                       \
     /* 0x07 (unused)         */ {475, 164, 0, 0},                                                                        \
-    /* 0x08 SLIDE_METER      */ {448, CTRDS_PANEL_TOP + 388, 0, 0},                                                       \
-    /* 0x09 SPEEDOMETER      */ {372, CTRDS_PANEL_TOP + 327, 0, 4096},                                                    \
+    /* 0x08 SLIDE_METER      */ {448, CTRDS_PANEL_TOP + 361, 0, 0},                                                       \
+    /* 0x09 SPEEDOMETER      */ {372, CTRDS_PANEL_TOP + 300, 0, 4096},                                                    \
     /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                                       \
     /* 0x0b BATTLE_WEAPON_BG */ {209, -5, 0, 4096},                                                                      \
     /* 0x0c RACING_WEAPON_BG */ {254, CTRDS_PANEL_TOP + 18, 0, 2457},                                                    \

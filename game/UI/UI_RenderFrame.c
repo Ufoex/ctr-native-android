@@ -485,6 +485,16 @@ void UI_RenderFrame_Racing()
 				sVar2 = hudStructPtr[UI_HUD_SLOT_RANK].y;
 				UI_DrawPosSuffix(sVar1, sVar2, playerStruct, (s16)partTimeVariable5);
 
+#if defined(CTR_NATIVE)
+				if (Ctrds_Enabled() && (numPlyr == 1))
+				{
+					char rankDigit[4];
+
+					sprintf(rankDigit, "%d", (int)playerStruct->driverRank + 1);
+					DecalFont_DrawLine(rankDigit, hudStructPtr[UI_HUD_SLOT_BIG1].x, hudStructPtr[UI_HUD_SLOT_BIG1].y, FONT_BIG, (s16)partTimeVariable5);
+				}
+#endif
+
 				if (numPlyr > 2)
 				{
 					// Get Color Data
