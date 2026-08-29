@@ -67,7 +67,6 @@ struct CtrdsLayout g_ctrds = {
     .vsyncsPerFlip = 1,
     .vblankMultiplier = 1,
     .vblankAuto = 1,
-    .bigRankScale = (CTRDS_FP_ONE * 5) / 2,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -78,17 +77,17 @@ struct CtrdsLayout g_ctrds = {
 #define CTRDS_HUD_BLOCK                                                                                          \
     /* 0x00 WEAPON           */ {200, 10, 0, 4096},                                                              \
     /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
-    /* 0x02 BIG1             */ {386, CTRDS_NUM_Y + 36, 256, 5120},                               \
+    /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 10240},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
     /* 0x04 WUMPA_COUNT      */ {350, 10, 0, 0},                                                                 \
-    /* 0x05 RANK             */ {466, CTRDS_NUM_Y + 52, 0, 0},                                   \
+    /* 0x05 RANK             */ {472, CTRDS_NUM_Y + 30, 0, 0},                                   \
     /* 0x06 JUMP_METER       */ {398 + 77, 60 + 61, 0, 0},                                 \
     /* 0x07 (unused)         */ {475, 164, 0, 0},                                                                \
     /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
     /* 0x09 SPEEDOMETER      */ {398, 60, 0, 4096},                                             \
     /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                               \
-    /* 0x0b BATTLE_WEAPON_BG */ {209, -5, 0, 4096},                                                              \
-    /* 0x0c RACING_WEAPON_BG */ {254, 14, 0, 2457},                                                              \
+    /* 0x0b BATTLE_WEAPON_BG */ {200 - 23, 10 - 10, 0, 4096},                                                              \
+    /* 0x0c RACING_WEAPON_BG */ {330 - 30, 18 - 15, 0, 2457},                                                              \
     /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                  \
     /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                             \
     /* 0x0f KEY              */ {256, 24, 512, 3072},                                                            \
@@ -178,27 +177,79 @@ int Ctrds_VsyncsPerFlip(void)
 	return 2 * Ctrds_VBlankMultiplier();
 }
 
-void Ctrds_InitLayout(void)
+void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBottom)
 {
+	int baseW;
+	int baseH;
+	int drawsTopHalf;
 	int scaleX;
 	int scaleY;
 	int scale;
-	int mapH;
+	int w;
+	int h;
 
-	// Grow the map until it runs out of room in whichever direction binds
-	// first, so it fills its region without spilling into the neighbours.
-	scaleX = (CTRDS_MAP_RW * CTRDS_FP_ONE) / CTRDS_MAP_BASE_W;
-	scaleY = (CTRDS_BODY_H * CTRDS_FP_ONE) / CTRDS_MAP_BASE_H;
+	if (!Ctrds_Enabled() || (mapTop == NULL) || (mapBottom == NULL))
+	{
+		return;
+	}
+
+	// UI_Map_DrawMap builds the map from these two textures, anchored by their
+	// right edge and bottom edge, so this is its true drawn extent. A fixed
+	// guess cannot work: every track's map is a different size, which is why
+	// the map sat low in its region with a gap above it.
+	// UI_Map_DrawMap only draws the top half under this condition; counting it
+	// when it is not drawn overestimates the height and pushes the map down,
+	// leaving a gap above it.
+	{
+		struct GameTracker *gGT = sdata->gGT;
+		struct UIMapSpawnMetadata *mapMetadata = NULL;
+
+		if (gGT->level1->ptrSpawnType1 != 0)
+		{
+			void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
+			mapMetadata = pointers[ST1_MAP];
+		}
+
+		drawsTopHalf = (((mapMetadata != NULL) && (mapMetadata->topHalfMode == 0)) || ((gGT->gameMode1 & MAIN_MENU) != 0));
+	}
+
+	baseW = (int)((u16)mapBottom->texLayout.u1 - (u16)mapBottom->texLayout.u0);
+	baseH = (int)((u16)mapBottom->texLayout.v2 - (u16)mapBottom->texLayout.v0);
+
+	if (drawsTopHalf)
+	{
+		baseH += (int)((u16)mapTop->texLayout.v2 - (u16)mapTop->texLayout.v0);
+	}
+
+	if ((baseW <= 0) || (baseH <= 0))
+	{
+		return;
+	}
+
+	scaleX = ((CTRDS_MAP_RW - (2 * CTRDS_MAP_MARGIN_X)) * CTRDS_FP_ONE) / baseW;
+	scaleY = ((CTRDS_BODY_H - (2 * CTRDS_MAP_MARGIN_Y)) * CTRDS_FP_ONE) / baseH;
 	scale = (scaleX < scaleY) ? scaleX : scaleY;
 
+	w = (baseW * scale) / CTRDS_FP_ONE;
+	h = (baseH * scale) / CTRDS_FP_ONE;
+
 	g_ctrds.mapScale = (s16)scale;
+	g_ctrds.mapX = (s16)(CTRDS_MAP_RX + ((CTRDS_MAP_RW + w) / 2));
+	// The map art carries a few rows of transparent padding along its bottom
+	// edge, so centring the texture leaves the visible track sitting high in the
+	// region. Measured at ~6 units; there is no way to see it from texLayout,
+	// which describes the rect and not what is opaque inside it.
+	g_ctrds.mapY = (s16)(CTRDS_BODY_Y + ((CTRDS_BODY_H + h) / 2) + CTRDS_MAP_ART_PAD_Y);
+}
 
-	// The map draws up and left from its anchor, so the anchor is the region's
-	// right edge, and low enough to centre the scaled map vertically.
-	mapH = (CTRDS_MAP_BASE_H * scale) / CTRDS_FP_ONE;
-
+void Ctrds_InitLayout(void)
+{
+	// The map's real scale and anchor come from the track's own map textures in
+	// Ctrds_FitMapToRegion, which runs before it is drawn. These are only the
+	// values used before the first race has loaded a map.
+	g_ctrds.mapScale = CTRDS_FP_ONE;
 	g_ctrds.mapX = (s16)(CTRDS_MAP_RX + CTRDS_MAP_RW);
-	g_ctrds.mapY = (s16)(CTRDS_BODY_Y + ((CTRDS_BODY_H + mapH) / 2));
+	g_ctrds.mapY = (s16)(CTRDS_BODY_Y + CTRDS_BODY_H);
 }
 
 void Ctrds_UpdateAutoVBlank(float panelHz)

@@ -85,10 +85,14 @@
 // instead of square pixels.
 #define CTRDS_PANEL_LAYOUT_H 446
 
-// Extent of the retail live map measured from its bottom-right anchor, used to
-// work out how much the map has to grow to fill the region above.
-#define CTRDS_MAP_BASE_W 104
-#define CTRDS_MAP_BASE_H 88
+// Breathing room around the map inside its region. The panel stretches Y by
+// 1.78x, so equal margins on screen need a smaller number vertically: 10 x 2.42
+// and 6 x 4.30 are both about 24 physical pixels.
+#define CTRDS_MAP_MARGIN_X 10
+#define CTRDS_MAP_MARGIN_Y 6
+
+// Transparent rows along the bottom of the map art (see Ctrds_FitMapToRegion).
+#define CTRDS_MAP_ART_PAD_Y 6
 
 // Where the finished panel is parked in VRAM. Needs VRAM_HEIGHT > 1470.
 #define CTRDS_VRAM_PANEL_X 0
@@ -179,9 +183,6 @@ struct CtrdsLayout
 	// has to follow the panel at runtime rather than be decided at startup.
 	int vblankAuto;
 
-	// Scale for the big position numeral on the panel. DecalFont has no scaled
-	// draw, so the numeral is the big rank icon drawn through DecalHUD instead.
-	int bigRankScale;
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -234,10 +235,11 @@ void Ctrds_UpdateAutoVBlank(float panelHz);
 // Derives the map scale and anchor from the grid above. Call once at startup.
 void Ctrds_InitLayout(void);
 
-static inline int Ctrds_BigRankScale(void)
-{
-	return (g_ctrds.bigRankScale > 0) ? g_ctrds.bigRankScale : CTRDS_FP_ONE;
-}
+// Scales the live map to its region and centres it there, from the actual
+// dimensions of the track's own map textures. Call before the map is drawn.
+struct Icon;
+void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBottom);
+
 
 static inline int Ctrds_Widescreen(void)
 {

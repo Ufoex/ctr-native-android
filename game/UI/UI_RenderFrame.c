@@ -486,18 +486,11 @@ void UI_RenderFrame_Racing()
 				UI_DrawPosSuffix(sVar1, sVar2, playerStruct, (s16)partTimeVariable5);
 
 #if defined(CTR_NATIVE)
-				if (Ctrds_Enabled() && (numPlyr == 1))
-				{
-					// Retail only draws the big rank numeral with 3+ players, so
-					// 1P had nothing here. DecalFont has no scaled draw, so use
-					// the big rank icon (0x19 + rank) through DecalHUD, which
-					// does take a scale -- the panel has room for a large one.
-					u32 *bigColor = data.ptrColor[sVar17];
-
-					DecalHUD_DrawPolyGT4(gGT->ptrIcons[(int)playerStruct->driverRank + 0x19], hudStructPtr[UI_HUD_SLOT_BIG1].x,
-					        hudStructPtr[UI_HUD_SLOT_BIG1].y, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, bigColor[0], bigColor[1],
-					        bigColor[2], bigColor[3], 0, (s16)Ctrds_BigRankScale());
-				}
+				// NOTE(ctrds): nothing to add here. The big numeral is already
+				// drawn from the BIG1 slot, whose UiElement2D carries a scale --
+				// raising that is how the panel gets a larger one. An extra
+				// DecalHUD draw here put a second, wrong icon beside it, because
+				// ptrIcons[rank + 0x19] is not the numeral set.
 #endif
 
 				if (numPlyr > 2)
@@ -805,6 +798,9 @@ void UI_RenderFrame_Racing()
 
 			if (Ctrds_Enabled())
 			{
+				// Fit before remapping: the dots are placed from the same scale
+				// and anchor the background uses.
+				Ctrds_FitMapToRegion(gGT->ptrIcons[3], gGT->ptrIcons[4]);
 				Ctrds_ScaleMap(&ctrdsMap, levPtrMap);
 				drawMap = &ctrdsMap;
 			}
