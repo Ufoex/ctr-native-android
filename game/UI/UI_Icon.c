@@ -331,7 +331,25 @@ void UI_DrawDriverIcon(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *pr
 		p->colorCode.code.poly.semiTransparency = 1;
 	}
 
-	u8 bottomV = (u8)((icon->texLayout.v0 + bottomY) - posY);
+	// NOTE(ctrds): retail derives the bottom V straight from the drawn pixel
+	// height, which is only correct at scale 1.0 -- above that the quad samples
+	// past the icon and drags in whatever sits below it in VRAM (garbled bands
+	// under each portrait). Scale the V range by how much of the quad survived
+	// clipping instead: identical to retail at 1.0 and when clipped, and a
+	// proper stretch at any other scale.
+	int drawnHeight = bottomY - posY;
+	int texHeight = icon->texLayout.v2 - icon->texLayout.v0;
+	int sampledHeight = (scaledHeight > 0) ? ((texHeight * drawnHeight) / scaledHeight) : 0;
+
+	// Magnifying stretches the last texel row over several screen rows, which
+	// drags in whatever the atlas packs directly underneath. Stop one row short
+	// when scaled up; at FP(1) this stays exactly on retail's edge.
+	if ((scale > FP(1)) && (sampledHeight > 0))
+	{
+		sampledHeight--;
+	}
+
+	u8 bottomV = (u8)(icon->texLayout.v0 + sampledHeight);
 	p->v[0].texCoords.u = icon->texLayout.u0;
 	p->v[0].texCoords.v = icon->texLayout.v0;
 	p->v[1].texCoords.u = icon->texLayout.u1;

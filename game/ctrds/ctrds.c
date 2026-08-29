@@ -44,18 +44,19 @@ struct CtrdsLayout g_ctrds = {
     .speedBgY = CTRDS_PANEL_TOP + 372 + 45,
 
     // --- left column: the full eight-driver order, not retail's top four ---
-    .rankIconX = 26,
-    .rankIconBaseY = CTRDS_PANEL_TOP + 78,
-    .rankSlotH = 29,
+    .rankIconX = 22,
+    .rankIconBaseY = CTRDS_PANEL_TOP + 96,
+    .rankSlotH = 40,
     .rankVisible = 8,
-    .rankTextX = 62,
-    .rankTextStartY = CTRDS_PANEL_TOP + 76,
+    .rankTextX = 66,
+    .rankTextStartY = CTRDS_PANEL_TOP + 100,
+    .rankIconScale = CTRDS_FP_ONE + (CTRDS_FP_ONE / 2),
 
     // --- live map: big, anchored to the bottom-right corner of the panel ---
-    .mapX = 366,
-    .mapY = CTRDS_PANEL_TOP + 336,
-    .mapScale = (CTRDS_FP_ONE * 5) / 2,
-    .mapIconScale = CTRDS_FP_ONE + (CTRDS_FP_ONE / 2),
+    .mapX = 412,
+    .mapY = CTRDS_PANEL_TOP + 352,
+    .mapScale = CTRDS_FP_ONE * 3,
+    .mapIconScale = CTRDS_FP_ONE * 2,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -66,10 +67,10 @@ struct CtrdsLayout g_ctrds = {
 #define CTRDS_HUD_BLOCK                                                                                          \
     /* 0x00 WEAPON           */ {200, CTRDS_PANEL_TOP + 14, 0, 4096},                                                    \
     /* 0x01 LAP_COUNT        */ {466, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
-    /* 0x02 BIG1             */ {426, CTRDS_PANEL_TOP + 206, 256, 5120},                                                  \
+    /* 0x02 BIG1             */ {436, CTRDS_PANEL_TOP + 196, 256, 5120},                                                  \
     /* 0x03 FRUIT_MODEL      */ {330, CTRDS_PANEL_TOP + 24, 512, 4096},                                                  \
     /* 0x04 WUMPA_COUNT      */ {350, CTRDS_PANEL_TOP + 16, 0, 0},                                                       \
-    /* 0x05 RANK             */ {466, CTRDS_PANEL_TOP + 188, 0, 0},                                                       \
+    /* 0x05 RANK             */ {476, CTRDS_PANEL_TOP + 178, 0, 0},                                                       \
     /* 0x06 JUMP_METER       */ {449, CTRDS_PANEL_TOP + 433, 0, 0},                                                       \
     /* 0x07 (unused)         */ {475, 164, 0, 0},                                                                        \
     /* 0x08 SLIDE_METER      */ {448, CTRDS_PANEL_TOP + 433, 0, 0},                                                       \
@@ -96,6 +97,11 @@ internal s16 s_ctrdsMapScale = CTRDS_FP_ONE;
 s16 Ctrds_MapScale(void)
 {
 	return s_ctrdsMapScale;
+}
+
+s16 Ctrds_MapIconScale(void)
+{
+	return Ctrds_Enabled() ? g_ctrds.mapIconScale : CTRDS_FP_ONE;
 }
 
 void Ctrds_BeginMapScale(void)

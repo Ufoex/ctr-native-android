@@ -94,6 +94,7 @@ struct CtrdsLayout
 	s16 rankVisible;
 	s16 rankTextX;
 	s16 rankTextStartY;
+	s16 rankIconScale; // retail is FP(1); the panel has room for larger portraits
 
 	// Live map. Retail hardcodes the (500, 195) anchor in
 	// UI_RenderFrame_Racing and draws the bitmap 1:1 with its texture.
@@ -145,6 +146,10 @@ void Ctrds_DrawCompanionPass(struct GameTracker *gGT);
 // Scale currently applied to live-map geometry. CTRDS_FP_ONE outside the
 // companion map draw, so the track-select and adventure maps stay 1:1.
 s16 Ctrds_MapScale(void);
+
+// Scale for the dots drawn on the live map. Separate from the background scale
+// so the icons can stay crisp while the bitmap stretches.
+s16 Ctrds_MapIconScale(void);
 void Ctrds_BeginMapScale(void);
 void Ctrds_EndMapScale(void);
 

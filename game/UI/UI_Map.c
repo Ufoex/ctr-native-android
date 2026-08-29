@@ -347,7 +347,7 @@ void UI_Map_DrawDrivers(struct UIMap *map, struct Thread *bucket, s16 *driverIco
 			iconID = UI_MAP_PLAYER_ICON_HUMAN;
 		}
 
-		UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], iconID, (s16)kartColor, 0, UI_MAP_ICON_SCALE);
+		UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], iconID, (s16)kartColor, 0, Ctrds_MapIconScale());
 	}
 	return;
 }
@@ -400,7 +400,7 @@ void UI_Map_DrawGhosts(struct UIMap *map, struct Thread *bucket)
 			}
 		}
 
-		UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], UI_MAP_PLAYER_ICON_AI, color, 0, UI_MAP_ICON_SCALE);
+		UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], UI_MAP_PLAYER_ICON_AI, color, 0, Ctrds_MapIconScale());
 	}
 	return;
 }
@@ -427,7 +427,7 @@ void UI_Map_DrawTracking(struct UIMap *map, struct Thread *bucket)
 		// == only draw warpball ==
 
 		// draw warpball
-		UI_Map_DrawRawIcon(map, &inst->matrix.t[0], UI_MAP_WARPBALL_ICON, 0, 0, UI_MAP_ICON_SCALE);
+		UI_Map_DrawRawIcon(map, &inst->matrix.t[0], UI_MAP_WARPBALL_ICON, 0, 0, Ctrds_MapIconScale());
 
 		// driver target
 		tw = (struct TrackerWeapon *)inst->thread->object;
@@ -448,7 +448,7 @@ void UI_Map_DrawTracking(struct UIMap *map, struct Thread *bucket)
 			targetColor = CORTEX_RED;
 		}
 
-		UI_Map_DrawRawIcon(map, &d->instSelf->matrix.t[0], UI_MAP_WARPBALL_TARGET_ICON, targetColor, 0, UI_MAP_ICON_SCALE);
+		UI_Map_DrawRawIcon(map, &d->instSelf->matrix.t[0], UI_MAP_WARPBALL_TARGET_ICON, targetColor, 0, Ctrds_MapIconScale());
 	}
 	return;
 }

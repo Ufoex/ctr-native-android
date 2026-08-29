@@ -122,6 +122,7 @@ void UI_DrawRankedDrivers(void)
 	s16 rankTextX = UI_RANK_TEXT_X;
 	s16 rankTextStartY = UI_RANK_TEXT_START_Y;
 	s16 rankArcadeVisible = UI_RANK_VISIBLE_ARCADE_COUNT;
+	s16 rankPortraitScale = UI_RANK_ICON_SCALE;
 
 #if defined(CTR_NATIVE)
 	if (Ctrds_Enabled())
@@ -132,6 +133,7 @@ void UI_DrawRankedDrivers(void)
 		rankTextX = g_ctrds.rankTextX;
 		rankTextStartY = g_ctrds.rankTextStartY;
 		rankArcadeVisible = g_ctrds.rankVisible;
+		rankPortraitScale = g_ctrds.rankIconScale;
 	}
 #endif
 
@@ -247,7 +249,7 @@ void UI_DrawRankedDrivers(void)
 				}
 
 				SVec2 iconPos = {.x = pos.x, .y = pos.y};
-				s16 iconScale = UI_RANK_ICON_SCALE;
+				s16 iconScale = rankPortraitScale;
 
 				int isTransitioning = (pos.x == UI_RANK_ICON_OFFSCREEN_X);
 
