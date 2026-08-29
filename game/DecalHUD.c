@@ -135,6 +135,21 @@ void DecalHUD_DrawPolyGT4(struct Icon *icon, s16 posX, s16 posY, struct PrimMem 
 	setXY4CompilerHack(p, (u16)posX, posY, rightX, posY, (u16)posX, bottomY, rightX, bottomY);
 	setIconUV(p, icon);
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): PS1 texture coordinates are inclusive, so a quad drawn larger
+	// than its source reaches one texel past the icon along its far edges and
+	// samples whatever sits beside it in the atlas -- black padding, in the case
+	// of the big rank numerals, which showed as a dark band under the digit.
+	// Pull those edges in by a texel whenever the icon is magnified.
+	if (scale > FP(1.0))
+	{
+		p->u1 = (u8)(p->u1 - 1);
+		p->u3 = (u8)(p->u3 - 1);
+		p->v2 = (u8)(p->v2 - 1);
+		p->v3 = (u8)(p->v3 - 1);
+	}
+#endif
+
 	if (transparency)
 	{
 		setTransparency(p, transparency);

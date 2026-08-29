@@ -77,7 +77,7 @@ struct CtrdsLayout g_ctrds = {
 #define CTRDS_HUD_BLOCK                                                                                          \
     /* 0x00 WEAPON           */ {200, 10, 0, 4096},                                                              \
     /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
-    /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 10240},                               \
+    /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 5530},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
     /* 0x04 WUMPA_COUNT      */ {350, 10, 0, 0},                                                                 \
     /* 0x05 RANK             */ {472, CTRDS_NUM_Y + 30, 0, 0},                                   \
@@ -423,6 +423,8 @@ void Ctrds_DrawCompanionPass(struct GameTracker *gGT)
 	// tables start at entry 6. Entries 5..0 are therefore the UI, drawn last in
 	// the normal walk. Drawing that sub-chain on its own gives the panel exactly
 	// the HUD and map, with no 3D.
+	// Entry 5 holds 3D world geometry, not UI -- starting the walk there draws
+	// the player's kart onto the panel. 4 is the top of the UI range.
 	uint32_t *uiChainHead = &gGT->pushBuffer_UI.ptrOT[4];
 	uint32_t *otBase = gGT->pushBuffer_UI.ptrOT - 1;
 
