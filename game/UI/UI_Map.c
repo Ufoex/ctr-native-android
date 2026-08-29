@@ -93,6 +93,13 @@ void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s16 posX, s16 p
 	// position of the bottom margin of the primitive for the bottom half of the minimap
 	mapBottomHeight = mapBottom->texLayout.v2 - mapBottom->texLayout.v0;
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): retail draws the minimap 1:1 with its texture. Scaling the
+	// quad here (and the width in _ExtraFunc) is what makes the companion map
+	// big; Ctrds_MapScale is unity everywhere except the companion draw.
+	mapBottomHeight = Ctrds_ApplyScale(mapBottomHeight, Ctrds_MapScale());
+#endif
+
 	p = (POLY_FT4 *)primMem->cursor;
 
 	// if these conditions are met, then draw the top half of the minimap; otherwise, only draw the bottom half
@@ -107,6 +114,10 @@ void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s16 posX, s16 p
 
 		// position of the top margin of the primitive for the top half of the minimap
 		mapTopHeight = posY - (((u16)mapTop->texLayout.v2 - (u16)mapTop->texLayout.v0) + mapBottomHeight);
+
+#if defined(CTR_NATIVE)
+		mapTopHeight = posY - (Ctrds_ApplyScale((s16)((u16)mapTop->texLayout.v2 - (u16)mapTop->texLayout.v0), Ctrds_MapScale()) + mapBottomHeight);
+#endif
 
 		p->y0 = mapTopHeight;
 		p->y1 = mapTopHeight;
@@ -139,6 +150,10 @@ void UI_Map_DrawMap_ExtraFunc(struct Icon *icon, POLY_FT4 *p, s16 posX, s16 empt
 	s16 sizeX;
 
 	sizeX = icon->texLayout.u1 - icon->texLayout.u0;
+
+#if defined(CTR_NATIVE)
+	sizeX = Ctrds_ApplyScale(sizeX, Ctrds_MapScale());
+#endif
 
 	// posX is the right side,
 	// letftX is the left side

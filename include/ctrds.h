@@ -1,0 +1,126 @@
+#ifndef CTR_NATIVE_CTRDS_H
+#define CTR_NATIVE_CTRDS_H
+
+// CTR-DS: dual-screen companion HUD.
+//
+// Relocates the glanceable race HUD (clock, item, fruit, lap, rank list,
+// position, speedometer, meters and an enlarged live map) into a separate
+// companion viewport sized for the AYN Thor's bottom panel.
+//
+// Every coordinate the companion uses lives in g_ctrds / g_ctrdsHud1P so the
+// layout can be retuned without touching draw code. With CTRDS_DISABLED the
+// values are the retail ones and the game renders exactly as it always did.
+
+// 12-bit fixed point, matching UI_MAP_ICON_SCALE / UI_RANK_ICON_SCALE.
+#define CTRDS_FP_ONE 0x1000
+
+// Framebuffer geometry.
+//
+// Retail draws a 512x216 buffer. With the companion enabled each buffer is
+// tall enough to hold that game view plus the companion panel directly below
+// it, so a single draw environment covers both screens and the frame is
+// presented as two rectangles instead of one.
+//
+// 512x446 is 1.148:1 -- the AYN Thor's bottom panel (1240x1080) exactly.
+#define CTRDS_GAME_HEIGHT  216
+#define CTRDS_PANEL_HEIGHT 446
+#define CTRDS_FB_HEIGHT    (CTRDS_GAME_HEIGHT + CTRDS_PANEL_HEIGHT)
+
+// Distance between the two buffers in VRAM. Must be >= CTRDS_FB_HEIGHT.
+#define CTRDS_FB_PITCH 1024
+
+enum CtrdsMode
+{
+	CTRDS_DISABLED = 0,
+
+	// Companion elements drawn into the normal framebuffer at companion
+	// coordinates. Used to tune the layout on a desktop build.
+	CTRDS_INLINE = 1,
+
+	// Companion elements drawn into their own viewport for a second display.
+	CTRDS_SECOND_SCREEN = 2,
+};
+
+struct CtrdsLayout
+{
+	int mode;
+
+	// When set, each framebuffer is grown to hold the game view plus the
+	// companion panel. Cleared, the companion coordinates still apply but
+	// anything below the game view is clipped -- useful for isolating layout
+	// problems from framebuffer problems.
+	int tallFramebuffer;
+
+	// Framebuffer geometry actually used when tallFramebuffer is set.
+	// Runtime so it can be tuned without a rebuild (CTRDS_FB_H / CTRDS_FB_P).
+	s16 fbHeight;
+	s16 fbPitch;
+
+	// Companion viewport, in the game's 512-wide HUD space.
+	// 512x446 is 1.148:1, the Thor bottom panel (1240x1080) exactly.
+	s16 screenW;
+	s16 screenH;
+
+	// Race clock. Retail hardcodes (0x14, 8) in UI_RenderFrame_Racing.
+	s16 clockX;
+	s16 clockY;
+
+	// Speedometer backdrop. Retail hardcodes (480, 190) in UI_DrawSpeedBG;
+	// the needle itself comes from the HUD slot table.
+	s16 speedBgX;
+	s16 speedBgY;
+
+	// Ranked-driver column. Retail values are an enum in UI_Rank.c, and
+	// retail only ever shows the top 4 of 8.
+	s16 rankIconX;
+	s16 rankIconBaseY;
+	s16 rankSlotH;
+	s16 rankVisible;
+	s16 rankTextX;
+	s16 rankTextStartY;
+
+	// Live map. Retail hardcodes the (500, 195) anchor in
+	// UI_RenderFrame_Racing and draws the bitmap 1:1 with its texture.
+	// The anchor is the map's bottom-right corner.
+	s16 mapX;
+	s16 mapY;
+	s16 mapScale;     // background + dot spread
+	s16 mapIconScale; // dot glyphs only; keep low so they stay crisp
+
+	// Retail anchor, needed to re-derive dot positions after a rescale.
+	s16 mapRetailX;
+	s16 mapRetailY;
+};
+
+extern struct CtrdsLayout g_ctrds;
+
+// Companion replacement for data.hud_1P_P1. Same 20 slots, same meaning.
+extern struct UiElement2D g_ctrdsHud1P[UI_HUD_SLOT_COUNT];
+
+static inline int Ctrds_Enabled(void)
+{
+	return g_ctrds.mode != CTRDS_DISABLED;
+}
+
+static inline int Ctrds_TallFramebuffer(void)
+{
+	return (g_ctrds.mode != CTRDS_DISABLED) && (g_ctrds.tallFramebuffer != 0);
+}
+
+// Reads CTRDS (0 off, 1 inline, 2 second screen) and CTRDS_TALL_FB (0/1).
+void Ctrds_InitFromEnv(void);
+
+// Scale currently applied to live-map geometry. CTRDS_FP_ONE outside the
+// companion map draw, so the track-select and adventure maps stay 1:1.
+s16 Ctrds_MapScale(void);
+void Ctrds_BeginMapScale(void);
+void Ctrds_EndMapScale(void);
+
+// Applies a scaled dimension: (value * scale) >> 12, rounded toward zero.
+s16 Ctrds_ApplyScale(s16 value, s16 scale);
+
+// Builds a scaled copy of a level's UIMap so driver, ghost and tracking dots
+// land on the enlarged background without touching their own draw code.
+void Ctrds_ScaleMap(struct UIMap *dst, const struct UIMap *src);
+
+#endif

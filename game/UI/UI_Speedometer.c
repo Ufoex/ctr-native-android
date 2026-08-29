@@ -132,8 +132,18 @@ void UI_DrawSpeedBG(void)
 	Point *vertexes = (Point *)&data.speedometerBG_vertData[0];
 	Point *vertexesExtLine = (Point *)&data.speedometerBG_vertData[1];
 	int pointCount = sizeof(data.speedometerBG_vertData) / (sizeof(Point) * 2);
-	const s16 xOffset = 480;
-	const s16 yOffset = 190;
+	// NOTE(ctrds): the speedometer backdrop is the one HUD piece with no slot in
+	// the layout table, so its origin has to move with the companion panel.
+	s16 xOffset = 480;
+	s16 yOffset = 190;
+
+#if defined(CTR_NATIVE)
+	if (Ctrds_Enabled())
+	{
+		xOffset = g_ctrds.speedBgX;
+		yOffset = g_ctrds.speedBgY;
+	}
+#endif
 
 	/* Draw the horizontal lines - they're a bit wider than the speedometer width */
 	for (int i = 0; i < pointCount; i += 2)

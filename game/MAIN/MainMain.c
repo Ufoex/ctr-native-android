@@ -526,10 +526,28 @@ void StateZero()
 
 	SetDispMask(1);
 
-	SetDefDrawEnv(&gGT->db[0].drawEnv, 0, 0, 0x200, 0xd8);
-	SetDefDrawEnv(&gGT->db[1].drawEnv, 0, 0x128, 0x200, 0xd8);
-	SetDefDispEnv(&gGT->db[0].dispEnv, 0, 0x128, 0x200, 0xd8);
-	SetDefDispEnv(&gGT->db[1].dispEnv, 0, 0, 0x200, 0xd8);
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): with the companion screen enabled each buffer is tall enough
+	// to hold the 216-row game view plus the companion panel underneath it, and
+	// the two buffers move apart so they no longer overlap.
+	if (Ctrds_TallFramebuffer())
+	{
+		SetDefDrawEnv(&gGT->db[0].drawEnv, 0, 0, 0x200, g_ctrds.fbHeight);
+		SetDefDrawEnv(&gGT->db[1].drawEnv, 0, g_ctrds.fbPitch, 0x200, g_ctrds.fbHeight);
+		// The PSX display environment cannot show more than ~240 rows, so it
+		// keeps the retail game-view height. The companion band below it is
+		// reached with a second present instead.
+		SetDefDispEnv(&gGT->db[0].dispEnv, 0, g_ctrds.fbPitch, 0x200, 0xd8);
+		SetDefDispEnv(&gGT->db[1].dispEnv, 0, 0, 0x200, 0xd8);
+	}
+	else
+#endif
+	{
+		SetDefDrawEnv(&gGT->db[0].drawEnv, 0, 0, 0x200, 0xd8);
+		SetDefDrawEnv(&gGT->db[1].drawEnv, 0, 0x128, 0x200, 0xd8);
+		SetDefDispEnv(&gGT->db[0].dispEnv, 0, 0x128, 0x200, 0xd8);
+		SetDefDispEnv(&gGT->db[1].dispEnv, 0, 0, 0x200, 0xd8);
+	}
 
 	gGT->db[0].dispEnv.screen.x = 0;
 	gGT->db[0].dispEnv.screen.y = 0xc;

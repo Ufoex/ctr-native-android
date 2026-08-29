@@ -779,7 +779,7 @@ GLint u_psxTextureOutputStpLoc;
 	"	}\n"
 
 #define GPU_FETCH_VRAM_FUNC                                        \
-	"	const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n" \
+	"	const vec2 c_VRAMTexel = vec2(1.0 / " VRAM_WIDTH_GLSL ", 1.0 / " VRAM_HEIGHT_GLSL ");\n" \
 	"	uniform sampler2D s_texture;\n"                              \
 	"	vec2 VRAM(vec2 uv) { return texture2D(s_texture, uv).rg; }\n"
 
@@ -904,10 +904,10 @@ const char *gte_shader_32_rgba = "	uniform sampler2D s_texture;\n"
 	"		v_texcoord.xy += a_extra.xy * 0.5;\n"                                                                       \
 	"		v_color = a_color;\n"                                                                                       \
 	"		v_color.xyz *= a_texcoord.z;\n"                                                                             \
-	"		v_page_clut.x = fract(a_position.z / 16.0) * 1024.0;\n"                                                     \
+	"		v_page_clut.x = fract(a_position.z / 16.0) * " VRAM_WIDTH_GLSL ";\n"                                                     \
 	"		v_page_clut.y = floor(a_position.z / 16.0) * 256.0;\n"                                                      \
 	"		v_page_clut.z = fract(a_position.w / 64.0);\n"                                                              \
-	"		v_page_clut.w = floor(a_position.w / 64.0) / 512.0;\n"                                                      \
+	"		v_page_clut.w = floor(a_position.w / 64.0) / " VRAM_HEIGHT_GLSL ";\n"                                                      \
 	"		v_page_clut.xy += c_UVFudge;\n"                                                                             \
 	"		v_page_clut.zw += c_UVFudge;\n" GTE_PERSPECTIVE_CORRECTION "		v_z = (gl_Position.z - 40.0) * 0.005;\n" \
 	"	}\n"
@@ -1152,7 +1152,7 @@ global_variable const char *ctr_present_vram_shader = "#ifdef VERTEX\n"
                                                       "void main() {\n"
                                                       "\tvec2 screenUV = a_position * 0.5 + 0.5;\n"
                                                       "\tvec2 sourcePixel = sourceRect.xy + vec2(screenUV.x, 1.0 - screenUV.y) * sourceRect.zw;\n"
-                                                      "\tv_uv = sourcePixel / vec2(1024.0, 512.0);\n"
+                                                      "\tv_uv = sourcePixel / vec2(" VRAM_WIDTH_GLSL ", " VRAM_HEIGHT_GLSL ");\n"
                                                       "\tgl_Position = vec4(a_position, 0.0, 1.0);\n"
                                                       "}\n"
                                                       "#endif\n"
@@ -2228,6 +2228,56 @@ void NativeRenderer_PresentVRAMDisplay(void)
 	// OpenGL backend otherwise swaps the current framebuffer and never shows
 	// those VRAM-only copies.
 	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
+}
+
+// NOTE(ctrds): presents the game view and the companion band as two stacked
+// rectangles in one window, mirroring how the Thor's two panels sit above each
+// other. Aspect is fitted to srcW x (gameH + panelH) so neither half stretches.
+void NativeRenderer_PresentStacked(int srcX, int srcY, int srcW, int gameH, int panelH)
+{
+	const int totalH = gameH + panelH;
+	int vw, vh, vx, vy, gh, ph;
+
+	if ((totalH <= 0) || (srcW <= 0) || (gameH <= 0) || (panelH <= 0) || (g_windowWidth <= 0) || (g_windowHeight <= 0))
+	{
+		return;
+	}
+
+	NativeRenderer_UpdateVRAM();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	NativeRenderer_SetScissorState(0);
+	NativeRenderer_EnableDepth(0);
+	NativeRenderer_SetBlendMode(BM_NONE);
+
+	NativeRenderer_SetViewPort(0, 0, g_windowWidth, g_windowHeight);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	vw = g_windowWidth;
+	vh = (vw * totalH) / srcW;
+	if (vh > g_windowHeight)
+	{
+		vh = g_windowHeight;
+		vw = (vh * srcW) / totalH;
+	}
+	vx = (g_windowWidth - vw) / 2;
+	vy = (g_windowHeight - vh) / 2;
+
+	gh = (vh * gameH) / totalH;
+	ph = vh - gh;
+
+	// GL viewport origin is bottom-left, so the game view takes the upper strip.
+	NativeRenderer_SetViewPort(vx, vy + ph, vw, gh);
+	NativeRenderer_DrawVRAMRegion(srcX, srcY, srcW, gameH);
+
+	NativeRenderer_SetViewPort(vx, vy, vw, ph);
+	NativeRenderer_DrawVRAMRegion(srcX, srcY + gameH, srcW, panelH);
+
+	glBindVertexArray(0);
+
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
 }
 
 void NativeRenderer_SwapWindow(void)

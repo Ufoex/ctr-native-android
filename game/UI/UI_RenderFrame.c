@@ -48,6 +48,15 @@ void UI_RenderFrame_Racing()
 	// Get pointer to array of HUD structs
 	hudStructPtr = (struct UiElement2D *)data.hudStructPtr[numPlyr - 1];
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): the companion panel owns the glanceable HUD, so 1P racing
+	// reads its coordinates from the companion table instead of retail's.
+	if (Ctrds_Enabled() && (numPlyr == 1))
+	{
+		hudStructPtr = &g_ctrdsHud1P[0];
+	}
+#endif
+
 	levPtrMap = 0;
 
 	// adding this here so the compiler doesn't complain
@@ -175,11 +184,19 @@ void UI_RenderFrame_Racing()
 				}
 			}
 
+			// NOTE(ctrds): retail makes the speedometer/jump meter and the
+			// live map mutually exclusive via HudAndDebugFlags bit 3 -- you get
+			// one or the other. The companion panel has room for both, so with
+			// it enabled the meters draw regardless of that bit.
 			if (
 			    // numPlyrCurrGame is less than 2 (1P mode)
 			    (numPlyr < 2) &&
 			    // if want to draw speedometer
-			    ((sdata->HudAndDebugFlags & 8) != 0))
+			    (((sdata->HudAndDebugFlags & 8) != 0)
+#if defined(CTR_NATIVE)
+			     || Ctrds_Enabled()
+#endif
+			     ))
 			{
 				UI_DrawSpeedNeedle(hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].x + offset, hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].y, playerStruct);
 				UI_JumpMeter_Draw(hudStructPtr[UI_HUD_SLOT_JUMP_METER].x, hudStructPtr[UI_HUD_SLOT_JUMP_METER].y, playerStruct);
@@ -561,7 +578,11 @@ void UI_RenderFrame_Racing()
 	{
 		playerStruct = gGT->drivers[0];
 
+	#if defined(CTR_NATIVE)
+		UI_DrawRaceClock(Ctrds_Enabled() ? g_ctrds.clockX : 0x14, Ctrds_Enabled() ? g_ctrds.clockY : 8, UI_RACE_CLOCK_SHOW_CURRENT_TIME, playerStruct);
+#else
 		UI_DrawRaceClock(0x14, 8, UI_RACE_CLOCK_SHOW_CURRENT_TIME, playerStruct);
+#endif
 
 		turboThread = 0;
 		turboThreadObject = 0;
@@ -750,18 +771,38 @@ void UI_RenderFrame_Racing()
 		if (((numPlyr == 1)
 
 		     // if want to draw map, not speedometer
-		     && (sdata->HudAndDebugFlags & 8) == 0) ||
+		     && (((sdata->HudAndDebugFlags & 8) == 0)
+#if defined(CTR_NATIVE)
+		         || Ctrds_Enabled()
+#endif
+		         )) ||
 
 		    (numPlyr == 3))
 		{
 			local_30[0] = 0;
 
-			UI_Map_DrawDrivers(levPtrMap, gGT->threadBuckets[PLAYER].thread, local_30);
-			UI_Map_DrawDrivers(levPtrMap, gGT->threadBuckets[ROBOT].thread, local_30);
+#if defined(CTR_NATIVE)
+			// NOTE(ctrds): dot positions come from iconSize/iconStart, so a
+			// scaled copy of the level's UIMap moves every driver, ghost and
+			// tracking icon onto the enlarged companion map for free.
+			struct UIMap ctrdsMap;
+			struct UIMap *drawMap = levPtrMap;
 
-			UI_Map_DrawGhosts(levPtrMap, gGT->threadBuckets[GHOST].thread);
+			if (Ctrds_Enabled())
+			{
+				Ctrds_ScaleMap(&ctrdsMap, levPtrMap);
+				drawMap = &ctrdsMap;
+			}
+#else
+			struct UIMap *drawMap = levPtrMap;
+#endif
 
-			UI_Map_DrawTracking(levPtrMap, gGT->threadBuckets[TRACKING].thread);
+			UI_Map_DrawDrivers(drawMap, gGT->threadBuckets[PLAYER].thread, local_30);
+			UI_Map_DrawDrivers(drawMap, gGT->threadBuckets[ROBOT].thread, local_30);
+
+			UI_Map_DrawGhosts(drawMap, gGT->threadBuckets[GHOST].thread);
+
+			UI_Map_DrawTracking(drawMap, gGT->threadBuckets[TRACKING].thread);
 
 			mapPosX = 500;
 			mapPosY = 195;
@@ -771,6 +812,17 @@ void UI_RenderFrame_Racing()
 				mapPosX -= 60;
 				mapPosY += 10;
 			}
+
+#if defined(CTR_NATIVE)
+			if (Ctrds_Enabled())
+			{
+				mapPosX = (u32)g_ctrds.mapX;
+				mapPosY = (u32)g_ctrds.mapY;
+			}
+
+			// Only the companion map is scaled; menus keep drawing 1:1.
+			Ctrds_BeginMapScale();
+#endif
 
 			// Draw the map
 			UI_Map_DrawMap(
@@ -788,6 +840,10 @@ void UI_RenderFrame_Racing()
 
 			    // color, in this case white
 			    1);
+
+#if defined(CTR_NATIVE)
+			Ctrds_EndMapScale();
+#endif
 		}
 	}
 

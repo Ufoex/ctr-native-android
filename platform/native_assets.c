@@ -930,14 +930,31 @@ int NativeAssets_Validate(void)
 {
 	int ok = 1;
 
+	// NOTE(ctrds): trimmed disc dumps often drop the streaming media -- the
+	// TEST.STR intro video and the XA music/voice tracks live outside the
+	// ISO9660 filesystem and are commonly stripped. Neither is needed to reach
+	// gameplay, so allow a developer opt-in that skips just those two checks.
+	// Off by default: a normal build still demands a complete disc.
+	const char *skipAv = getenv("CTR_SKIP_AV_ASSETS");
+	const int allowMissingAv = (skipAv != NULL) && (skipAv[0] == '1');
+
 	ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_BIGFILE_PATH);
 	ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_KART_HWL_PATH);
-	ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_TEST_STR_PATH);
-	ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_XNF_PATH);
 
-	if (ok)
+	if (allowMissingAv)
 	{
-		ok &= NativeAssets_ValidateXA();
+		Platform_Log("[CTR Native] CTR_SKIP_AV_ASSETS=1: skipping %s and %s checks (no intro video or XA audio).\n", NATIVE_ASSETS_TEST_STR_PATH,
+		        NATIVE_ASSETS_XNF_PATH);
+	}
+	else
+	{
+		ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_TEST_STR_PATH);
+		ok &= NativeAssets_CheckRequiredFile(NATIVE_ASSETS_XNF_PATH);
+
+		if (ok)
+		{
+			ok &= NativeAssets_ValidateXA();
+		}
 	}
 
 	if (!ok)

@@ -150,6 +150,8 @@ int main(int argc, char *argv[])
 
 	Platform_Log("[CTR Native] Starting...\n");
 
+	Ctrds_InitFromEnv();
+
 	const char *sdlBasePath;
 #if defined(__ANDROID__)
 	sdlBasePath = SDL_GetAndroidExternalStoragePath();

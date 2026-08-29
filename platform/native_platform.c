@@ -372,7 +372,20 @@ void Platform_EndScene(void)
 	// NOTE(aalhendi): Keep the displayed VRAM region current for screen-copy
 	// effects without forcing a CPU readback.
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
-	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
+
+	// NOTE(ctrds): with the companion enabled the frame is two rectangles of the
+	// same buffer -- the game view the display env points at, and the companion
+	// band drawn directly below it.
+	if (Ctrds_TallFramebuffer() && (g_ctrds.fbHeight > activeDispEnv.disp.h))
+	{
+		NativeRenderer_PresentStacked(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h,
+		        g_ctrds.fbHeight - activeDispEnv.disp.h);
+	}
+	else
+	{
+		NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
+	}
+
 	NativeRenderer_EndGpuFrame();
 	NativeRenderer_SwapWindow();
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_PLATFORM_END_SCENE);

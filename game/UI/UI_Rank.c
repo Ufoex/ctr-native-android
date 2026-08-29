@@ -113,6 +113,28 @@ void UI_DrawRankedDrivers(void)
 	struct GameTracker *gGT = sdata->gGT;
 	int numPlyr = gGT->numPlyrCurrGame;
 
+	// NOTE(ctrds): retail pins this column to the left edge of the game view and
+	// shows only the top four of eight drivers. The companion panel has room for
+	// the whole field, so the geometry becomes data instead of constants.
+	s16 rankIconX = UI_RANK_ICON_X;
+	s16 rankIconBaseY = UI_RANK_ICON_BASE_Y;
+	s16 rankSlotH = UI_RANK_TEXT_SLOT_HEIGHT;
+	s16 rankTextX = UI_RANK_TEXT_X;
+	s16 rankTextStartY = UI_RANK_TEXT_START_Y;
+	s16 rankArcadeVisible = UI_RANK_VISIBLE_ARCADE_COUNT;
+
+#if defined(CTR_NATIVE)
+	if (Ctrds_Enabled())
+	{
+		rankIconX = g_ctrds.rankIconX;
+		rankIconBaseY = g_ctrds.rankIconBaseY;
+		rankSlotH = g_ctrds.rankSlotH;
+		rankTextX = g_ctrds.rankTextX;
+		rankTextStartY = g_ctrds.rankTextStartY;
+		rankArcadeVisible = g_ctrds.rankVisible;
+	}
+#endif
+
 	if (numPlyr == 1)
 	{
 		// Number of racers that have finished race
@@ -151,7 +173,7 @@ void UI_DrawRankedDrivers(void)
 		}
 
 		// Default for Arcade: Show 4 racers
-		int visibleRankCount = UI_RANK_VISIBLE_ARCADE_COUNT;
+		int visibleRankCount = rankArcadeVisible;
 
 		if (IS_BOSS_RACE(gGT->gameMode1))
 		{
@@ -160,7 +182,7 @@ void UI_DrawRankedDrivers(void)
 		}
 
 		// height to draw rank (this bitshifts later)
-		int rankTextY = UI_RANK_TEXT_START_Y << 16;
+		int rankTextY = rankTextStartY << 16;
 
 		for (int rankLineIndex = 0; rankLineIndex < visibleRankCount; rankLineIndex++)
 		{
@@ -176,10 +198,10 @@ void UI_DrawRankedDrivers(void)
 
 			// draw rank number: '1', '2', '3', '4'
 			sdata->s_spacebar[0] = (char)rankLineIndex + '1';
-			DecalFont_DrawLine(&sdata->s_spacebar[0], UI_RANK_TEXT_X, rankTextY >> 0x10, FONT_SMALL, txtColor);
+			DecalFont_DrawLine(&sdata->s_spacebar[0], rankTextX, rankTextY >> 0x10, FONT_SMALL, txtColor);
 
 			// add to Y, which mekes it lower on screen
-			rankTextY = rankTextY + (UI_RANK_TEXT_SLOT_HEIGHT << 16);
+			rankTextY = rankTextY + (rankSlotH << 16);
 		}
 
 		for (driverIndex = 0; driverIndex < UI_RANK_DRIVER_COUNT; driverIndex++)
@@ -212,10 +234,10 @@ void UI_DrawRankedDrivers(void)
 					{
 						// if top positions
 
-						if (desiredRank < UI_RANK_VISIBLE_ARCADE_COUNT)
+						if (desiredRank < rankArcadeVisible)
 						{
-							pos.x = UI_RANK_ICON_X;
-							pos.y = desiredRank * UI_RANK_TEXT_SLOT_HEIGHT + UI_RANK_ICON_BASE_Y;
+							pos.x = rankIconX;
+							pos.y = desiredRank * rankSlotH + rankIconBaseY;
 						}
 						else
 						{

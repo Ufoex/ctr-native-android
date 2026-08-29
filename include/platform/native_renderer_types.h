@@ -14,8 +14,21 @@
 #define LUT_WIDTH              (256)
 #define LUT_HEIGHT             (256)
 
-#define VRAM_WIDTH             (1024)
-#define VRAM_HEIGHT            (512)
+#define VRAM_WIDTH             1024
+// NOTE(ctrds): emulated VRAM is grown from the PSX-accurate 512 rows so the
+// dual-screen companion framebuffer has somewhere to live. The C side uses
+// VRAM_HEIGHT symbolically everywhere (backing arrays, GL texture, dirty-rect
+// tiles, clip bounds), but the GLSL in native_renderer.c used to hardcode
+// 1024.0/512.0 -- those literals now come from VRAM_*_GLSL below, so the
+// shaders follow this constant instead of silently sampling the wrong rows.
+#define VRAM_HEIGHT            2048
+
+// Stringified for injection into shader source. Keep VRAM_WIDTH/VRAM_HEIGHT
+// as bare integer literals so these expand to valid GLSL floats.
+#define CTR_GLSL_STR2(x)   #x
+#define CTR_GLSL_STR(x)    CTR_GLSL_STR2(x)
+#define VRAM_WIDTH_GLSL    CTR_GLSL_STR(VRAM_WIDTH) ".0"
+#define VRAM_HEIGHT_GLSL   CTR_GLSL_STR(VRAM_HEIGHT) ".0"
 
 #define TPAGE_WIDTH            (256)
 #define TPAGE_HEIGHT           (256)

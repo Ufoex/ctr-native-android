@@ -744,6 +744,8 @@ internal void NativeInput_OpenKnownControllers(void)
 
 #include <SDL3/SDL_system.h>
 
+#if defined(__ANDROID__)
+
 internal void NativeInput_AndroidVibrate(int device_id, float low, float high, int len)
 {
     JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
@@ -796,6 +798,8 @@ internal void NativeInput_AndroidPollHaptics(void)
     (*env)->DeleteLocalRef(env, cls);
 }
 
+#endif // __ANDROID__
+
 int Platform_InputInit(void)
 {
 	s32 slot;
@@ -826,8 +830,10 @@ int Platform_InputInit(void)
 		return 0;
 	}
 
+#if defined(__ANDROID__)
     // Force SDL to discover the Android system vibrator
     NativeInput_AndroidPollHaptics();
+#endif
 
 	SDL_AddGamepadMappingsFromFile("gamecontrollerdb.txt");
 	NativeInput_OpenKnownControllers();
@@ -1210,6 +1216,7 @@ void Platform_InputPadVibrate(int port, unsigned char *table, int len)
         }
 	}
 
+#if defined(__ANDROID__)
     if (slot == 0)
     {
         // Fallback to phone vibrator for player 1 (touch controls or non-rumble controller)
@@ -1218,4 +1225,5 @@ void Platform_InputPadVibrate(int port, unsigned char *table, int len)
         LOGI("Fallback to Android_JNI_HapticRumble: low=%.2f, high=%.2f", lowInt, highInt);
         NativeInput_AndroidVibrate(999999, lowInt, highInt, 32);
     }
+#endif
 }
