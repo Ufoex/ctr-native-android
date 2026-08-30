@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/radityar/ctr/ctr-native-android/.claude/worktrees/ctrds-bottom-screen/build64/cmake_install.cmake",
-		"/home/radityar/ctr/ctr-native-android/.claude/worktrees/ctrds-bottom-screen/build64/externals/SDL/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

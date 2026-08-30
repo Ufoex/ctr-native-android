@@ -1,5 +1,5 @@
 build/
-build-*/
+build*/
 dist/
 assets/
 # ...but the APK's asset dir is source, not a place the disc image gets dropped.

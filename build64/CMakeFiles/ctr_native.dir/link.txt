@@ -1,1 +1,0 @@
-/usr/bin/c++ -O2 -g -DNDEBUG -static-libgcc -Wl,--dependency-file=CMakeFiles/ctr_native.dir/link.d CMakeFiles/ctr_native.dir/main.c.o -o ctr_native  -Wl,-rpath,/home/radityar/ctr/ctr-native-android/.claude/worktrees/ctrds-bottom-screen/build64/externals/SDL libenet.a libchdr.a externals/SDL/libSDL3.so.0.4.10
