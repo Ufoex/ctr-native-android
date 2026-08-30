@@ -227,6 +227,19 @@ int main(int argc, char *argv[])
 		Platform_Shutdown();
 		return NativeConsole_Return(1);
 	}
+
+	// Android has no command line, so the config file is the only way to ask.
+	// Written beside it, which is the one directory the app can be sure of.
+	if (g_ctrds.perf && !NativePerf_IsEnabled())
+	{
+		char perfDir[1024];
+
+		snprintf(perfDir, sizeof(perfDir), "%s/perf", NativeAssets_GetAssetDir());
+		if (NativePerf_Enable(perfDir) != 0)
+		{
+			Platform_LogError("[CTR Perf] could not start capture in %s\n", perfDir);
+		}
+	}
 #endif
 
 	Platform_InitScratchpad();

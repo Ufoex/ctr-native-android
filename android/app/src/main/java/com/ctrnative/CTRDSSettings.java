@@ -75,7 +75,10 @@ final class CTRDSSettings {
                 new String[] { "4:3", "Widescreen" }, 1),
 
         new Option("fxaa", "FXAA", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
-        new Option("crt", "CRT filter", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
+        // Default 1, matching g_ctrds.crt in game/ctrds/ctrds.c. They disagreed, so a
+        // config with no crt line -- which is what the launcher writes until the row
+        // is touched -- showed "Off" here while the engine ran the filter.
+        new Option("crt", "CRT filter", new int[] { 0, 1 }, new String[] { "Off", "On" }, 1),
 
         new Option("hd_art", "Upscaled 2D art",
                 new int[] { 0, 1 }, new String[] { "Off", "On" }, 1),

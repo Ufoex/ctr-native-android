@@ -255,6 +255,9 @@ struct CtrdsLayout
 	// multiple of the PS1 display size; textures stay native.
 	int internalScale;
 
+	// Write per-frame bucket timings next to the config. Off unless asked for.
+	int perf;
+
 };
 
 extern struct CtrdsLayout g_ctrds;

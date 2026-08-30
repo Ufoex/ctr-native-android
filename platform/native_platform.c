@@ -40,7 +40,12 @@ global_variable int s_pinnedVramDisplayX = 0;
 global_variable int s_pinnedVramDisplayY = 0;
 global_variable int s_pinnedVramDisplayW = 0;
 global_variable int s_pinnedVramDisplayH = 0;
-#define NATIVE_FPS_REPORT_FRAME_WINDOW 2000
+// Report on a wall-clock window, not a frame count. A fixed 2000 frames spans
+// twenty-five seconds at this frame rate and averages whatever the player did
+// in them -- menus, which flip at a deliberate 30, together with racing, which
+// does not. The blended number that comes out reads as the game missing its cap
+// when both halves were behaving exactly as intended.
+#define NATIVE_FPS_REPORT_SECONDS 2.0
 global_variable int s_fpsFrameCount = 0;
 global_variable u64 s_fpsLastCounter = 0;
 
@@ -63,17 +68,24 @@ internal void Platform_CalcFPS(void)
 	}
 
 	s_fpsFrameCount++;
-	if (s_fpsFrameCount < NATIVE_FPS_REPORT_FRAME_WINDOW)
+	if ((now <= s_fpsLastCounter) || (((f64)(now - s_fpsLastCounter) / (f64)freq) < NATIVE_FPS_REPORT_SECONDS))
 	{
 		return;
 	}
 
-	if (now > s_fpsLastCounter)
 	{
 		const f64 elapsedSeconds = (f64)(now - s_fpsLastCounter) / (f64)freq;
 		const f64 fps = (f64)s_fpsFrameCount / elapsedSeconds;
+		const int perFlip = Ctrds_VsyncsPerFlip();
+		const int cap = Ctrds_TargetFps();
 
-		Platform_Log("[CTR Native] FPS: %.2f (last %d frames)\n", fps, s_fpsFrameCount);
+		// The cap the game is actually allowed to reach right now: menus flip
+		// once every T/30 VBlanks on purpose, so 30 is the correct answer there
+		// and comparing that stretch against T is comparing against nothing.
+		const int reachable = (perFlip > 0) ? (cap / perFlip) : cap;
+
+		Platform_Log("[CTR Native] FPS: %.1f of %d reachable (cap %d, %d vblanks per flip, %s, %dx)\n", fps,
+		    reachable, cap, perFlip, Ctrds_InRace() ? "race" : "menu", NativeRenderer_GetInternalScale());
 	}
 
 	s_fpsFrameCount = 0;

@@ -68,6 +68,7 @@ struct NativePerfFrameInfo
 
 #if defined(CTR_INTERNAL)
 int NativePerf_ConfigureFromArgs(int argc, char **argv);
+int NativePerf_Enable(const char *outputDir);
 int NativePerf_IsEnabled(void);
 void NativePerf_Shutdown(void);
 void NativePerf_BeginFrame(const struct NativePerfFrameInfo *info);
@@ -81,6 +82,12 @@ static inline int NativePerf_ConfigureFromArgs(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
+	return 0;
+}
+
+static inline int NativePerf_Enable(const char *outputDir)
+{
+	(void)outputDir;
 	return 0;
 }
 

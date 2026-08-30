@@ -881,6 +881,10 @@ void Ctrds_LoadConfig(void)
 		{
 			g_ctrds.hdArt = value;
 		}
+		else if (strncmp(line, "perf", 4) == 0)
+		{
+			g_ctrds.perf = value;
+		}
 		else if (strncmp(line, "hd_dump", 7) == 0)
 		{
 			g_ctrds.hdDump = value;

@@ -393,6 +393,15 @@ int NativePerf_ConfigureFromArgs(int argc, char **argv)
 		return 0;
 	}
 
+	return NativePerf_Enable(outputDir);
+}
+
+// The same thing the command line does, reachable without one. Android has no
+// argv to put --perf on, so profiling the device -- the only place whose frame
+// times actually mean anything -- had no way in.
+int NativePerf_Enable(const char *outputDir)
+{
+
 	if (outputDir == NULL)
 	{
 		outputDir = NATIVE_PERF_DEFAULT_DIR;
