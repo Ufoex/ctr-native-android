@@ -14,17 +14,27 @@
         android:requestLegacyExternalStorage="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
 
+        <!-- The launcher is what the app opens on: it picks the disc image and
+             the settings, then starts the game. It has to be the entry point
+             rather than the game, because without a disc image the game has
+             nothing to validate and exits, which reads as a crash. -->
         <activity
-            android:name=".CTRNativeActivity"
+            android:name=".CTRNativeLauncherActivity"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
-            android:label="CTR Native"
-            android:screenOrientation="landscape"
+            android:label="CTR-DS"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".CTRNativeActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
+            android:label="CTR Native"
+            android:screenOrientation="landscape"
+            android:exported="false" />
     </application>
 
 </manifest>
