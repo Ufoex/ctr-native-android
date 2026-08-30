@@ -5,6 +5,16 @@
 enum
 {
 	COLL_SCRATCH_HOST_SLOT_COUNT = 64,
+
+	// Consecutive sweep iterations that move the kart nowhere before it is
+	// treated as wedged. Ordinary wall contact clears in one or two through
+	// ScrubImpact, so this is far above anything driving produces.
+	COLL_UNWEDGE_BLOCKED_ITERATIONS = 16,
+
+	// How far to lift the kart along the surface normal when it is. posCurr is
+	// eight fractional bits, so this is one world unit -- enough to start the
+	// next sweep outside the surface, small enough not to be seen.
+	COLL_UNWEDGE_STEP = 256,
 	COLL_SCRATCH_HITBOX_HISTORY_COUNT = 15,
 	COLL_SCRATCH_HIT_TRIANGLE_VERTEX_COUNT = 3,
 	COLL_SCRATCH_SEARCH_VERTEX_COUNT = 9,
@@ -2558,6 +2568,9 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 	struct GameTracker *gGT = sdata->gGT;
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 	s32 multiplier = COLL_FRACTION_ONE;
+	// Consecutive sweep iterations that moved the kart nowhere; see the unwedge
+	// below.
+	int blockedIterations = 0;
 	s16 hitRadius = COLL_MOVED_PLAYER_HIT_RADIUS;
 
 	sps->Input1.hitRadius = hitRadius;
@@ -2589,6 +2602,8 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 		    .y = CollMoved_PlayerSearch_StepVelocity(d->velocity.y, gGT->elapsedTimeMS, multiplier),
 		    .z = CollMoved_PlayerSearch_StepVelocity(d->velocity.z, gGT->elapsedTimeMS, multiplier),
 		};
+
+		blockedIterations = (sps->hitFraction > 0) ? 0 : blockedIterations;
 
 		sps->boolDidTouchQuadblock = 0;
 		sps->numTrianglesTested = 0;
@@ -2687,6 +2702,45 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 			d->posCurr.x = CTR_MipsAddLo(d->posCurr.x, CTR_MipsSra(CTR_MipsMulLo(velocity.x, sps->hitFraction), 12));
 			d->posCurr.y = CTR_MipsAddLo(d->posCurr.y, CTR_MipsSra(CTR_MipsMulLo(velocity.y, sps->hitFraction), 12));
 			d->posCurr.z = CTR_MipsAddLo(d->posCurr.z, CTR_MipsSra(CTR_MipsMulLo(velocity.z, sps->hitFraction), 12));
+			blockedIterations = 0;
+		}
+		else if ((d->collisionFlags & DRIVER_COLL_FLAG_SURFACE_PUSHBACK) != 0)
+		{
+			// Nothing of the step survived, and the loop has no way out of that:
+			// both the write above and the only break below are behind
+			// hitFraction > 0, so multiplier never decays and the same rejected
+			// step is retried until something outside the physics disturbs the
+			// kart. Measured on device: the same position and the same step for
+			// nine thousand iterations, with pushback set the whole time, while
+			// ScrubImpact went on nudging the velocity and never found a
+			// direction that cleared.
+			//
+			// Retail never reached it because a 30fps step is four times longer
+			// and carries through the wedge. So this only has to restore what a
+			// longer step used to do: after enough consecutive refusals, lift
+			// the kart a fraction of a unit along the surface normal already
+			// stored from the hit, so the next sweep starts outside the surface.
+			//
+			// The count is generous on purpose. Ordinary wall contact clears on
+			// its first or second iteration through ScrubImpact and never gets
+			// here, so this cannot alter wall riding or shortcut lines -- it
+			// only ends a state the loop cannot otherwise leave.
+			if (++blockedIterations > COLL_UNWEDGE_BLOCKED_ITERATIONS)
+			{
+				d->posCurr.x = CTR_MipsAddLo(d->posCurr.x, CTR_MipsSra(CTR_MipsMulLo(d->spsNormalVec.x, COLL_UNWEDGE_STEP), 12));
+				d->posCurr.y = CTR_MipsAddLo(d->posCurr.y, CTR_MipsSra(CTR_MipsMulLo(d->spsNormalVec.y, COLL_UNWEDGE_STEP), 12));
+				d->posCurr.z = CTR_MipsAddLo(d->posCurr.z, CTR_MipsSra(CTR_MipsMulLo(d->spsNormalVec.z, COLL_UNWEDGE_STEP), 12));
+
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+				if (d->driverID == 0)
+				{
+					Platform_Log("[CTR Unwedge] after %d blocked, normal %d,%d,%d, pos now %d,%d,%d\n",
+					    blockedIterations, (int)d->spsNormalVec.x, (int)d->spsNormalVec.y, (int)d->spsNormalVec.z,
+					    (int)d->posCurr.x, (int)d->posCurr.y, (int)d->posCurr.z);
+				}
+#endif
+				blockedIterations = 0;
+			}
 		}
 
 		if (sps->boolDidTouchHitbox != 0)
