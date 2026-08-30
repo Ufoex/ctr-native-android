@@ -66,6 +66,7 @@ struct CtrdsLayout g_ctrds = {
     .mapIconScale = CTRDS_FP_ONE * 2,
 
     .widescreen = 1,
+    .aspectMode = 1,
     .aspectW = 16,
     .aspectH = 9,
     .vsyncsPerFlip = 1,
@@ -269,10 +270,18 @@ enum CtrdsSetting
 // runs out long before the pacing does.
 internal const int s_ctrdsFpsSteps[] = {30, 60, 90, 120, CTRDS_FPS_UNLIMITED};
 
-// Display aspects offered on the panel. The field of view widens to match,
-// so a wider entry shows more of the world rather than stretching it.
-internal const int s_ctrdsAspects[][2] = {{4, 3}, {16, 10}, {16, 9}, {21, 9}};
-#define CTRDS_ASPECT_COUNT ((int)(sizeof(s_ctrdsAspects) / sizeof(s_ctrdsAspects[0])))
+// Reduces a ratio for display, so 1920x1080 reads as 16:9 rather than 1920:1080.
+internal int Ctrds_Gcd(int a, int b)
+{
+	while (b != 0)
+	{
+		const int t = a % b;
+		a = b;
+		b = t;
+	}
+
+	return (a > 0) ? a : 1;
+}
 #define CTRDS_FPS_STEP_COUNT ((int)(sizeof(s_ctrdsFpsSteps) / sizeof(s_ctrdsFpsSteps[0])))
 
 internal int s_ctrdsSetting = CTRDS_SET_RESOLUTION;
@@ -302,6 +311,7 @@ void Ctrds_SaveConfig(void)
 	fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
 	fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
 	fprintf(f, "crt=%d\n", g_ctrds.crt);
+	fprintf(f, "aspect_mode=%d\n", g_ctrds.aspectMode);
 	fprintf(f, "aspect_w=%d\n", g_ctrds.aspectW);
 	fprintf(f, "aspect_h=%d\n", g_ctrds.aspectH);
 	fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
@@ -366,34 +376,10 @@ internal void Ctrds_AdjustSetting(int delta)
 	}
 
 	case CTRDS_SET_ASPECT:
-	{
-		int i;
-		int found = 0;
-
-		for (i = 0; i < CTRDS_ASPECT_COUNT; i++)
-		{
-			if ((s_ctrdsAspects[i][0] == g_ctrds.aspectW) && (s_ctrdsAspects[i][1] == g_ctrds.aspectH))
-			{
-				found = i;
-				break;
-			}
-		}
-
-		found += delta;
-		if (found < 0)
-		{
-			found = CTRDS_ASPECT_COUNT - 1;
-		}
-		if (found >= CTRDS_ASPECT_COUNT)
-		{
-			found = 0;
-		}
-
-		g_ctrds.aspectW = s_ctrdsAspects[found][0];
-		g_ctrds.aspectH = s_ctrdsAspects[found][1];
+		// Two choices only: the original 4:3, or whatever this display is.
+		g_ctrds.aspectMode = (g_ctrds.aspectMode == 0) ? 1 : 0;
 		g_ctrds.widescreen = Ctrds_Widescreen();
 		break;
-	}
 
 	case CTRDS_SET_FXAA:
 		g_ctrds.fxaa = !g_ctrds.fxaa;
@@ -448,7 +434,16 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 			}
 			break;
 		case CTRDS_SET_ASPECT:
-			snprintf(line, sizeof(line), "%s ASPECT  %d:%d", marker, Ctrds_AspectW(), Ctrds_AspectH());
+			if (g_ctrds.aspectMode == 0)
+			{
+				snprintf(line, sizeof(line), "%s ASPECT  4:3", marker);
+			}
+			else
+			{
+				const int g = Ctrds_Gcd(Ctrds_AspectW(), Ctrds_AspectH());
+
+				snprintf(line, sizeof(line), "%s ASPECT  WIDE %d:%d", marker, Ctrds_AspectW() / g, Ctrds_AspectH() / g);
+			}
 			break;
 		case CTRDS_SET_FXAA:
 			snprintf(line, sizeof(line), "%s FXAA  %s", marker, g_ctrds.fxaa ? "ON" : "OFF");
@@ -720,8 +715,9 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
 			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
 			fprintf(f, "swap_face_buttons=%d\n", g_ctrds.swapFaceButtons);
-			fprintf(f, "# aspect_w/aspect_h: display aspect, e.g. 4:3, 16:9, 21:9.\n");
+			fprintf(f, "# aspect_mode: 0 = 4:3, 1 = follow the display, 2 = aspect_w/aspect_h below.\n");
 			fprintf(f, "# The field of view widens to match rather than stretching.\n");
+			fprintf(f, "aspect_mode=%d\n", g_ctrds.aspectMode);
 			fprintf(f, "aspect_w=%d\n", g_ctrds.aspectW);
 			fprintf(f, "aspect_h=%d\n", g_ctrds.aspectH);
 			fprintf(f, "# vblank_mult: 1 = up to 60fps, 2 = up to 120fps.\n");
@@ -794,6 +790,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "crt", 3) == 0)
 		{
 			g_ctrds.crt = value;
+		}
+		else if (strncmp(line, "aspect_mode", 11) == 0)
+		{
+			g_ctrds.aspectMode = value;
 		}
 		else if (strncmp(line, "aspect_w", 8) == 0)
 		{

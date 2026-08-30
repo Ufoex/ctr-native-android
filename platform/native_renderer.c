@@ -574,6 +574,14 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 	// the window made 4:3 stretch across a 16:9 panel instead of sitting inside
 	// it with bars either side, which is what switching aspect should do -- the
 	// widescreen mod widens the field of view, it does not squeeze the picture.
+	// Publish the display's own ratio so "widescreen" can mean whatever this
+	// panel actually is -- 16:9, 19.5:9, 20.5:9 -- instead of a preset.
+	if ((g_windowWidth > 0) && (g_windowHeight > 0))
+	{
+		g_ctrds.deviceAspectW = g_windowWidth;
+		g_ctrds.deviceAspectH = g_windowHeight;
+	}
+
 	s_presentAspectW = Ctrds_AspectW();
 	s_presentAspectH = Ctrds_AspectH();
 

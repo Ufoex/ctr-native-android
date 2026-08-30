@@ -213,8 +213,17 @@ struct CtrdsLayout
 	// On-screen controls: 0 automatic (shown only with no pad), 1 always, 2 never.
 	int touchControls;
 
-	// Display aspect as a ratio, e.g. 16:9, 21:9, 4:3. The field of view widens
-	// to match it rather than the picture being stretched.
+	// 0 = 4:3, 1 = follow the display, 2 = the explicit ratio below.
+	//
+	// Following the display is the useful default: a phone might be 19.5:9 or
+	// 20.5:9, and picking from a list of presets would either letterbox it or
+	// crop it. The field of view widens to whatever the panel actually is.
+	int aspectMode;
+
+	// The display's own ratio, published by the renderer, and the manual
+	// override used when aspectMode is 2.
+	int deviceAspectW;
+	int deviceAspectH;
 	int aspectW;
 	int aspectH;
 
@@ -254,11 +263,31 @@ static inline int Ctrds_TallFramebuffer(void)
 // stays integer.
 static inline int Ctrds_AspectW(void)
 {
+	if (g_ctrds.aspectMode == 0)
+	{
+		return 4;
+	}
+
+	if (g_ctrds.aspectMode == 1)
+	{
+		return (g_ctrds.deviceAspectW > 0) ? g_ctrds.deviceAspectW : 16;
+	}
+
 	return (g_ctrds.aspectW > 0) ? g_ctrds.aspectW : 16;
 }
 
 static inline int Ctrds_AspectH(void)
 {
+	if (g_ctrds.aspectMode == 0)
+	{
+		return 3;
+	}
+
+	if (g_ctrds.aspectMode == 1)
+	{
+		return (g_ctrds.deviceAspectH > 0) ? g_ctrds.deviceAspectH : 9;
+	}
+
 	return (g_ctrds.aspectH > 0) ? g_ctrds.aspectH : 9;
 }
 
