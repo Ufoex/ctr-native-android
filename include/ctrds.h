@@ -326,6 +326,9 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY);
 // Main-screen settings, for devices with no second screen.
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
 
+// Frame around the held-item slot, drawn whether or not an item is held.
+void Ctrds_DrawItemBox(struct GameTracker *gGT);
+
 // VBlanks to wait between flips. Racing runs as fast as the panel allows, but
 // menus must not: menu animation is counted in frames rather than delta-timed,
 // so an extra frame is an extra animation step and the whole front end plays

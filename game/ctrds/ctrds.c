@@ -86,7 +86,7 @@ struct CtrdsLayout g_ctrds = {
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
 // (battle, relic, adventure rewards) keep their retail values.
 #define CTRDS_HUD_BLOCK                                                                                          \
-    /* 0x00 WEAPON           */ {200, 10, 0, 5530},                                                              \
+    /* 0x00 WEAPON           */ {185, 10, 0, 5530},                                                              \
     /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
     /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 5530},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
@@ -97,7 +97,7 @@ struct CtrdsLayout g_ctrds = {
     /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
     /* 0x09 SPEEDOMETER      */ {398, 60, 0, 4096},                                             \
     /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                               \
-    /* 0x0b BATTLE_WEAPON_BG */ {200 - 23, 10 - 10, 0, 5530},                                                              \
+    /* 0x0b BATTLE_WEAPON_BG */ {185 - 23, 10 - 10, 0, 5530},                                                              \
     /* 0x0c RACING_WEAPON_BG */ {330 - 30, 18 - 15, 0, 2457},                                                              \
     /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                  \
     /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                             \
@@ -474,6 +474,34 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 
 // With no panel there is nothing to tap, so this is the only way in on a
 // single-screen phone.
+// The item slot is empty most of the time, and an empty gap in the strip reads
+// as nothing at all. A box drawn every frame gives the slot a permanent home, so
+// picking something up registers as the box filling rather than art appearing
+// out of nowhere.
+#define CTRDS_ITEM_BOX_X 178
+#define CTRDS_ITEM_BOX_Y 4
+#define CTRDS_ITEM_BOX_W 70
+#define CTRDS_ITEM_BOX_H 50
+
+void Ctrds_DrawItemBox(struct GameTracker *gGT)
+{
+	RECT r;
+
+	if (!Ctrds_Enabled() || !Ctrds_InRace())
+	{
+		return;
+	}
+
+	r.x = CTRDS_ITEM_BOX_X;
+	r.y = CTRDS_ITEM_BOX_Y;
+	r.w = CTRDS_ITEM_BOX_W;
+	r.h = CTRDS_ITEM_BOX_H;
+
+	// Entry 2 keeps it behind the item and its shine, both of which sit nearer
+	// the front of the ordering table.
+	RECTMENU_DrawInnerRect(&r, 0, &gGT->pushBuffer_UI.ptrOT[2]);
+}
+
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 {
 	if (Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
@@ -889,6 +917,12 @@ void Ctrds_UpdateAutoVBlank(float panelHz)
 // driver is undamaged.
 #define CTRDS_PORTRAIT_NEUTRAL_COLOR 0x808080
 
+// Full-bright, for the pulse on the player's own marker.
+#define CTRDS_PORTRAIT_BRIGHT_COLOR 0xFFFFFF
+
+// The player's marker is drawn larger than the rest so it reads first.
+#define CTRDS_MAP_PORTRAIT_PLAYER_SCALE ((CTRDS_FP_ONE * 4) / 5)
+
 void Ctrds_DrawMapPortrait(struct UIMap *map, const s32 worldPos[3], struct Driver *d, int isPlayer)
 {
 	struct GameTracker *gGT = sdata->gGT;
@@ -911,14 +945,30 @@ void Ctrds_DrawMapPortrait(struct UIMap *map, const s32 worldPos[3], struct Driv
 
 	// UI_DrawDriverIcon places the icon by its top-left corner; the dot it
 	// replaces was centred on the position, so centre the portrait too.
-	w = FP_Mult((int)((u16)icon->texLayout.u1 - (u16)icon->texLayout.u0), CTRDS_MAP_PORTRAIT_SCALE);
-	h = FP_Mult((int)((u16)icon->texLayout.v2 - (u16)icon->texLayout.v0), CTRDS_MAP_PORTRAIT_SCALE);
+	{
+		const int scale = isPlayer ? CTRDS_MAP_PORTRAIT_PLAYER_SCALE : CTRDS_MAP_PORTRAIT_SCALE;
+
+		w = FP_Mult((int)((u16)icon->texLayout.u1 - (u16)icon->texLayout.u0), scale);
+		h = FP_Mult((int)((u16)icon->texLayout.v2 - (u16)icon->texLayout.v0), scale);
+	}
 
 	// 0x808080 is the neutral vertex colour: it leaves the portrait its own
 	// colours. Feeding it a palette entry instead tinted every face orange.
-	(void)isPlayer;
+	//
+	// The player's own portrait is drawn a little larger, pulsed brighter, and
+	// put in a nearer ordering-table entry so it stays on top of the pack --
+	// otherwise it disappears under the others exactly when the pack is bunched
+	// together and you most need to find yourself.
+	if (isPlayer)
+	{
+		const int bright = ((gGT->timer & 0x10) != 0);
 
-	UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, 1,
+		UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, &gGT->pushBuffer_UI.ptrOT[0], 1,
+		        CTRDS_MAP_PORTRAIT_PLAYER_SCALE, bright ? CTRDS_PORTRAIT_BRIGHT_COLOR : CTRDS_PORTRAIT_NEUTRAL_COLOR);
+		return;
+	}
+
+	UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, &gGT->pushBuffer_UI.ptrOT[1], 1,
 	        CTRDS_MAP_PORTRAIT_SCALE, CTRDS_PORTRAIT_NEUTRAL_COLOR);
 }
 

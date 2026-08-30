@@ -1332,6 +1332,9 @@ void RenderSubmit(struct GameTracker *gGT)
 	// NOTE(ctrds): the companion panel takes the UI ordering table before the
 	// main pass runs, which both fills the second screen and leaves the game
 	// view HUD-free.
+	// Before the companion pass, which is what walks the UI table onto the panel.
+	Ctrds_DrawItemBox(gGT);
+
 	if (Ctrds_SecondScreen())
 	{
 		Ctrds_DrawCompanionPass(gGT);
