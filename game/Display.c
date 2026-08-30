@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include "ctrds.h"
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80023a40-0x80023d4c
 u32 *DISPLAY_Blur_SubFunc(u32 *prim, struct DisplayBlurTile *tile)
 {
@@ -110,6 +112,22 @@ void DISPLAY_Blur_Main(struct PushBuffer *pb, int strength)
 
 	cameraID = *(s8 *)&pb->cameraID;
 
+	// Which ordering-table entry the effect hangs off.
+	uint32_t *otHead = gGT->otSwapchainDB[gGT->swapchainIndex];
+
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): that entry is the frontmost one, and the frontmost entries
+	// are exactly what the companion pass walks onto the panel and then unlinks
+	// -- so a clock flash left there is drawn on the bottom screen and never
+	// reaches the top one at all. The player's own camera table sits past the
+	// end of that range, survives the unlink, and is still drawn after every
+	// piece of world geometry, which is where a full-screen effect belongs.
+	if (Ctrds_SecondScreen() && Ctrds_InRace())
+	{
+		otHead = pb->ptrOT;
+	}
+#endif
+
 	if (strength < 1 || (((gGT->db[1 - gGT->swapchainIndex].blurCameraMask >> (cameraID & 0x1f)) & 1) == 0))
 	{
 		struct DisplayBlurFlatPacket *packet = (struct DisplayBlurFlatPacket *)prim;
@@ -128,7 +146,7 @@ void DISPLAY_Blur_Main(struct PushBuffer *pb, int strength)
 		packet->xy3 = CTR_PackS16Pair(x + w, y + h);
 		packet->colorAndCode = (strength < 0) ? 0x2affffff : 0x2a000000;
 
-		ot = gGT->otSwapchainDB[gGT->swapchainIndex];
+		ot = otHead;
 		CtrGpu_LinkPacket24(ot, &packet->tag, packet, 0x09000000);
 		nextPrim = (u32 *)(packet + 1);
 	}
@@ -159,7 +177,7 @@ void DISPLAY_Blur_Main(struct PushBuffer *pb, int strength)
 			blur = (blur * strength) >> 12;
 		}
 
-		ot = gGT->otSwapchainDB[gGT->swapchainIndex];
+		ot = otHead;
 		oldTag = *ot;
 		*ot = (uint32_t)CtrGpu_PrimToOTLink24(prim);
 
