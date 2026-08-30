@@ -71,6 +71,19 @@ struct CollScratchHost *COLL_Scratch_GetHost(struct ScratchpadStruct *sps)
 	}
 
 	struct CollScratchHostSlot *slot = (emptySlot != NULL) ? emptySlot : oldestSlot;
+
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+	// Evicting a slot throws away the real pointers for a scratchpad that may
+	// still be in use. On a 32-bit build those pointers live in the scratchpad
+	// itself and nothing is lost; here they live only in this table, so an
+	// eviction means a later collision query reads zeroes, or another query's
+	// quad -- which is what a wall that is not there would look like.
+	if ((emptySlot == NULL) && (slot->owner != NULL))
+	{
+		Platform_Log("[CTR Coll] host slot evicted, owner %p replaced by %p\n", (void *)slot->owner, (void *)sps);
+	}
+#endif
+
 	memset(slot, 0, sizeof(*slot));
 	slot->owner = sps;
 	slot->lastUse = sCollScratchHostUseCounter;
