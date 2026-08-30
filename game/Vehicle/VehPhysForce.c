@@ -1,4 +1,5 @@
 #include <common.h>
+#include <ctrds.h>
 
 
 // NOTE(aalhendi): ASM-verified helper for NTSC-U 926 0x8005e104-0x8005e214.
@@ -377,6 +378,36 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 				}
 			}
 		}
+
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+		// Two candidates for the kart refusing to advance with the gas held, and
+		// this prints what separates them rather than arguing from the code.
+		//
+		// The pre-scale values say whether (X * ms) >> 5 is landing on zero: at
+		// a 120 cap ms is 8, so anything under 4 truncates away entirely and the
+		// kart is held by arithmetic. wallRub says whether the game thinks it is
+		// against a surface, which would hold it for its own reasons and make
+		// the truncation a passenger.
+		//
+		// Unconditional for the player, rate limited, so it also proves the
+		// probe runs -- the last one never fired and I read meaning into its
+		// silence.
+		if ((driver != NULL) && (driver->driverID == 0))
+		{
+			local_persist int s_probeCountdown = 0;
+
+			if (--s_probeCountdown <= 0)
+			{
+				s_probeCountdown = Ctrds_TargetFps() / 2;
+
+				Platform_Log("[CTR Phys] speed %d ms %d fwdFric %d->%d perpFric %d->%d wallRub %d against %d\n",
+				    (int)driver->speed, elapsedTimeMS, forwardFriction,
+				    (int)CTR_MipsSra(CTR_MipsMulLo(forwardFriction, elapsedTimeMS), 5), perpendicularFriction,
+				    (int)CTR_MipsSra(CTR_MipsMulLo(perpendicularFriction, elapsedTimeMS), 5),
+				    (int)driver->wallRubTimer, (int)driver->timeSpentAgainstWall);
+			}
+		}
+#endif
 
 		perpendicularFriction = CTR_MipsSra(CTR_MipsMulLo(perpendicularFriction, elapsedTimeMS), 5);
 		forwardFriction = CTR_MipsSra(CTR_MipsMulLo(forwardFriction, elapsedTimeMS), 5);
