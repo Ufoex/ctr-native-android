@@ -400,11 +400,16 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 			{
 				s_probeCountdown = Ctrds_TargetFps() / 2;
 
-				Platform_Log("[CTR Phys] speed %d ms %d fwdFric %d->%d perpFric %d->%d wallRub %d against %d\n",
-				    (int)driver->speed, elapsedTimeMS, forwardFriction,
-				    (int)CTR_MipsSra(CTR_MipsMulLo(forwardFriction, elapsedTimeMS), 5), perpendicularFriction,
-				    (int)CTR_MipsSra(CTR_MipsMulLo(perpendicularFriction, elapsedTimeMS), 5),
-				    (int)driver->wallRubTimer, (int)driver->timeSpentAgainstWall);
+				// Speed held steady through a stall, so the engine is fine and
+				// the failure is speed becoming position. Print the position and
+				// the velocity built from it: a velocity that is non-zero while
+				// the position does not change means something puts the kart
+				// back each frame.
+				Platform_Log("[CTR Phys] speed %d ms %d vel %d,%d,%d pos %d,%d,%d fwdFric %d->%d wallRub %d\n",
+				    (int)driver->speed, elapsedTimeMS, (int)driver->velocity.x, (int)driver->velocity.y,
+				    (int)driver->velocity.z, (int)driver->posCurr.x, (int)driver->posCurr.y, (int)driver->posCurr.z,
+				    forwardFriction, (int)CTR_MipsSra(CTR_MipsMulLo(forwardFriction, elapsedTimeMS), 5),
+				    (int)driver->wallRubTimer);
 			}
 		}
 #endif
