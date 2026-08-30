@@ -121,6 +121,9 @@ struct NativeRenderTarget
 // picture on screen comes from: above 1x it is the scaled target, not VRAM.
 global_variable int s_internalScale = 1;
 
+// Triangles submitted since the last present; see NativeRenderer_ScaledTargetHoldsFrame.
+global_variable int s_drawsSincePresent = 0;
+
 global_variable struct NativeRenderTarget s_mainRenderTarget;
 global_variable struct NativeRenderTarget s_offscreenRenderTarget;
 
@@ -841,6 +844,23 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 	glViewport(s_lastViewportX, s_lastViewportY, s_lastViewportW, s_lastViewportH);
 
 	NativeRenderer_PostChain(s_upscaleRenderTarget.texture, width, height);
+}
+
+// Whether this frame's picture is in the scaled target or in VRAM.
+//
+// Above 1x, primitives render into an RGBA target and never touch VRAM, so the
+// target is normally the newer of the two. But not every screen is drawn with
+// primitives: the copyright screen is composed straight into VRAM and then held
+// there while the game merely flips, so those frames submit no triangles at all
+// and the target has nothing in it. Presenting it unconditionally showed black
+// for the whole screen at any scale above 1x, while 1x -- which always presents
+// from VRAM -- was correct.
+//
+// A frame that drew nothing cannot have put anything in the target, which makes
+// the triangle count an exact test for which of the two is authoritative.
+internal int NativeRenderer_ScaledTargetHoldsFrame(void)
+{
+	return (s_internalScale > 1) && (s_drawsSincePresent > 0);
 }
 
 // The game view above 1x internal resolution: the scaled target already holds
@@ -2619,7 +2639,7 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 
 	// Above 1x the picture lives in the scaled target; VRAM holds only the
 	// native-resolution copy the game itself reads back.
-	if (s_internalScale > 1)
+	if (NativeRenderer_ScaledTargetHoldsFrame())
 	{
 		NativeRenderer_PresentScaledMain();
 	}
@@ -2629,6 +2649,9 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	}
 
 	glBindVertexArray(0);
+
+	// The next frame starts owing the target its content again.
+	s_drawsSincePresent = 0;
 
 	s_previousShader = (ShaderID)-1;
 	s_lastBoundTexture = (TextureID)-1;
@@ -2778,7 +2801,7 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 
 	// GL viewport origin is bottom-left, so the game view takes the upper strip.
 	NativeRenderer_SetViewPort(vx + ((vw - (vw * gameW) / srcW) / 2), vy + ph, (vw * gameW) / srcW, gh);
-	if (s_internalScale > 1)
+	if (NativeRenderer_ScaledTargetHoldsFrame())
 	{
 		NativeRenderer_PresentScaledMain();
 	}
@@ -2791,6 +2814,9 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 	NativeRenderer_DrawVRAMRegion(panelX, panelY, panelW, srcPanelH);
 
 	glBindVertexArray(0);
+
+	// The next frame starts owing the target its content again.
+	s_drawsSincePresent = 0;
 
 	s_previousShader = (ShaderID)-1;
 	s_lastBoundTexture = (TextureID)-1;
@@ -2961,6 +2987,7 @@ void NativeRenderer_DrawTriangles(int start_vertex, int triangles)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_DRAW_TRIANGLES);
 	glDrawArrays(GL_TRIANGLES, start_vertex, triangles * 3);
+	s_drawsSincePresent++;
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDERER_DRAW_TRIANGLES);
 }
 

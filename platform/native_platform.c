@@ -232,6 +232,8 @@ internal void Platform_HandleKey(int key, char down)
 #endif
 }
 
+internal void Native_StartHangWatchdog(void);
+
 void Platform_Init(const char *title, int width, int height)
 {
 	char windowName[128];
@@ -267,6 +269,7 @@ void Platform_Init(const char *title, int width, int height)
 	atexit(Platform_Shutdown);
 	Platform_UpdateCursorVisibility();
 	Platform_InputInit();
+	Native_StartHangWatchdog();
 }
 
 void Platform_Shutdown(void)
@@ -579,6 +582,82 @@ global_variable int s_nativeVBlankCount = 0;
 internal u64 Native_CounterFromMicroseconds(u64 freq, u64 microseconds)
 {
 	return (freq * microseconds) / 1000000;
+}
+
+// ---------------------------------------------------------------------------
+// Hang watchdog
+//
+// A stall on a retail phone shows every thread asleep, which says nothing about
+// where. debuggerd needs root, and the device rotates its log buffer faster
+// than a reproduction takes, so neither a backtrace nor a log survives to be
+// read. Aborting does survive: Android writes a tombstone for the crash, and
+// tombstones reach logcat carrying a native backtrace for every thread, which
+// is exactly the missing information.
+//
+// Only a foreground window is judged. A backgrounded game stops emitting
+// VBlanks because it is supposed to, and aborting for that would be a bug of
+// its own. Set CTRDS_WATCHDOG=0 to disable.
+// ---------------------------------------------------------------------------
+
+#define NATIVE_WATCHDOG_STALL_SECONDS 12
+
+internal int SDLCALL Native_WatchdogMain(void *unused)
+{
+	int lastCount = -1;
+	int stalledSeconds = 0;
+
+	(void)unused;
+
+	for (;;)
+	{
+		SDL_Delay(1000);
+
+		if (g_window != NULL)
+		{
+			const SDL_WindowFlags flags = SDL_GetWindowFlags(g_window);
+
+			if ((flags & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_OCCLUDED)) != 0)
+			{
+				lastCount = s_nativeVBlankCount;
+				stalledSeconds = 0;
+				continue;
+			}
+		}
+
+		if (s_nativeVBlankCount != lastCount)
+		{
+			lastCount = s_nativeVBlankCount;
+			stalledSeconds = 0;
+			continue;
+		}
+
+		stalledSeconds++;
+		if (stalledSeconds < NATIVE_WATCHDOG_STALL_SECONDS)
+		{
+			continue;
+		}
+
+		Platform_LogError("[CTR Watchdog] no VBlank for %ds, count stuck at %d, target fps %d.\n",
+		    stalledSeconds, s_nativeVBlankCount, Ctrds_TargetFps());
+		Platform_LogError("[CTR Watchdog] aborting so the tombstone records where every thread is parked.\n");
+
+		abort();
+	}
+}
+
+internal void Native_StartHangWatchdog(void)
+{
+	const char *disabled = getenv("CTRDS_WATCHDOG");
+
+	if ((disabled != NULL) && (disabled[0] == '0'))
+	{
+		return;
+	}
+
+	if (SDL_CreateThread(Native_WatchdogMain, "CTRWatchdog", NULL) == NULL)
+	{
+		Platform_LogError("[CTR Watchdog] could not start: %s\n", SDL_GetError());
+	}
 }
 
 // The panel rate can change under a running game -- this device's system
