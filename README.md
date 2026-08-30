@@ -1,5 +1,11 @@
 # CTR Native
 
+> **This is the CTR-DS fork.** It adds a companion screen, a 64-bit build,
+> frame caps above 30 and internal resolution up to 8x. See
+> **[README_CTRDS.md](README_CTRDS.md)** for what that changes and how to build
+> it. Everything below is the upstream documentation and still applies.
+
+
 A native port of Crash Team Racing (PS1, 1999), built on top of the [CTR-ModSDK](https://github.com/CTR-tools/CTR-ModSDK) decompilation project.
 
 ## Directory Layout
