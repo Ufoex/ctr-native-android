@@ -74,8 +74,6 @@ struct CtrdsLayout g_ctrds = {
     .aspectW = 16,
     .aspectH = 9,
     .vsyncsPerFlip = 1,
-    .vblankMultiplier = 1,
-    .vblankAuto = 1,
     .fxaa = 0,
     .crt = 1,
     .swapFaceButtons = 1,
@@ -923,11 +921,6 @@ void Ctrds_LoadConfig(void)
 		{
 			g_ctrds.widescreen = value;
 		}
-		else if (strncmp(line, "vblank_mult", 11) == 0)
-		{
-			g_ctrds.vblankMultiplier = value;
-			g_ctrds.vblankAuto = 0;
-		}
 	}
 
 	fclose(f);
@@ -959,26 +952,6 @@ void Ctrds_InitLayout(void)
 	g_ctrds.mapScale = CTRDS_FP_ONE;
 	g_ctrds.mapX = (s16)(CTRDS_MAP_RX + CTRDS_MAP_RW);
 	g_ctrds.mapY = (s16)(CTRDS_BODY_Y + CTRDS_BODY_H);
-}
-
-void Ctrds_UpdateAutoVBlank(float panelHz)
-{
-	int want;
-
-	if (!g_ctrds.vblankAuto)
-	{
-		return;
-	}
-
-	// Emit VBlanks fast enough to feed the panel. Below 100Hz there is nothing
-	// to gain: extra VBlanks would burn CPU on frames the panel never shows.
-	want = (panelHz >= 100.0f) ? 2 : 1;
-
-	if (want != g_ctrds.vblankMultiplier)
-	{
-		g_ctrds.vblankMultiplier = want;
-		Platform_Log("[CTR-DS] panel %.1fHz -> vblankMult=%d\n", (double)panelHz, want);
-	}
 }
 
 // Portraits are far bigger than the dot they replace, so they are drawn small
@@ -1134,15 +1107,6 @@ void Ctrds_InitFromEnv(void)
 	}
 
 	{
-		const char *mult = getenv("CTRDS_VBLANK_MULT");
-		if (mult != NULL)
-		{
-			g_ctrds.vblankMultiplier = atoi(mult);
-			g_ctrds.vblankAuto = 0;
-		}
-	}
-
-	{
 		const char *wide = getenv("CTRDS_WIDE");
 		if (wide != NULL)
 		{
@@ -1168,8 +1132,8 @@ void Ctrds_InitFromEnv(void)
 		}
 	}
 
-	Platform_Log("[CTR-DS] mode=%d panel=%dx%d widescreen=%d vsyncsPerFlip=%d vblankMult=%d\n", g_ctrds.mode, g_ctrds.screenW, g_ctrds.screenH,
-	        g_ctrds.widescreen, g_ctrds.vsyncsPerFlip, g_ctrds.vblankMultiplier);
+	Platform_Log("[CTR-DS] mode=%d panel=%dx%d widescreen=%d vsyncsPerFlip=%d\n", g_ctrds.mode, g_ctrds.screenW,
+	        g_ctrds.screenH, g_ctrds.widescreen, g_ctrds.vsyncsPerFlip);
 }
 
 // The panel needs an ordering table of its own for the idle screen, because

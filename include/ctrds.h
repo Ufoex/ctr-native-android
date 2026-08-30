@@ -189,13 +189,7 @@ struct CtrdsLayout
 	// NTSC video timing (~59.817Hz) in software, independent of the panel, so
 	// even flipping every VBlank caps at ~60fps. 2 emits them twice as fast for
 	// ~120fps. Everything that matters downstream is delta-timed.
-	int vblankMultiplier;
 
-	// When set, vblankMultiplier tracks the panel's actual refresh rate instead
-	// of a fixed value. The panel rate is not ours to choose: this device's
-	// system service resets its own 60Hz cap back under us, so the multiplier
-	// has to follow the panel at runtime rather than be decided at startup.
-	int vblankAuto;
 
 	// Post-processing on the presented image. FXAA runs at source resolution,
 	// where it costs almost nothing; the CRT effect rides along in the upscale
@@ -414,13 +408,7 @@ static inline int Ctrds_TargetFps(void)
 	return (g_ctrds.targetFps > 0) ? g_ctrds.targetFps : 60;
 }
 
-static inline int Ctrds_VBlankMultiplier(void)
-{
-	return (g_ctrds.vblankMultiplier > 0) ? g_ctrds.vblankMultiplier : 1;
-}
 
-// Feeds the measured panel refresh rate in. Safe to call every frame.
-void Ctrds_UpdateAutoVBlank(float panelHz);
 
 // Derives the map scale and anchor from the grid above. Call once at startup.
 void Ctrds_InitLayout(void);

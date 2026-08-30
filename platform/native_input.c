@@ -923,25 +923,6 @@ void Platform_InputUpdate(void)
 			u16 buttons = NativeInput_GetSnapshotButtons(&s_controllers[slot].snapshot);
 			NativeInput_SetSnapshotButtons(&s_controllers[slot].snapshot, buttons & s_touchButtons);
 
-#if defined(CTR_INTERNAL)
-			// The mask the game will actually read, logged when it changes.
-			// PSX pad bits are active low, so a held button shows as a cleared
-			// bit. If the accelerator is still clear while the kart refuses to
-			// move, the input arrived and the fault is downstream of it.
-			if (slot == 0)
-			{
-				local_persist u16 s_lastLoggedMask = 0xffff;
-				const u16 effective = (u16)(buttons & s_touchButtons);
-
-				if (effective != s_lastLoggedMask)
-				{
-					Platform_Log("[CTR Input] pad0 mask 0x%04x (touchActive=%d, touchMask=0x%04x)\n",
-					    (unsigned)effective, s_touchActive, (unsigned)s_touchButtons);
-					s_lastLoggedMask = effective;
-				}
-			}
-#endif
-
 			if (s_touchActive)
 			{
 				// analog[2]/[3] are the left stick; see NativeInput_ApplyController.

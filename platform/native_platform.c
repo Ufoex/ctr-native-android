@@ -707,28 +707,6 @@ internal void Native_StartHangWatchdog(void)
 	}
 }
 
-// The panel rate can change under a running game -- this device's system
-// service resets its own refresh cap -- so sample it rather than trusting the
-// value present at startup. Throttled: SDL re-queries the display each call.
-internal void Native_PollPanelRefresh(void)
-{
-	local_persist int s_pollCountdown = 0;
-
-	const SDL_DisplayMode *mode;
-
-	if (s_pollCountdown-- > 0)
-	{
-		return;
-	}
-	s_pollCountdown = 120;
-
-	mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
-	if (mode != NULL && mode->refresh_rate > 0.0f)
-	{
-		Ctrds_UpdateAutoVBlank(mode->refresh_rate);
-	}
-}
-
 internal void Native_AdvanceVBlankTarget(void)
 {
 	const u64 freq = SDL_GetPerformanceFrequency();

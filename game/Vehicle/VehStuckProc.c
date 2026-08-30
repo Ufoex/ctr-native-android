@@ -565,14 +565,6 @@ extern DriverFunc PlayerMaskGrabFuncTable[DRIVER_FUNC_COUNT];
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800671b0-0x8006749c.
 void VehStuckProc_MaskGrab_Init(struct Thread *t, struct Driver *d)
 {
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-	if ((d != NULL) && (d->driverID == 0))
-	{
-		Platform_Log("[CTR Stuck] mask grab (carried back on track) at %d,%d,%d\n", (int)d->posCurr.x, (int)d->posCurr.y,
-		    (int)d->posCurr.z);
-	}
-#endif
-
 	struct GameTracker *gGT = sdata->gGT;
 	struct Instance *inst = t->inst;
 
@@ -792,14 +784,6 @@ extern DriverFunc PlayerEatenFuncTable[DRIVER_FUNC_COUNT];
 // when eaten by plant on papu pyramid
 void VehStuckProc_PlantEaten_Init(struct Thread *t, struct Driver *d)
 {
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-	if ((d != NULL) && (d->driverID == 0))
-	{
-		Platform_Log("[CTR Stuck] eaten by plant at %d,%d,%d\n", (int)d->posCurr.x, (int)d->posCurr.y,
-		    (int)d->posCurr.z);
-	}
-#endif
-
 	// when this function executes, you are lifted
 	// above the track by the mask, where you respawn
 
@@ -872,14 +856,6 @@ DriverFunc PlayerEatenFuncTable[DRIVER_FUNC_COUNT] = {
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80067930-0x80067960.
 void VehStuckProc_RIP_Init(struct Thread *t, struct Driver *d)
 {
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-	if ((d != NULL) && (d->driverID == 0))
-	{
-		Platform_Log("[CTR Stuck] RIP at %d,%d,%d\n", (int)d->posCurr.x, (int)d->posCurr.y,
-		    (int)d->posCurr.z);
-	}
-#endif
-
 	VehStuckProc_PlantEaten_Init(t, d);
 	d->invisibleTimer = 0;
 	d->funcPtrs[DRIVER_FUNC_UPDATE] = NULL;
