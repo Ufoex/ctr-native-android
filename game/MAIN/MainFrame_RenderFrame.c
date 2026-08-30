@@ -43,7 +43,11 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 		{
 			if (lev != 0)
 			{
-				CTR_CycleTex_LEV(Level_GetAnimTex(lev, "MainFrame_RenderFrame animated textures"), gGT->timer);
+				// The level's animated textures -- waterfalls, lava, the moving
+				// surfaces of the track itself. The model ones were moved to the
+				// retail tick and this was missed, so the waterfalls went on
+				// cycling at the cap while everything around them was corrected.
+				CTR_CycleTex_LEV(Level_GetAnimTex(lev, "MainFrame_RenderFrame animated textures"), Ctrds_RetailTicks());
 			}
 		}
 	}
