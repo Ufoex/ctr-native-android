@@ -188,6 +188,16 @@ public class CTRTouchOverlay extends View {
                 final int id = event.getPointerId(i);
                 if (id == stickPointerId) {
                     moveStick(event.getX(i), event.getY(i));
+                } else if (!isClaimed(id)) {
+                    // A finger that is down but owns nothing. Normally that
+                    // cannot happen, because ACTION_DOWN claims it -- but a
+                    // cancelled gesture releases every button while the fingers
+                    // are still on the glass, and Android will not send another
+                    // ACTION_DOWN for a finger that never left. Without this the
+                    // held accelerator stays released until the player lifts
+                    // their thumb and presses again, which is seconds of a kart
+                    // that will not move with the gas held down.
+                    claim(id, event.getX(i), event.getY(i));
                 }
             }
             break;
@@ -198,6 +208,12 @@ public class CTRTouchOverlay extends View {
         case MotionEvent.ACTION_CANCEL: {
             final int id = (action == MotionEvent.ACTION_CANCEL)
                     ? -1 : event.getPointerId(event.getActionIndex());
+
+            if (action == MotionEvent.ACTION_CANCEL) {
+                android.util.Log.i("CTR-DS", "touch gesture cancelled with "
+                        + event.getPointerCount() + " pointer(s) still down");
+            }
+
             release(id);
             break;
         }
@@ -225,6 +241,21 @@ public class CTRTouchOverlay extends View {
             stickPointerId = pointerId;
             moveStick(x, y);
         }
+    }
+
+    /** Whether this pointer currently owns a button or the stick. */
+    private boolean isClaimed(int pointerId) {
+        if (pointerId == stickPointerId) {
+            return true;
+        }
+
+        for (Btn b : buttons) {
+            if (b.pointerId == pointerId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void release(int pointerId) {
