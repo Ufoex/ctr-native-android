@@ -909,6 +909,7 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 		// === Temporary 60FPS macros ===
 		// Emulate 30fps on 60fps for SCVert and OVert
 
+		MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_LEVEL_ANIMATE);
 		// if no SCVert
 		if ((level1->configFlags & 4) == 0)
 		{
@@ -922,6 +923,7 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 			// draw SCVert (no primitives generated here
 			AnimateQuad(gGT->timer << 7, level1->numSCVert, scVertices, gGT->visMem1->visSCVertList[0]);
 		}
+		MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_LEVEL_ANIMATE);
 
 		// camera of player 1
 		pushBuffer = &gGT->pushBuffer[0];
@@ -962,17 +964,23 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 			scratch->fullDynamicFadeDepthStart = CTR_MipsAddLo(scratch->bspLodDistanceThreshold, MAIN_RENDER_LEVEL_GEOMETRY_FULL_DYNAMIC_FADE_OFFSET);
 		}
 
+		MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_LEVEL_BSP);
 		RenderLists_PreInit();
 		gGT->bspLeafsDrawn = 0;
 
 		gGT->bspLeafsDrawn += RenderLists_Init1P2P(bspRoot, gGT->visMem1->visLeafList[0], pushBuffer, &gGT->LevRenderLists[0],
 		                                           gGT->visMem1->bspList[0], numPlyrCurrGame);
+		MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_LEVEL_BSP);
 
+		MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_LEVEL_DRAW);
 		// 226-229
 		DrawLevelOvr1P(&gGT->LevRenderLists[0], pushBuffer, (struct BSP *)ptr_mesh_info, &gGT->backBuffer->primMem, gGT->visMem1->visFaceList[0],
 		               waterEnvMap); // waterEnvMap?
+		MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_LEVEL_DRAW);
 
+		MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_LEVEL_SKY);
 		DrawSky_Full(skybox, pushBuffer, &gGT->backBuffer->primMem);
+		MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_LEVEL_SKY);
 
 		// skybox gradient
 		if ((level1->configFlags & 1) != 0)

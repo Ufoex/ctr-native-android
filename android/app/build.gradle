@@ -21,6 +21,18 @@ android {
             cmake {
                 arguments "-DANDROID_STL=c++_static", "-DCTR_NATIVE=ON"
                 abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86'
+
+                // The debug variant compiles the native side with no -O flag at
+                // all, which is -O0. That is the right default for debugging a
+                // library; it is the wrong one for a recompiled PS1 game, where
+                // every frame walks a BSP and builds a display list in C. It
+                // cost roughly twelve times the CPU per frame on device, and
+                // read as the phone being too slow to hold 120fps.
+                //
+                // Debug info is kept -- the tombstones the hang watchdog relies
+                // on need it -- so this is RelWithDebInfo in all but name.
+                cFlags "-O2", "-fno-omit-frame-pointer"
+                cppFlags "-O2", "-fno-omit-frame-pointer"
             }
         }
     }
