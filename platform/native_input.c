@@ -1338,6 +1338,17 @@ JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeTouchInput(JNI
 	Platform_InputApplyTouchAxes(0, (int)stickX, (int)stickY);
 }
 
+// The frame cap, so the Java side can ask the display for a matching refresh
+// rate. Reading ctrds.cfg again from Java would be a second parser of the same
+// file that could disagree with this one.
+JNIEXPORT jint JNICALL Java_com_ctrnative_CTRNativeActivity_nativeTargetFps(JNIEnv *env, jclass cls)
+{
+	(void)env;
+	(void)cls;
+
+	return (jint)Ctrds_TargetFps();
+}
+
 JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeTouchSetActive(JNIEnv *env, jclass cls, jboolean active)
 {
 	(void)env;

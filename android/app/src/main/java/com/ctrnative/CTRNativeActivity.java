@@ -139,6 +139,7 @@ public class CTRNativeActivity extends SDLActivity {
                 @Override
                 public void run() {
                     updateTouchControls();
+                    applyPreferredFrameRate();
                     touchHandler.postDelayed(this, 1500);
                 }
             }, 2500);
@@ -181,6 +182,63 @@ public class CTRNativeActivity extends SDLActivity {
 
             Log.i(CTRDS_TAG, "on-screen controls " + (wanted ? "shown" : "hidden")
                     + " (gamepads=" + pads + ", mode=" + mode + ")");
+        }
+    }
+
+    private int lastRequestedFrameRate = 0;
+
+    /**
+     * Asks the display to run at the configured cap.
+     *
+     * preferredDisplayModeId, which requestHighestRefreshRate sets, is a hint
+     * that modern Android and OEM refresh-rate managers routinely override --
+     * this device asks for 165Hz at startup and gets 90. Surface.setFrameRate is
+     * the API they actually honour for games, and it names a rate rather than a
+     * mode, so the panel can pick whichever mode serves it.
+     *
+     * Repeated from the same poll as the touch overlay because the surface does
+     * not exist yet in onCreate, and because the cap can change between runs.
+     */
+    private void applyPreferredFrameRate() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return;
+        }
+
+        int fps;
+        try {
+            fps = nativeTargetFps();
+        } catch (UnsatisfiedLinkError e) {
+            return;
+        }
+
+        if ((fps <= 0) || (fps == lastRequestedFrameRate)) {
+            return;
+        }
+
+        try {
+            if (mSurface == null) {
+                return;
+            }
+
+            Surface surface = mSurface.getHolder().getSurface();
+            if ((surface == null) || !surface.isValid()) {
+                return;
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                surface.setFrameRate((float) fps,
+                        Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                        Surface.CHANGE_FRAME_RATE_ALWAYS);
+            } else {
+                surface.setFrameRate((float) fps, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+            }
+
+            lastRequestedFrameRate = fps;
+
+            float actual = getWindowManager().getDefaultDisplay().getRefreshRate();
+            Log.i(CTRDS_TAG, "asked the surface for " + fps + "Hz; display reports " + actual + "Hz");
+        } catch (Exception e) {
+            Log.e(CTRDS_TAG, "setFrameRate failed: " + e.getMessage());
         }
     }
 
@@ -408,6 +466,9 @@ public class CTRNativeActivity extends SDLActivity {
     public static native void nativeTouchInput(int buttonMask, int stickX, int stickY);
 
     public static native void nativeTouchSetActive(boolean active);
+
+    /** The configured frame cap, used to ask the display for a matching rate. */
+    public static native int nativeTargetFps();
 
     public static native int nativeGetGamepadCount();
 
