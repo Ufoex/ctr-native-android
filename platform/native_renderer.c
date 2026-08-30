@@ -659,9 +659,9 @@ void NativeRenderer_SetInternalScale(int scale)
 	{
 		scale = 1;
 	}
-	if (scale > 4)
+	if (scale > 5)
 	{
-		scale = 4;
+		scale = 5;
 	}
 
 	s_internalScale = scale;

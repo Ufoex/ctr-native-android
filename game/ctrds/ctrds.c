@@ -74,6 +74,7 @@ struct CtrdsLayout g_ctrds = {
     .swapFaceButtons = 1,
     .touchControls = 0,
     .internalScale = 4,
+    .targetFps = 120,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -190,11 +191,18 @@ int Ctrds_Is30HzTick(void)
 enum CtrdsSetting
 {
 	CTRDS_SET_RESOLUTION = 0,
+	CTRDS_SET_FPS,
+	CTRDS_SET_ASPECT,
 	CTRDS_SET_FXAA,
 	CTRDS_SET_CRT,
 	CTRDS_SET_ONLINE,
 	CTRDS_SET_COUNT
 };
+
+// The caps offered on the panel. 480 is "uncapped" in practice: the hardware
+// runs out long before the pacing does.
+internal const int s_ctrdsFpsSteps[] = {30, 60, 90, 120, CTRDS_FPS_UNLIMITED};
+#define CTRDS_FPS_STEP_COUNT ((int)(sizeof(s_ctrdsFpsSteps) / sizeof(s_ctrdsFpsSteps[0])))
 
 internal int s_ctrdsSetting = CTRDS_SET_RESOLUTION;
 
@@ -219,6 +227,7 @@ void Ctrds_SaveConfig(void)
 	}
 
 	fprintf(f, "# CTR-DS settings. Edit and restart, or change them on the panel.\n");
+	fprintf(f, "target_fps=%d\n", g_ctrds.targetFps);
 	fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
 	fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
 	fprintf(f, "crt=%d\n", g_ctrds.crt);
@@ -246,15 +255,47 @@ internal void Ctrds_AdjustSetting(int delta)
 		{
 			scale = 1;
 		}
-		if (scale > 4)
+		if (scale > 5)
 		{
-			scale = 4;
+			scale = 5;
 		}
 
 		g_ctrds.internalScale = scale;
 		NativeRenderer_SetInternalScale(scale);
 		break;
 	}
+
+	case CTRDS_SET_FPS:
+	{
+		int i;
+		int found = 0;
+
+		for (i = 0; i < CTRDS_FPS_STEP_COUNT; i++)
+		{
+			if (s_ctrdsFpsSteps[i] == g_ctrds.targetFps)
+			{
+				found = i;
+				break;
+			}
+		}
+
+		found += delta;
+		if (found < 0)
+		{
+			found = CTRDS_FPS_STEP_COUNT - 1;
+		}
+		if (found >= CTRDS_FPS_STEP_COUNT)
+		{
+			found = 0;
+		}
+
+		g_ctrds.targetFps = s_ctrdsFpsSteps[found];
+		break;
+	}
+
+	case CTRDS_SET_ASPECT:
+		g_ctrds.widescreen = !g_ctrds.widescreen;
+		break;
 
 	case CTRDS_SET_FXAA:
 		g_ctrds.fxaa = !g_ctrds.fxaa;
@@ -298,6 +339,19 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 		case CTRDS_SET_RESOLUTION:
 			snprintf(line, sizeof(line), "%s RESOLUTION  %dX", marker, g_ctrds.internalScale);
 			break;
+		case CTRDS_SET_FPS:
+			if (g_ctrds.targetFps >= CTRDS_FPS_UNLIMITED)
+			{
+				snprintf(line, sizeof(line), "%s FPS CAP  UNCAPPED", marker);
+			}
+			else
+			{
+				snprintf(line, sizeof(line), "%s FPS CAP  %d", marker, g_ctrds.targetFps);
+			}
+			break;
+		case CTRDS_SET_ASPECT:
+			snprintf(line, sizeof(line), "%s ASPECT  %s", marker, g_ctrds.widescreen ? "16:9" : "4:3");
+			break;
 		case CTRDS_SET_FXAA:
 			snprintf(line, sizeof(line), "%s FXAA  %s", marker, g_ctrds.fxaa ? "ON" : "OFF");
 			break;
@@ -334,7 +388,7 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 	}
 
 	// PS1 screen coordinates: 512 wide, and low enough to sit under the menu.
-	Ctrds_DrawSettingsList(gGT->pushBuffer_UI.ptrOT, 128, 150);
+	Ctrds_DrawSettingsList(gGT->pushBuffer_UI.ptrOT, 128, 120);
 }
 
 void Ctrds_PanelTap(float nx, float ny)
@@ -353,7 +407,7 @@ void Ctrds_PanelTap(float nx, float ny)
 
 	for (row = 0; row < CTRDS_SET_COUNT; row++)
 	{
-		const int rowY = (g_ctrds.screenH / 2) + 6 + (row * 15);
+		const int rowY = (g_ctrds.screenH / 2) - 8 + (row * 15);
 
 		// The drawn text sits on rowY; accept a band around it, since a
 		// fingertip is far larger than a line of this font.
@@ -435,9 +489,13 @@ int Ctrds_VsyncsPerFlip(void)
 		return (g_ctrds.vsyncsPerFlip > 0) ? g_ctrds.vsyncsPerFlip : 2;
 	}
 
-	// Retail flips every 2nd VBlank at the stock rate. Scale by the multiplier
-	// so the cadence stays 30fps however fast VBlanks are being emitted.
-	return 2 * Ctrds_VBlankMultiplier();
+	// Retail runs its menus at 30fps. VBlanks now come at the configured cap, so
+	// flip every T/30 of them to keep that cadence whatever the cap is.
+	{
+		const int perFlip = Ctrds_TargetFps() / 30;
+
+		return (perFlip > 0) ? perFlip : 1;
+	}
 }
 
 void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBottom)
@@ -555,7 +613,9 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
 			fprintf(f, "# crt: CRT-Royale-style scanlines, phosphor mask and halation (0/1)\n");
 			fprintf(f, "crt=%d\n", g_ctrds.crt);
-			fprintf(f, "# internal_scale: render resolution multiplier, 1-4\n");
+			fprintf(f, "# target_fps: frame cap -- 30, 60, 90, 120, or 480 for uncapped\n");
+			fprintf(f, "target_fps=%d\n", g_ctrds.targetFps);
+			fprintf(f, "# internal_scale: render resolution multiplier, 1-5\n");
 			fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
 			fprintf(f, "# touch_controls: 0 auto (only with no pad), 1 always, 2 never\n");
 			fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
@@ -633,6 +693,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "crt", 3) == 0)
 		{
 			g_ctrds.crt = value;
+		}
+		else if (strncmp(line, "target_fps", 10) == 0)
+		{
+			g_ctrds.targetFps = value;
 		}
 		else if (strncmp(line, "internal_scale", 14) == 0)
 		{
@@ -846,13 +910,13 @@ internal void Ctrds_DrawIdlePanel(void)
 
 	ClearOTagR(s_ctrdsIdleOT, CTRDS_IDLE_OT_LEN);
 
-	DecalFont_DrawLineOT("CTR", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 74, FONT_BIG, JUSTIFY_CENTER, head);
-	DecalFont_DrawLineOT("CRASH TEAM RACING", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 38, FONT_SMALL, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT("CTR", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 92, FONT_BIG, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT("CRASH TEAM RACING", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 58, FONT_SMALL, JUSTIFY_CENTER, head);
 
 	// Settings list, on the main menu only.
 	if (Ctrds_OnMainMenu())
 	{
-		Ctrds_DrawSettingsList(head, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 6);
+		Ctrds_DrawSettingsList(head, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 8);
 	}
 
 	DrawOTag(head);

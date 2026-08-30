@@ -171,6 +171,13 @@ struct CtrdsLayout
 	// counted in frames do not, and are scaled separately.
 	int vsyncsPerFlip;
 
+	// Frame-rate cap, in frames per second. The emulated VBlank is what paces
+	// the game, so this sets the VBlank rate directly. VBlanks are scheduled
+	// against wall time rather than per rendered frame, which is why a cap the
+	// hardware cannot reach still keeps the game clock correct -- missed VBlanks
+	// are emitted late rather than lost.
+	int targetFps;
+
 	// Multiplies the emulated PS1 VBlank rate. The platform paces VBlanks from
 	// NTSC video timing (~59.817Hz) in software, independent of the panel, so
 	// even flipping every VBlank caps at ~60fps. 2 emits them twice as fast for
@@ -264,6 +271,13 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
 // 30fps they were authored for, and there is nothing to gain from a higher rate
 // on screens that are mostly static anyway.
 int Ctrds_VsyncsPerFlip(void);
+
+#define CTRDS_FPS_UNLIMITED 480
+
+static inline int Ctrds_TargetFps(void)
+{
+	return (g_ctrds.targetFps > 0) ? g_ctrds.targetFps : 60;
+}
 
 static inline int Ctrds_VBlankMultiplier(void)
 {

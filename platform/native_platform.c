@@ -605,20 +605,17 @@ internal void Native_PollPanelRefresh(void)
 
 internal void Native_AdvanceVBlankTarget(void)
 {
-	Native_PollPanelRefresh();
-
 	const u64 freq = SDL_GetPerformanceFrequency();
-	// counter ticks per vblank = freq * (897619 / 53693175) sec, kept exact with a
-	// running remainder. freq*897619 fits u64 for any realistic QPC frequency.
-	const u64 numer = freq * NATIVE_VBLANK_GPU_CYCLES;
 
-	// NOTE(ctrds): dividing the VBlank period by this emits VBlanks proportionally
-	// faster, which is the only way past ~60fps -- the pacing here is emulated PS1
-	// NTSC timing and takes no notice of the panel's refresh rate.
-	const u64 denom = NATIVE_GPU_CLOCK_HZ * (u64)Ctrds_VBlankMultiplier();
+	// NOTE(ctrds): the VBlank rate is the frame-rate cap -- the game is paced by
+	// emulated VBlanks and takes no notice of the panel. Scheduling is absolute:
+	// each target is one period past the previous one, so a cap the hardware
+	// cannot sustain does not slow the game down, it just renders fewer of the
+	// VBlanks that were due.
+	const u64 denom = (u64)Ctrds_TargetFps();
 
-	s_nextVBlankCounter += numer / denom;
-	s_vblankRemainder += numer % denom;
+	s_nextVBlankCounter += freq / denom;
+	s_vblankRemainder += freq % denom;
 	if (s_vblankRemainder >= denom)
 	{
 		s_nextVBlankCounter++;

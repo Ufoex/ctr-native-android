@@ -16,32 +16,37 @@
 // of SDL wall time. Host wait jitter otherwise leaks into vehicle physics.
 #define CTR_NATIVE_RCNT1_TICKS_PER_VBLANK 263u
 
+// Same NTSC constants the pacing uses; duplicated here so this file does not
+// depend on the platform layer.
+#define NATIVE_LIBAPI_VBLANK_GPU_CYCLES 897619ull
+#define NATIVE_LIBAPI_GPU_CLOCK_HZ      53693175ull
+
 global_variable u64 s_rootCounterValue = 0;
 global_variable u64 s_rootCounterBase = 0;
 global_variable unsigned s_rootCounterRemainder = 0;
 
 void NativeRCnt_EmitVBlank(void)
 {
-	// NOTE(ctrds): the game's whole clock is this counter, so ticks-per-VBlank
-	// has to shrink by exactly the factor the VBlank rate grew by. Otherwise a
+	// The game's entire clock is this counter, so ticks-per-VBlank has to shrink
+	// in proportion to how much faster VBlanks are being emitted -- otherwise a
 	// doubled VBlank rate doubles the game's sense of time and everything
-	// delta-timed -- physics, timers, cameras -- runs at double speed.
-	// 263/2 is not an integer, so carry the remainder rather than truncating:
-	// truncation alone would lose 0.5 ticks per VBlank and drift the clock slow.
-	const unsigned mult = (unsigned)Ctrds_VBlankMultiplier();
+	// delta-timed (physics, timers, cameras) runs at double speed.
+	//
+	// Real time per second must stay constant: 263 ticks per VBlank at the NTSC
+	// rate means 263 * baseRate / T at T VBlanks per second. Carry the
+	// remainder, because that is rarely a whole number and truncating loses a
+	// fraction every VBlank, drifting the clock slow.
+	const u64 target = (u64)Ctrds_TargetFps();
+	const u64 numer = (u64)CTR_NATIVE_RCNT1_TICKS_PER_VBLANK * NATIVE_LIBAPI_GPU_CLOCK_HZ;
+	const u64 denom = NATIVE_LIBAPI_VBLANK_GPU_CYCLES * target;
 
-	if (mult <= 1)
-	{
-		s_rootCounterValue += CTR_NATIVE_RCNT1_TICKS_PER_VBLANK;
-		return;
-	}
+	s_rootCounterValue += numer / denom;
+	s_rootCounterRemainder += (unsigned)(numer % denom);
 
-	s_rootCounterValue += CTR_NATIVE_RCNT1_TICKS_PER_VBLANK / mult;
-	s_rootCounterRemainder += CTR_NATIVE_RCNT1_TICKS_PER_VBLANK % mult;
-	if (s_rootCounterRemainder >= mult)
+	if ((u64)s_rootCounterRemainder >= denom)
 	{
 		s_rootCounterValue++;
-		s_rootCounterRemainder -= mult;
+		s_rootCounterRemainder -= (unsigned)denom;
 	}
 }
 
