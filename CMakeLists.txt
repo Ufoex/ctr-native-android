@@ -4,7 +4,13 @@ include(CheckCCompilerFlag)
 
 set(CTR_NATIVE_VERSION "0.1.0-beta.7.1")
 
-if(NOT ANDROID)
+# The game's structures are retail-shaped: pointers live in four-byte fields and
+# ordering-table links in twenty-four bits, so the build is 32-bit by default and
+# has to stay that way until the LP64 conversion lands. Turning this off is how
+# that conversion is worked on and measured -- see tools/lp64-audit.sh.
+option(CTR_FORCE_32BIT "Build for a 32-bit host (required until the LP64 conversion completes)" ON)
+
+if(NOT ANDROID AND CTR_FORCE_32BIT)
     if(NOT CMAKE_C_COMPILER_TARGET MATCHES "i.86" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "i.86")
         set(CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}")
         set(CMAKE_EXE_LINKER_FLAGS "-m32 ${CMAKE_EXE_LINKER_FLAGS}")

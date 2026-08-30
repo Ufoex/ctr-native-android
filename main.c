@@ -44,6 +44,10 @@
 #include "platform/native_checkpoint.c"
 #include "platform/native_checkpoint_file.c"
 #include "platform/native_cd.c"
+// The guest-reference bridge keeps a pointer inside a four-byte retail field by
+// storing a tagged region offset instead of an address. It has to compile and
+// self-test on 32-bit too, so it goes in ahead of anything that uses it.
+#include "platform/native_guest_ref.c"
 #include "platform/native_gpu_links.c"
 #include "platform/native_gpu.c"
 #include "platform/native_gte_core.c"
