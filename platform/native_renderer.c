@@ -469,7 +469,14 @@ void NativeRenderer_BeginScene(void)
 	}
 	else
 	{
-		glClear(GL_STENCIL_BUFFER_BIT);
+		// NOTE(ctrds): isbg means "clear the draw area to r0,g0,b0" -- that is
+		// what the field is for, and the game sets it when it expects to start
+		// from a filled background rather than paint over the last frame. Only
+		// the stencil was being cleared here, so the colour buffer kept whatever
+		// happened to be in it and that showed through wherever the frame did
+		// not cover, bleeding into the sky.
+		glClearColor((float)activeDrawEnv.r0 / 255.0f, (float)activeDrawEnv.g0 / 255.0f, (float)activeDrawEnv.b0 / 255.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	}
 	NativeRenderer_SetViewPort(0, 0, s_mainRenderTarget.width, s_mainRenderTarget.height);
 
