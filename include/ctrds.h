@@ -217,6 +217,13 @@ struct CtrdsLayout
 	// Whether replacement art is used at all. Off by default: the art is built
 	// and shipped, but the overlay that composites it does not land on the panel
 	// yet, so an icon it takes over would go missing rather than look better.
+	// Whether to drop primitives that span more than the PSX GPU would accept.
+	// 0 off, 1 on, 2 on and report what it drops. Off is worth trying when
+	// geometry goes missing: the rule is what removes the stray sky wedges, so if
+	// turning it off fills a hole back in, the hole is this rule firing on
+	// something it should not.
+	int primReject;
+
 	int hdArt;
 
 	int hdLog;

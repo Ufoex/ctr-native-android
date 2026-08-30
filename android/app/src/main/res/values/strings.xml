@@ -10,4 +10,11 @@
     <string name="setup_import_progress">Importing disc image: %1$d%%</string>
     <string name="setup_starting_game">Starting CTR Native&#8230;</string>
     <string name="setup_select_another_disc">Select another disc image</string>
+
+    <string name="launcher_subtitle">Crash Team Racing, dual screen</string>
+    <string name="launcher_disc_section">DISC</string>
+    <string name="launcher_settings_section">SETTINGS</string>
+    <string name="launcher_disc_ready">Disc image loaded (%1$d MB)</string>
+    <string name="launcher_disc_replace_hint">Replace it only if you want to use a different image.</string>
+    <string name="launcher_play">PLAY</string>
 </resources>
