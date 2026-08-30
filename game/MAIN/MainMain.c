@@ -167,7 +167,7 @@ u32 main(void)
 
 			// ignore threads, because we PopState,
 			// so the threadpool will reset anyway
-			LevInstDef_RePack(gGT->level1->ptr_mesh_info, 0);
+			LevInstDef_RePack(Level_GetMeshInfo(gGT->level1, "MainMain level mesh"), 0);
 
 			sdata->mainGameState = 1;
 			break;
@@ -626,7 +626,7 @@ void StateZero()
 
 	// English=1
 	// PAL SCES02105 calls it multiple times
-	LOAD_LangFile((int)sdata->ptrBigfile1, 1);
+	LOAD_LangFile(sdata->ptrBigfile1, 1);
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
 

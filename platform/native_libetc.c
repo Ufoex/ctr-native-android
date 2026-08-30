@@ -7,12 +7,12 @@
 #include <macros.h>
 #include <psx/libetc.h>
 
-void (*vsync_callback)(void) = NULL;
+VSyncCallbackFn vsync_callback = NULL;
 global_variable int s_videoMode = -1;
 
-int VSyncCallback(void (*func)(void))
+VSyncCallbackFn VSyncCallback(VSyncCallbackFn func)
 {
-	int old = (int)vsync_callback;
+	VSyncCallbackFn old = vsync_callback;
 
 	vsync_callback = func;
 	return old;
@@ -25,10 +25,11 @@ int StopCallback(void)
 
 int ResetCallback(void)
 {
-	int old = (int)vsync_callback;
-
+	// Retail returns the previous callback address through this int. Both
+	// callers discard it, and a function pointer does not survive the trip on a
+	// 64-bit host, so the callback is simply cleared.
 	vsync_callback = NULL;
-	return old;
+	return 0;
 }
 
 int SetVideoMode(int mode)

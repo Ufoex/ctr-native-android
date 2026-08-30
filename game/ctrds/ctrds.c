@@ -656,10 +656,16 @@ void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBotto
 		struct GameTracker *gGT = sdata->gGT;
 		struct UIMapSpawnMetadata *mapMetadata = NULL;
 
-		if (gGT->level1->ptrSpawnType1 != 0)
+		// The spawn table and the pointers inside it are serialized asset
+		// data, so on a 64-bit host they hold tagged references rather than
+		// addresses. Both hops are resolved rather than dereferenced, and
+		// either can legitimately come back empty on a track without a map.
+		struct SpawnType1 *spawn = Level_GetSpawnType1(gGT->level1, "CTR-DS map metadata");
+
+		if (spawn != NULL)
 		{
-			void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
-			mapMetadata = pointers[ST1_MAP];
+			mapMetadata = (struct UIMapSpawnMetadata *)SpawnType1_GetPointer(spawn, ST1_MAP, sizeof(*mapMetadata), _Alignof(struct UIMapSpawnMetadata),
+			                                                                 "CTR-DS map metadata");
 		}
 
 		drawsTopHalf = (((mapMetadata != NULL) && (mapMetadata->topHalfMode == 0)) || ((gGT->gameMode1 & MAIN_MENU) != 0));

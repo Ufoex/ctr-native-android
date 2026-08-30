@@ -362,13 +362,6 @@ int GAMEPAD_ProcessHold(struct GamepadSystem *gGamepads)
 		}
 	}
 
-#ifdef CTR_NATIVE
-	// Native VSync can refresh a short host tap several times before slow game
-	// logic reaches this retail consumer. Release the transport latch only
-	// after the packet above has actually been sampled.
-	Platform_InputAcknowledgeRetailPoll();
-#endif
-
 	return heldAny;
 }
 
@@ -572,7 +565,7 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 
 				if (iVar4 < 0)
 				{
-					iVar7 = ((-10 - iVar4) - rwd->range) * 8;
+					iVar7 = ((-10 - iVar4) - rwd->deadZone) * 8;
 					if (iVar7 < 0)
 					{
 						iVar7 = 0;
@@ -591,7 +584,7 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 				}
 				else
 				{
-					iVar7 = ((iVar4 - 10) - rwd->range) * 8;
+					iVar7 = ((iVar4 - 10) - rwd->deadZone) * 8;
 					if (iVar7 < 0)
 					{
 						iVar7 = 0;
@@ -733,7 +726,7 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 							u8 jogStrength = pad->unk42;
 							bVar1 = jogStrength >> 4;
 
-							if ((((gGT->timer & jogStrength) & 0xf) != 0) && (bVar1 = (jogStrength - 0x10) >> 4, (jogStrength - 0x10) < 0))
+							if ((((gGT->timer & bVar1) & 0xf) != 0) && (bVar1 = (jogStrength - 0x10) >> 4, (jogStrength - 0x10) < 0))
 							{
 								bVar1 = 0;
 							}

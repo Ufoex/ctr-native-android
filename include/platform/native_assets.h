@@ -18,9 +18,7 @@ struct NativeAssetsByteBuffer
 	int size;
 };
 
-int NativeAssets_Init(const char *executableBasePath, const char *preferredBasePath);
-int NativeAssets_InitWithDiscImage(const char *executableBasePath, const char *preferredBasePath,
-                                   const char *discImagePath);
+int NativeAssets_Init(const char *executableBasePath);
 const char *NativeAssets_GetBaseDir(void);
 const char *NativeAssets_GetAssetDir(void);
 int NativeAssets_BuildPathStr8(NativeStr8 relativePath, char *dst, size_t dstSize);

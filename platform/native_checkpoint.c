@@ -1520,8 +1520,11 @@ internal void NativeCheckpoint_RelocateSDataPointers(const struct NativeCheckpoi
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.howl_songOffsets);
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.howl_bankOffsets);
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.ptrCseqLongSamples);
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.howlChainParams[0]);
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.howlChainParams[1]);
+	// Was int[4] with the first two entries secretly holding pointers, which is
+	// the exact shape the 64-bit conversion exists to remove. They are now named
+	// members of a typed struct, so relocate them by name.
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.howlChainParams.cdlFile);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.howlChainParams.destination);
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.ptrHubAlloc);
 	NativeCheckpoint_RelocateLanguagePointers(oldHeader, liveHeader);
 	NativeCheckpoint_RelocateGhostRecording(oldHeader, liveHeader);

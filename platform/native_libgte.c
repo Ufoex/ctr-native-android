@@ -209,7 +209,10 @@ void NormalColorCol3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, CVECTOR *v3, CVECTOR
 
 void DpqColor(CVECTOR *v0, int p, CVECTOR *v1)
 {
-	gte_DpqColor(v0, &p, v1);
+	// gte_lddp loads a scalar depth value into GTE register 8, so passing &p put
+	// the address of a stack local there instead. Wrong on 32-bit too; the
+	// 64-bit audit is simply what made it visible.
+	gte_DpqColor(v0, p, v1);
 }
 
 void ColorDpq(VECTOR *v0, CVECTOR *v1, int p, CVECTOR *v2)
