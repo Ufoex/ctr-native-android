@@ -290,6 +290,15 @@ void UI_DrawDriverIcon(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *pr
 	int height = icon->texLayout.v2 - icon->texLayout.v0;
 	int scaledWidth = FP_Mult(width, scale);
 	int scaledHeight = FP_Mult(height, scale);
+
+#if defined(CTR_NATIVE)
+	// Replacement art takes the draw entirely: queued as a GL quad and left out
+	// of the PSX list, so the two cannot both appear.
+	if (Ctrds_HdQueue(icon, posX, posY, scaledWidth, scaledHeight, color))
+	{
+		return;
+	}
+#endif
 	int topX = posX;
 	int bottomX = topX + scaledWidth;
 #if BUILD != EurRetail

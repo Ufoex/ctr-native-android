@@ -53,4 +53,6 @@ void NativeRenderer_SetInternalScale(int scale);
 int NativeRenderer_GetInternalScale(void);
 void NativeRenderer_PresentScaledMain(void);
 
+void NativeRenderer_InvalidateStateCache(void);
+
 #endif

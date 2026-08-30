@@ -722,6 +722,18 @@ internal void NativeRenderer_BindMainRenderTarget(void)
 	glBindFramebuffer(GL_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
 }
 
+// The overlay pass binds its own program, texture and buffers; the cached
+// "what did we bind last" state has to be dropped or the next PSX draw skips a
+// bind it actually needs.
+void NativeRenderer_InvalidateStateCache(void)
+{
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
+	s_previousBlendMode = BM_NONE;
+	s_previousScissorState = 0;
+	s_boundVertexBuffer = -1;
+}
+
 internal void NativeRenderer_DrawVRAMRegionRaw(int x, int y, int width, int height)
 {
 	glUseProgram(s_presentVramShader);

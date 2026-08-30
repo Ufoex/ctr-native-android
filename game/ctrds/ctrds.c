@@ -63,7 +63,11 @@ struct CtrdsLayout g_ctrds = {
     .mapX = CTRDS_MAP_RX + CTRDS_MAP_RW,
     .mapY = CTRDS_BODY_Y + CTRDS_BODY_H,
     .mapScale = CTRDS_FP_ONE,
-    .mapIconScale = CTRDS_FP_ONE * 2,
+    // Native size. These are tiny icons -- the warpball and its target marker --
+    // and magnifying them samples past their cell into the neighbouring atlas
+    // art, which in this group is lettering, so a bolt came out as a glyph. The
+    // driver markers no longer need this at all, since they draw portraits.
+    .mapIconScale = CTRDS_FP_ONE,
 
     .widescreen = 1,
     .aspectMode = 1,
@@ -76,6 +80,7 @@ struct CtrdsLayout g_ctrds = {
     .crt = 1,
     .swapFaceButtons = 1,
     .touchControls = 0,
+    .hdLog = 0,
     .internalScale = 4,
     .targetFps = 60,
 
@@ -86,7 +91,7 @@ struct CtrdsLayout g_ctrds = {
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
 // (battle, relic, adventure rewards) keep their retail values.
 #define CTRDS_HUD_BLOCK                                                                                          \
-    /* 0x00 WEAPON           */ {191, 13, 0, 4096},                                                              \
+    /* 0x00 WEAPON           */ {191, 11, 0, 4096},                                                              \
     /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
     /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 5530},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
@@ -97,7 +102,7 @@ struct CtrdsLayout g_ctrds = {
     /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
     /* 0x09 SPEEDOMETER      */ {398, 60, 0, 4096},                                             \
     /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                               \
-    /* 0x0b BATTLE_WEAPON_BG */ {191 - 23, 13 - 10, 0, 4096},                                                              \
+    /* 0x0b BATTLE_WEAPON_BG */ {191 - 23, 11 - 10, 0, 4096},                                                              \
     /* 0x0c RACING_WEAPON_BG */ {330 - 30, 18 - 15, 0, 2457},                                                              \
     /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                  \
     /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                             \
@@ -741,6 +746,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "target_fps=%d\n", g_ctrds.targetFps);
 			fprintf(f, "# internal_scale: render resolution multiplier, 1-5\n");
 			fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
+			fprintf(f, "# hd_log: report each HUD icon index as it is drawn, to author hd/ art\n");
+			fprintf(f, "hd_log=%d\n", g_ctrds.hdLog);
 			fprintf(f, "# touch_controls: 0 auto (only with no pad), 1 always, 2 never\n");
 			fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
 			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
@@ -840,6 +847,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "internal_scale", 14) == 0)
 		{
 			g_ctrds.internalScale = value;
+		}
+		else if (strncmp(line, "hd_log", 6) == 0)
+		{
+			g_ctrds.hdLog = value;
 		}
 		else if (strncmp(line, "touch_controls", 14) == 0)
 		{
@@ -1162,6 +1173,9 @@ void Ctrds_DrawCompanionPass(struct GameTracker *gGT)
 	{
 		Ctrds_DrawIdlePanel();
 	}
+
+	// Composite replacement art into the panel before it is packed away.
+	Ctrds_HdFlush(CTRDS_PANEL_W, CTRDS_PANEL_H);
 
 	NativeRenderer_EndCompanionTarget(CTRDS_VRAM_PANEL_X, CTRDS_VRAM_PANEL_Y);
 

@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include "ctrds.h"
+
 enum
 {
 	DECAL_HUD_COLOR_MASK = 0xffffff,
@@ -132,6 +134,14 @@ void DecalHUD_DrawPolyGT4(struct Icon *icon, s16 posX, s16 posY, struct PrimMem 
 	u32 height = icon->texLayout.v2 - icon->texLayout.v0;
 	u32 bottomY = posY + FP_Mult(height, scale);
 	u32 rightX = (u16)posX + FP_Mult(width, scale);
+
+#if defined(CTR_NATIVE)
+	if (Ctrds_HdQueue(icon, posX, posY, (int)(rightX - (u16)posX), (int)(bottomY - (u32)posY), color0))
+	{
+		primMem->cursor = p;
+		return;
+	}
+#endif
 	setXY4CompilerHack(p, (u16)posX, posY, rightX, posY, (u16)posX, bottomY, rightX, bottomY);
 	setIconUV(p, icon);
 

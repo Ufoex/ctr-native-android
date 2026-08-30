@@ -66,6 +66,7 @@
 #include "platform/native_renderer.c"
 #include "platform/native_companion.c"
 #include "platform/native_online.c"
+#include "platform/native_hdart.c"
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"

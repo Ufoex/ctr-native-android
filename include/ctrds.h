@@ -213,6 +213,9 @@ struct CtrdsLayout
 	// On-screen controls: 0 automatic (shown only with no pad), 1 always, 2 never.
 	int touchControls;
 
+	// Reports each HUD icon index as it is drawn, for authoring replacement art.
+	int hdLog;
+
 	// 0 = 4:3, 1 = follow the display, 2 = the explicit ratio below.
 	//
 	// Following the display is the useful default: a phone might be 19.5:9 or
@@ -328,6 +331,14 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
 
 // Frame around the held-item slot, drawn whether or not an item is held.
 void Ctrds_DrawItemBox(struct GameTracker *gGT);
+
+// Replacement 2D art. A HUD icon with a PNG in <assets>/hd/icon_<n>.png is
+// queued here and skipped in the PSX list, then composited after the ordering
+// table has been walked. Returns non-zero when it took the draw.
+struct Icon;
+int Ctrds_HdQueue(const struct Icon *icon, int x, int y, int w, int h, unsigned color);
+int Ctrds_HdIconIndex(const struct Icon *icon);
+void Ctrds_HdFlush(int width, int height);
 
 // VBlanks to wait between flips. Racing runs as fast as the panel allows, but
 // menus must not: menu animation is counted in frames rather than delta-timed,
