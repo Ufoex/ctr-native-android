@@ -774,6 +774,17 @@ internal void Native_WaitUntilVBlankTarget(void)
 
 internal void Native_EmitVBlank(void)
 {
+	// One call to NativeAudio_StepVBlank queues NATIVE_AUDIO_VBLANK_FRAMES of
+	// sound, which is a sixtieth of a second's worth -- the rate a PS1 VBlank
+	// actually arrives at. VBlanks here are emitted at the configured cap
+	// instead, so at 120 the audio was handed twice the sound per second that
+	// it should play, and ran at double speed. It was only ever right when the
+	// cap happened to be 60.
+	//
+	// Stepping on a 60Hz cadence of its own keeps playback at real time for any
+	// cap, above or below.
+	local_persist int s_audioTickAccumulator = 0;
+
 	NativeRCnt_EmitVBlank();
 
 	if (vsync_callback != NULL)
@@ -781,7 +792,13 @@ internal void Native_EmitVBlank(void)
 		vsync_callback();
 	}
 
-	NativeAudio_StepVBlank();
+	s_audioTickAccumulator += 60;
+	while (s_audioTickAccumulator >= Ctrds_TargetFps())
+	{
+		s_audioTickAccumulator -= Ctrds_TargetFps();
+		NativeAudio_StepVBlank();
+	}
+
 	s_nativeVBlankCount++;
 }
 

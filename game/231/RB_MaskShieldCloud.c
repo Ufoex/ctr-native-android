@@ -1,4 +1,5 @@
 #include <common.h>
+#include <ctrds.h>
 
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 231 0x800afb70-0x800afdbc.
 void RB_MaskWeapon_FadeAway(struct Thread *t)
@@ -24,7 +25,7 @@ void RB_MaskWeapon_FadeAway(struct Thread *t)
 	mhs->posOffset.z = ((durationAdjusted * MATH_Cos(mask->rot.y)) >> 0xc);
 	mhs->posOffset.y = 0x40;
 
-	mask->rot.y += -0x100;
+	mask->rot.y += (s16)Ctrds_ScaleStep(-0x100);
 
 	struct Instance *instCurr;
 	instCurr = inst;
@@ -35,9 +36,9 @@ void RB_MaskWeapon_FadeAway(struct Thread *t)
 	{
 		LHMatrix_Parent(instCurr, driverInst, &mhs->posOffset);
 
-		instCurr->scale.x += -0x100;
-		instCurr->scale.y += -0x100;
-		instCurr->scale.z += -0x100;
+		instCurr->scale.x += (s16)Ctrds_ScaleStep(-0x100);
+		instCurr->scale.y += (s16)Ctrds_ScaleStep(-0x100);
+		instCurr->scale.z += (s16)Ctrds_ScaleStep(-0x100);
 
 		// position offset
 		mhs->posOffset.x = 0;
@@ -56,7 +57,7 @@ void RB_MaskWeapon_FadeAway(struct Thread *t)
 
 	if (maskBeamInst->alphaScale < 0x1000)
 	{
-		maskBeamInst->alphaScale += 0x200;
+		maskBeamInst->alphaScale += (s16)Ctrds_ScaleStep(0x200);
 	}
 
 	totalTime = mask->duration;
@@ -203,7 +204,13 @@ void RB_MaskWeapon_ThTick(struct Thread *maskTh)
 	if ((int)maskBeamInst->animFrame < numAnimFrames - 1)
 	{
 		// increment animation frame
-		maskBeamInst->animFrame += 1;
+		//
+		// Scaling a step of one would floor to zero above 60fps and freeze the
+		// animation rather than slow it, so this advances on the retail tick.
+		if (Ctrds_Is30HzTick())
+		{
+			maskBeamInst->animFrame += 1;
+		}
 	}
 	// if animation is finished
 	else
@@ -213,7 +220,7 @@ void RB_MaskWeapon_ThTick(struct Thread *maskTh)
 	}
 
 	// adjust rotation
-	mask->rot.y += -0x100;
+	mask->rot.y += (s16)Ctrds_ScaleStep(-0x100);
 
 	// If duration is over
 	if (mask->duration == 0)
