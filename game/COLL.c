@@ -15,6 +15,8 @@ enum
 	// eight fractional bits, so this is one world unit -- enough to start the
 	// next sweep outside the surface, small enough not to be seen.
 	COLL_UNWEDGE_STEP = 256,
+
+	COLL_MAX_DRIVERS = 8,
 	COLL_SCRATCH_HITBOX_HISTORY_COUNT = 15,
 	COLL_SCRATCH_HIT_TRIANGLE_VERTEX_COUNT = 3,
 	COLL_SCRATCH_SEARCH_VERTEX_COUNT = 9,
@@ -29,6 +31,9 @@ struct CollScratchHostSlot
 };
 
 global_variable struct CollScratchHostSlot sCollScratchHostSlots[COLL_SCRATCH_HOST_SLOT_COUNT];
+
+// Per driver, so a wedge that lasts seconds is still recognised as one.
+global_variable int sCollBlockedIterations[COLL_MAX_DRIVERS];
 global_variable u64 sCollScratchHostUseCounter;
 
 internal u32 CollScratch_ObjectPointerWord(const void *pointer)
@@ -2568,9 +2573,11 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 	struct GameTracker *gGT = sdata->gGT;
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 	s32 multiplier = COLL_FRACTION_ONE;
-	// Consecutive sweep iterations that moved the kart nowhere; see the unwedge
-	// below.
-	int blockedIterations = 0;
+	// Consecutive sweep iterations that move the kart nowhere; see the unwedge
+	// below. Per driver and kept across calls: a wedge lasts seconds, while the
+	// loop runs only a couple of iterations per frame, so a local counted to two
+	// and reset before it could ever notice one.
+	int *blockedIterations = &sCollBlockedIterations[(d->driverID < COLL_MAX_DRIVERS) ? d->driverID : 0];
 	s16 hitRadius = COLL_MOVED_PLAYER_HIT_RADIUS;
 
 	sps->Input1.hitRadius = hitRadius;
@@ -2603,7 +2610,7 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 		    .z = CollMoved_PlayerSearch_StepVelocity(d->velocity.z, gGT->elapsedTimeMS, multiplier),
 		};
 
-		blockedIterations = (sps->hitFraction > 0) ? 0 : blockedIterations;
+		*blockedIterations = (sps->hitFraction > 0) ? 0 : *blockedIterations;
 
 		sps->boolDidTouchQuadblock = 0;
 		sps->numTrianglesTested = 0;
@@ -2702,7 +2709,7 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 			d->posCurr.x = CTR_MipsAddLo(d->posCurr.x, CTR_MipsSra(CTR_MipsMulLo(velocity.x, sps->hitFraction), 12));
 			d->posCurr.y = CTR_MipsAddLo(d->posCurr.y, CTR_MipsSra(CTR_MipsMulLo(velocity.y, sps->hitFraction), 12));
 			d->posCurr.z = CTR_MipsAddLo(d->posCurr.z, CTR_MipsSra(CTR_MipsMulLo(velocity.z, sps->hitFraction), 12));
-			blockedIterations = 0;
+			*blockedIterations = 0;
 		}
 		else if ((d->collisionFlags & DRIVER_COLL_FLAG_SURFACE_PUSHBACK) != 0)
 		{
@@ -2725,7 +2732,7 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 			// its first or second iteration through ScrubImpact and never gets
 			// here, so this cannot alter wall riding or shortcut lines -- it
 			// only ends a state the loop cannot otherwise leave.
-			if (++blockedIterations > COLL_UNWEDGE_BLOCKED_ITERATIONS)
+			if (++(*blockedIterations) > COLL_UNWEDGE_BLOCKED_ITERATIONS)
 			{
 				d->posCurr.x = CTR_MipsAddLo(d->posCurr.x, CTR_MipsSra(CTR_MipsMulLo(d->spsNormalVec.x, COLL_UNWEDGE_STEP), 12));
 				d->posCurr.y = CTR_MipsAddLo(d->posCurr.y, CTR_MipsSra(CTR_MipsMulLo(d->spsNormalVec.y, COLL_UNWEDGE_STEP), 12));
@@ -2735,11 +2742,11 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 				if (d->driverID == 0)
 				{
 					Platform_Log("[CTR Unwedge] after %d blocked, normal %d,%d,%d, pos now %d,%d,%d\n",
-					    blockedIterations, (int)d->spsNormalVec.x, (int)d->spsNormalVec.y, (int)d->spsNormalVec.z,
+					    *blockedIterations, (int)d->spsNormalVec.x, (int)d->spsNormalVec.y, (int)d->spsNormalVec.z,
 					    (int)d->posCurr.x, (int)d->posCurr.y, (int)d->posCurr.z);
 				}
 #endif
-				blockedIterations = 0;
+				*blockedIterations = 0;
 			}
 		}
 
