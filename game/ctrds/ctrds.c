@@ -86,7 +86,7 @@ struct CtrdsLayout g_ctrds = {
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
 // (battle, relic, adventure rewards) keep their retail values.
 #define CTRDS_HUD_BLOCK                                                                                          \
-    /* 0x00 WEAPON           */ {185, 10, 0, 5530},                                                              \
+    /* 0x00 WEAPON           */ {187, 5, 0, 5530},                                                              \
     /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
     /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 5530},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
@@ -97,7 +97,7 @@ struct CtrdsLayout g_ctrds = {
     /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
     /* 0x09 SPEEDOMETER      */ {398, 60, 0, 4096},                                             \
     /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                               \
-    /* 0x0b BATTLE_WEAPON_BG */ {185 - 23, 10 - 10, 0, 5530},                                                              \
+    /* 0x0b BATTLE_WEAPON_BG */ {187 - 23, 5 - 10, 0, 5530},                                                              \
     /* 0x0c RACING_WEAPON_BG */ {330 - 30, 18 - 15, 0, 2457},                                                              \
     /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                  \
     /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                             \
@@ -478,10 +478,12 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 // as nothing at all. A box drawn every frame gives the slot a permanent home, so
 // picking something up registers as the box filling rather than art appearing
 // out of nowhere.
+// The panel stretches Y by about 1.78, so a box that reads square on screen is
+// wider than it is tall in these units: 72 x 40, not 72 x 72.
 #define CTRDS_ITEM_BOX_X 178
-#define CTRDS_ITEM_BOX_Y 4
-#define CTRDS_ITEM_BOX_W 70
-#define CTRDS_ITEM_BOX_H 50
+#define CTRDS_ITEM_BOX_Y 5
+#define CTRDS_ITEM_BOX_W 72
+#define CTRDS_ITEM_BOX_H 40
 
 void Ctrds_DrawItemBox(struct GameTracker *gGT)
 {
@@ -959,16 +961,24 @@ void Ctrds_DrawMapPortrait(struct UIMap *map, const s32 worldPos[3], struct Driv
 	// put in a nearer ordering-table entry so it stays on top of the pack --
 	// otherwise it disappears under the others exactly when the pack is bunched
 	// together and you most need to find yourself.
+	// Entry 0, the same one the map background uses. Within an entry the list is
+	// last-in-drawn-first, and the dots are added before the map, so they end up
+	// drawn after it. Putting them in entry 1 instead pushed the whole set
+	// behind the map, because the walk reaches 1 before 0.
+	//
+	// Transparency 2 is additive: the portrait art carries a black backing,
+	// which at the 50% blend of mode 0 showed as a grey box over the map. Added
+	// rather than blended, black contributes nothing and disappears.
 	if (isPlayer)
 	{
 		const int bright = ((gGT->timer & 0x10) != 0);
 
-		UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, &gGT->pushBuffer_UI.ptrOT[0], 1,
+		UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, 2,
 		        CTRDS_MAP_PORTRAIT_PLAYER_SCALE, bright ? CTRDS_PORTRAIT_BRIGHT_COLOR : CTRDS_PORTRAIT_NEUTRAL_COLOR);
 		return;
 	}
 
-	UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, &gGT->pushBuffer_UI.ptrOT[1], 1,
+	UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, 2,
 	        CTRDS_MAP_PORTRAIT_SCALE, CTRDS_PORTRAIT_NEUTRAL_COLOR);
 }
 
