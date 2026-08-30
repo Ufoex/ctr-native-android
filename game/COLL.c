@@ -1,4 +1,5 @@
 #include <common.h>
+#include <ctrds.h>
 #include <ctr_scratchpad.h>
 
 enum
@@ -2634,6 +2635,33 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 		{
 			d->collisionFlags |= DRIVER_COLL_FLAG_TOUCHED_QUADBLOCK;
 		}
+
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+		// This gate decides whether the kart moves at all. hitFraction is how
+		// much of the attempted step survived the sweep; at zero the position is
+		// not written, which is a kart that stops dead with no push and no
+		// bounce, exactly as reported. Above 30fps each step is shorter, so a
+		// fraction that quantises to zero is reachable where a longer step would
+		// have cleared. Logged with the step being attempted so a zero can be
+		// told apart from a genuinely blocked one.
+		if ((d != NULL) && (d->driverID == 0) && (sps->hitFraction <= 0))
+		{
+			local_persist int s_zeroFractionRun = 0;
+
+			s_zeroFractionRun++;
+			if ((s_zeroFractionRun % 32) == 1)
+			{
+				Platform_Log("[CTR Hit] hitFraction %d, vel %d,%d,%d, touched %d, run %d\n", (int)sps->hitFraction,
+				    (int)velocity.x, (int)velocity.y, (int)velocity.z, (int)sps->boolDidTouchQuadblock,
+				    s_zeroFractionRun);
+			}
+		}
+		else if ((d != NULL) && (d->driverID == 0))
+		{
+			local_persist int s_lastRun = 0;
+			(void)s_lastRun;
+		}
+#endif
 
 		if (sps->hitFraction > 0)
 		{
