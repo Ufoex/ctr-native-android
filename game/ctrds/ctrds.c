@@ -83,7 +83,7 @@ struct CtrdsLayout g_ctrds = {
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
 // (battle, relic, adventure rewards) keep their retail values.
 #define CTRDS_HUD_BLOCK                                                                                          \
-    /* 0x00 WEAPON           */ {200, 10, 0, 6144},                                                              \
+    /* 0x00 WEAPON           */ {200, 10, 0, 5530},                                                              \
     /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
     /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 5530},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
@@ -94,7 +94,7 @@ struct CtrdsLayout g_ctrds = {
     /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
     /* 0x09 SPEEDOMETER      */ {398, 60, 0, 4096},                                             \
     /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                               \
-    /* 0x0b BATTLE_WEAPON_BG */ {200 - 23, 10 - 10, 0, 6144},                                                              \
+    /* 0x0b BATTLE_WEAPON_BG */ {200 - 23, 10 - 10, 0, 5530},                                                              \
     /* 0x0c RACING_WEAPON_BG */ {330 - 30, 18 - 15, 0, 2457},                                                              \
     /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                  \
     /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                             \
@@ -839,7 +839,7 @@ void Ctrds_UpdateAutoVBlank(float panelHz)
 
 // Portraits are far bigger than the dot they replace, so they are drawn small
 // enough that eight of them bunched at one corner stay readable.
-#define CTRDS_MAP_PORTRAIT_SCALE ((CTRDS_FP_ONE * 2) / 5)
+#define CTRDS_MAP_PORTRAIT_SCALE ((CTRDS_FP_ONE * 3) / 5)
 
 // Matches UI_RANK_DAMAGE_COLOR_NEUTRAL, the value the rank list uses when a
 // driver is undamaged.

@@ -455,9 +455,9 @@ void NativeRenderer_BeginScene(void)
 		// the game covers the screen with sky and geometry, so nothing stale
 		// shows. A widened field of view breaks that assumption: the sky no
 		// longer reaches the top corners, and whatever the last frame left there
-		// stays visible as a smeared copy of the game. Start from black instead
-		// when widescreen is on, so an uncovered corner is simply black.
-		if (Ctrds_Widescreen())
+		// stays visible as a smeared copy of the game. Start from black instead,
+		// so anything the frame does not cover is black rather than a ghost.
+		if (Ctrds_Enabled())
 		{
 			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
