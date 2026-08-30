@@ -29,11 +29,15 @@
             </intent-filter>
         </activity>
 
+        <!-- resizeableActivity="false" matters as much as the orientation
+             request: without it newer Android and some OEM shells force the
+             activity resizable and hand it a portrait drawable anyway. -->
         <activity
             android:name=".CTRNativeActivity"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
             android:label="CTR Native"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="false"
             android:exported="false" />
     </application>
 

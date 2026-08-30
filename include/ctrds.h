@@ -280,6 +280,23 @@ static inline int Ctrds_TallFramebuffer(void)
 // of view to that aspect. 16:9 gives 0.75, the value this used to hardcode; 21:9
 // gives 0.571; 4:3 gives 1, i.e. no change. Kept as a fraction so the whole path
 // stays integer.
+// The game draws a landscape view whatever shape the window is. Android can
+// hand back a portrait drawable regardless of the manifest -- newer releases and
+// some OEM shells force apps resizable and ignore the orientation request -- and
+// a portrait ratio taken literally makes the widescreen factor about 2.9x rather
+// than 1.33x, which throws the whole scene off-screen and leaves a black picture
+// with only the 2D overlay still visible. So the display's own ratio is always
+// read long-side-first.
+static inline int Ctrds_DisplayLongSide(void)
+{
+	return (g_ctrds.deviceAspectW >= g_ctrds.deviceAspectH) ? g_ctrds.deviceAspectW : g_ctrds.deviceAspectH;
+}
+
+static inline int Ctrds_DisplayShortSide(void)
+{
+	return (g_ctrds.deviceAspectW >= g_ctrds.deviceAspectH) ? g_ctrds.deviceAspectH : g_ctrds.deviceAspectW;
+}
+
 static inline int Ctrds_AspectW(void)
 {
 	if (g_ctrds.aspectMode == 0)
@@ -289,7 +306,7 @@ static inline int Ctrds_AspectW(void)
 
 	if (g_ctrds.aspectMode == 1)
 	{
-		return (g_ctrds.deviceAspectW > 0) ? g_ctrds.deviceAspectW : 16;
+		return (Ctrds_DisplayLongSide() > 0) ? Ctrds_DisplayLongSide() : 16;
 	}
 
 	return (g_ctrds.aspectW > 0) ? g_ctrds.aspectW : 16;
@@ -304,7 +321,7 @@ static inline int Ctrds_AspectH(void)
 
 	if (g_ctrds.aspectMode == 1)
 	{
-		return (g_ctrds.deviceAspectH > 0) ? g_ctrds.deviceAspectH : 9;
+		return (Ctrds_DisplayShortSide() > 0) ? Ctrds_DisplayShortSide() : 9;
 	}
 
 	return (g_ctrds.aspectH > 0) ? g_ctrds.aspectH : 9;
