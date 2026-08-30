@@ -124,24 +124,28 @@ void DecalHUD_DrawPolyGT4(struct Icon *icon, s16 posX, s16 posY, struct PrimMem 
 	}
 #endif
 
-	// setInt32RGB4 needs to go before addPolyGT4
-	// for more information check "include/gpu.h"
-	POLY_GT4 *p = (POLY_GT4 *)primMem->cursor;
-	setInt32RGB4(p, color0, color1, color2, color3);
-	addPolyGT4(ot, p);
-
 	u32 width = icon->texLayout.u1 - icon->texLayout.u0;
 	u32 height = icon->texLayout.v2 - icon->texLayout.v0;
 	u32 bottomY = posY + FP_Mult(height, scale);
 	u32 rightX = (u16)posX + FP_Mult(width, scale);
 
 #if defined(CTR_NATIVE)
+	// Ahead of the primitive, deliberately. addPolyGT4 links it into the
+	// ordering table immediately, so handing the draw to the overlay after that
+	// point would leave an unfilled primitive linked in and give the next
+	// allocation the same address -- the list ends up pointing at a primitive
+	// that has since been rewritten as something else.
 	if (Ctrds_HdQueue(icon, posX, posY, (int)(rightX - (u16)posX), (int)(bottomY - (u32)posY), color0))
 	{
-		primMem->cursor = p;
 		return;
 	}
 #endif
+
+	// setInt32RGB4 needs to go before addPolyGT4
+	// for more information check "include/gpu.h"
+	POLY_GT4 *p = (POLY_GT4 *)primMem->cursor;
+	setInt32RGB4(p, color0, color1, color2, color3);
+	addPolyGT4(ot, p);
 	setXY4CompilerHack(p, (u16)posX, posY, rightX, posY, (u16)posX, bottomY, rightX, bottomY);
 	setIconUV(p, icon);
 

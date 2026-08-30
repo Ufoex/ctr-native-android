@@ -216,6 +216,10 @@ struct CtrdsLayout
 	// Reports each HUD icon index as it is drawn, for authoring replacement art.
 	int hdLog;
 
+	// Writes each HUD icon out of VRAM to hd_dump/ as a PNG the first time it
+	// is drawn, so the originals can be upscaled and fed back in through hd/.
+	int hdDump;
+
 	// 0 = 4:3, 1 = follow the display, 2 = the explicit ratio below.
 	//
 	// Following the display is the useful default: a phone might be 19.5:9 or
@@ -339,6 +343,10 @@ struct Icon;
 int Ctrds_HdQueue(const struct Icon *icon, int x, int y, int w, int h, unsigned color);
 int Ctrds_HdIconIndex(const struct Icon *icon);
 void Ctrds_HdFlush(int width, int height);
+
+// With hd_dump=1, sweeps the icon array and writes anything newly loaded out to
+// hd_dump/ as a PNG. Cheap when the flag is off.
+void Ctrds_HdDumpTick(void);
 
 // VBlanks to wait between flips. Racing runs as fast as the panel allows, but
 // menus must not: menu animation is counted in frames rather than delta-timed,

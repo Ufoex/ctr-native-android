@@ -81,6 +81,7 @@ struct CtrdsLayout g_ctrds = {
     .swapFaceButtons = 1,
     .touchControls = 0,
     .hdLog = 0,
+    .hdDump = 0,
     .internalScale = 4,
     .targetFps = 60,
 
@@ -748,6 +749,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
 			fprintf(f, "# hd_log: report each HUD icon index as it is drawn, to author hd/ art\n");
 			fprintf(f, "hd_log=%d\n", g_ctrds.hdLog);
+			fprintf(f, "# hd_dump: write each HUD icon out of VRAM to hd_dump/ as a PNG\n");
+			fprintf(f, "hd_dump=%d\n", g_ctrds.hdDump);
 			fprintf(f, "# touch_controls: 0 auto (only with no pad), 1 always, 2 never\n");
 			fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
 			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
@@ -847,6 +850,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "internal_scale", 14) == 0)
 		{
 			g_ctrds.internalScale = value;
+		}
+		else if (strncmp(line, "hd_dump", 7) == 0)
+		{
+			g_ctrds.hdDump = value;
 		}
 		else if (strncmp(line, "hd_log", 6) == 0)
 		{
