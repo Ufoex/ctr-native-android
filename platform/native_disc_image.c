@@ -165,13 +165,38 @@ internal int NativeDiscImage_OpenChd(const char *path)
 	return 1;
 }
 
+// Reads and hunk decompressions since the last report. A hunk miss costs a
+// whole decompress, so a spell of them is worth seeing next to a frame that
+// took too long.
+global_variable u32 s_nativeDiscImageReadCount;
+global_variable u32 s_nativeDiscImageHunkMissCount;
+
+void NativeDiscImage_TakeStats(u32 *readsOut, u32 *hunkMissesOut)
+{
+	if (readsOut != NULL)
+	{
+		*readsOut = s_nativeDiscImageReadCount;
+	}
+	if (hunkMissesOut != NULL)
+	{
+		*hunkMissesOut = s_nativeDiscImageHunkMissCount;
+	}
+
+	s_nativeDiscImageReadCount = 0;
+	s_nativeDiscImageHunkMissCount = 0;
+}
+
 internal int NativeDiscImage_ReadChdSector(u32 lba, u8 *sector)
 {
 	const u32 hunkIndex = lba / s_nativeDiscImageHunkFrames;
 	const u32 frameInHunk = lba % s_nativeDiscImageHunkFrames;
 
+	s_nativeDiscImageReadCount++;
+
 	if (hunkIndex != s_nativeDiscImageCachedHunk)
 	{
+		s_nativeDiscImageHunkMissCount++;
+
 		if (chd_read(s_nativeDiscImageChd, hunkIndex, s_nativeDiscImageHunkData) != CHDERR_NONE)
 		{
 			return 0;

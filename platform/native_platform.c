@@ -4,6 +4,7 @@
 #include <macros.h>
 
 #include "platform/native_audio.h"
+#include "platform/native_disc_image.h"
 #include "platform/native_glad.h"
 #include "platform/native_gpu.h"
 #include "platform/native_input.h"
@@ -110,9 +111,14 @@ internal void Platform_CalcFPS(void)
 		// and comparing that stretch against T is comparing against nothing.
 		const int reachable = (perFlip > 0) ? (cap / perFlip) : cap;
 
-		Platform_Log("[CTR Native] FPS: %.1f of %d reachable (cap %d, %d vblanks per flip, %s, %dx) audio %.1f/s\n", fps,
-		    reachable, cap, perFlip, Ctrds_InRace() ? "race" : "menu", NativeRenderer_GetInternalScale(),
-		    (f64)s_audioStepCount / elapsedSeconds);
+		u32 discReads = 0;
+		u32 discHunkMisses = 0;
+
+		NativeDiscImage_TakeStats(&discReads, &discHunkMisses);
+
+		Platform_Log("[CTR Native] FPS: %.1f of %d reachable (cap %d, %d vblanks per flip, %s, %dx) audio %.1f/s disc %u/%u\n",
+		    fps, reachable, cap, perFlip, Ctrds_InRace() ? "race" : "menu", NativeRenderer_GetInternalScale(),
+		    (f64)s_audioStepCount / elapsedSeconds, discReads, discHunkMisses);
 
 		s_audioStepCount = 0;
 	}

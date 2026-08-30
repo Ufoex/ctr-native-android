@@ -23,4 +23,8 @@ int NativeDiscImage_ReadDataSectors(const struct NativeDiscImageFile *file, u32 
 int NativeDiscImage_ReadRawSectors(const struct NativeDiscImageFile *file, u32 sector, u32 sectorCount, void *dst);
 int NativeDiscImage_ReadFileBytes(const char *path, int rawSectors, u8 **dataOut, int *sizeOut);
 
+
+// Reads and hunk decompressions since the previous call; resets on read.
+void NativeDiscImage_TakeStats(u32 *readsOut, u32 *hunkMissesOut);
+
 #endif
