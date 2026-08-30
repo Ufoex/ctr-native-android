@@ -929,14 +929,30 @@ void Platform_InputUpdate(void)
 				s_controllers[slot].snapshot.analog[2] = s_touchAnalogLX;
 				s_controllers[slot].snapshot.analog[3] = s_touchAnalogLY;
 
-				// Without this the game treats port 1 as empty and asks for a
-				// controller, since nothing physical is plugged in. The id has to
-				// agree: ResetSnapshot leaves every slot past the first marked
-				// disconnected, and a snapshot that claims to be connected while
-				// still identifying as absent is read as no pad at all.
-				s_controllers[slot].snapshot.connected = 1;
-				s_controllers[slot].snapshot.status = PadStateStable;
-				s_controllers[slot].snapshot.id = NATIVE_INPUT_PAD_DIGITAL;
+				// The overlay is one virtual pad in port 1, and only that slot may
+				// be advertised as connected. Marking them all connected -- which
+				// is what this did -- put a slot past the physical ports on the
+				// bus, NativeInput_UseMultitapBus saw it and switched the bus to
+				// multitap, and the game read a multitap header where it expected
+				// a pad. The mask arrived correctly and nothing responded to it.
+				//
+				// The mask still goes to every slot above: that part was needed
+				// because a device with real pads may not read slot zero. Only
+				// the claim to be connected is restricted.
+				if (slot == 0)
+				{
+					s_controllers[slot].snapshot.connected = 1;
+
+					// Zero, not PadStateStable. This byte goes straight into the
+					// pad packet, where the game reads it as the transfer status
+					// and expects zero for a pad that is present -- which is what
+					// ResetSnapshot and every other path write. PadStateStable is
+					// a PadGetState() return value, a different API entirely, and
+					// putting its 6 here made the game read a pad it would not
+					// take input from.
+					s_controllers[slot].snapshot.status = 0;
+					s_controllers[slot].snapshot.id = NATIVE_INPUT_PAD_DIGITAL;
+				}
 			}
 		}
 	}
