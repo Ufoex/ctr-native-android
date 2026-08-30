@@ -365,9 +365,9 @@ internal void Ctrds_AdjustSetting(int delta)
 		{
 			scale = 1;
 		}
-		if (scale > 5)
+		if (scale > CTR_NATIVE_MAX_INTERNAL_SCALE)
 		{
-			scale = 5;
+			scale = CTR_NATIVE_MAX_INTERNAL_SCALE;
 		}
 
 		g_ctrds.internalScale = scale;
@@ -616,6 +616,44 @@ void Ctrds_PollPanelInput(void)
 	}
 
 	s_wasOnMenu = onMenu;
+}
+
+// The colour to start a frame from, as 0-255 RGB.
+//
+// Retail's sky is a band around the horizon, not a dome, and its top edge sits
+// just outside a 4:3 view. A taller view -- which is what the main screen of a
+// flip handheld is -- sees past it, and whatever the frame began with stays
+// there. Black made that a hole in the sky.
+//
+// The level's own glow gradient is the colour the sky fades to, so starting
+// from it leaves the gap the same colour as the sky above it. Levels without
+// one keep black, which is what they had.
+void Ctrds_SkyClearColor(int *r, int *g, int *b)
+{
+	const struct Level *level;
+
+	*r = 0;
+	*g = 0;
+	*b = 0;
+
+	if ((sdata == NULL) || (sdata->gGT == NULL))
+	{
+		return;
+	}
+
+	level = sdata->gGT->level1;
+	if ((level == NULL) || ((level->configFlags & 1) == 0))
+	{
+		return;
+	}
+
+	{
+		const u32 color = level->glowGradient[0].colorTo;
+
+		*r = (int)(color & 0xFF);
+		*g = (int)((color >> 8) & 0xFF);
+		*b = (int)((color >> 16) & 0xFF);
+	}
 }
 
 int Ctrds_InRace(void)

@@ -354,6 +354,9 @@ static inline int Ctrds_WideDen(void)
 // pre-race screens are not races.
 int Ctrds_InRace(void);
 
+// The colour a frame starts from; see the note on the definition.
+void Ctrds_SkyClearColor(int *r, int *g, int *b);
+
 // True on the main menu, where the panel offers the online switch.
 int Ctrds_OnMainMenu(void);
 

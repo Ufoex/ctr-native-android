@@ -462,7 +462,12 @@ void NativeRenderer_BeginScene(void)
 		// so anything the frame does not cover is black rather than a ghost.
 		if (Ctrds_Enabled())
 		{
-			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			int skyR;
+			int skyG;
+			int skyB;
+
+			Ctrds_SkyClearColor(&skyR, &skyG, &skyB);
+			glClearColor((float)skyR / 255.0f, (float)skyG / 255.0f, (float)skyB / 255.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 		}
 		else
@@ -698,9 +703,9 @@ void NativeRenderer_SetInternalScale(int scale)
 	{
 		scale = 1;
 	}
-	if (scale > 5)
+	if (scale > CTR_NATIVE_MAX_INTERNAL_SCALE)
 	{
-		scale = 5;
+		scale = CTR_NATIVE_MAX_INTERNAL_SCALE;
 	}
 
 	s_internalScale = scale;

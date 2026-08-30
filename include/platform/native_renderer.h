@@ -55,6 +55,11 @@ void NativeRenderer_PopDebugLabel(void);
 
 // Internal resolution: the scene is drawn at this multiple of the PS1 display
 // size. 1 is the original behaviour.
+// Upper bound on the internal render scale. The target is 512x216 per step, so
+// 8x is 4096x1728 -- inside the texture size every ES3 device guarantees, and
+// past the panel on any handheld, where it is supersampling rather than detail.
+#define CTR_NATIVE_MAX_INTERNAL_SCALE 8
+
 void NativeRenderer_SetInternalScale(int scale);
 int NativeRenderer_GetInternalScale(void);
 void NativeRenderer_PresentScaledMain(void);

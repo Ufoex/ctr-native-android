@@ -61,8 +61,8 @@ final class CTRDSSettings {
      */
     static final Option[] OPTIONS = new Option[] {
         new Option("internal_scale", "Resolution",
-                new int[] { 1, 2, 3, 4, 5 },
-                new String[] { "1x", "2x", "3x", "4x", "5x" }, 4),
+                new int[] { 1, 2, 3, 4, 5, 6, 7, 8 },
+                new String[] { "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x" }, 4),
 
         new Option("target_fps", "Frame cap",
                 new int[] { 30, 60, 90, 120, 480 },

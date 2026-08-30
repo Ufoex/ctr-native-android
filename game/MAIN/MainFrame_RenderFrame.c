@@ -914,14 +914,14 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 		if ((level1->configFlags & 4) == 0)
 		{
 			// assume OVert (no primitives generated here)
-			AnimateWater1P(gGT->timer, level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0]);
+			AnimateWater1P(Ctrds_RetailTicks(), level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0]);
 		}
 
 		// if SCVert
 		else
 		{
 			// draw SCVert (no primitives generated here
-			AnimateQuad(gGT->timer << 7, level1->numSCVert, scVertices, gGT->visMem1->visSCVertList[0]);
+			AnimateQuad(Ctrds_RetailTicks() << 7, level1->numSCVert, scVertices, gGT->visMem1->visSCVertList[0]);
 		}
 		MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_LEVEL_ANIMATE);
 
@@ -999,7 +999,7 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 		if ((level1->configFlags & 4) == 0)
 		{
 			// assume OVert (no primitives generated here)
-			AnimateWater2P(gGT->timer, level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0],
+			AnimateWater2P(Ctrds_RetailTicks(), level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0],
 			               gGT->visMem1->visOVertList[1]);
 		}
 
@@ -1029,14 +1029,14 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 		if (numPlyrCurrGame == 3)
 		{
 			// assume OVert (no primitives generated here)
-			AnimateWater3P(gGT->timer, level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0],
+			AnimateWater3P(Ctrds_RetailTicks(), level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0],
 			               gGT->visMem1->visOVertList[1], gGT->visMem1->visOVertList[2]);
 		}
 
 		else // 4P mode
 		{
 			// assume OVert (no primitives generated here)
-			AnimateWater4P(gGT->timer, level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0],
+			AnimateWater4P(Ctrds_RetailTicks(), level1->numWaterVertices, water, waterEnvMap, gGT->visMem1->visOVertList[0],
 			               gGT->visMem1->visOVertList[1], gGT->visMem1->visOVertList[2], gGT->visMem1->visOVertList[3]);
 		}
 	}
