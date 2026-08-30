@@ -222,6 +222,11 @@ struct CtrdsLayout
 	// geometry goes missing: the rule is what removes the stray sky wedges, so if
 	// turning it off fills a hole back in, the hole is this rule firing on
 	// something it should not.
+	// Many disc dumps are trimmed of the intro video and the XA audio, neither
+	// of which is needed to play. Without this the asset check refuses to start
+	// and the app looks like it crashed on launch.
+	int skipAv;
+
 	int primReject;
 
 	int hdArt;

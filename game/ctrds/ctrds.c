@@ -80,6 +80,7 @@ struct CtrdsLayout g_ctrds = {
     .crt = 1,
     .swapFaceButtons = 1,
     .touchControls = 0,
+    .skipAv = 0,
     .primReject = 1,
     .hdArt = 1,
     .hdLog = 0,
@@ -754,6 +755,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "target_fps=%d\n", g_ctrds.targetFps);
 			fprintf(f, "# internal_scale: render resolution multiplier, 1-5\n");
 			fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
+			fprintf(f, "# skip_av: start even when the disc has no intro video or XA audio\n");
+			fprintf(f, "skip_av=%d\n", g_ctrds.skipAv);
 			fprintf(f, "# prim_reject: drop primitives too large for the PSX GPU (0 off, 1 on, 2 on+log)\n");
 			fprintf(f, "prim_reject=%d\n", g_ctrds.primReject);
 			fprintf(f, "# hd_art: use the upscaled art in hd/ instead of the original sprites\n");
@@ -861,6 +864,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "internal_scale", 14) == 0)
 		{
 			g_ctrds.internalScale = value;
+		}
+		else if (strncmp(line, "skip_av", 7) == 0)
+		{
+			g_ctrds.skipAv = value;
 		}
 		else if (strncmp(line, "prim_reject", 11) == 0)
 		{

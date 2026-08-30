@@ -1,5 +1,7 @@
 #include "platform/native_assets.h"
 
+#include "ctrds.h"
+
 #include <macros.h>
 
 #include <platform/native_disc_image.h>
@@ -937,8 +939,12 @@ int NativeAssets_Validate(void)
 	// Off by default: a normal build still demands a complete disc.
 	// Android has no practical way to set an environment variable for the app,
 	// so a marker file next to the assets does the same job there.
+	// Three ways in, because they suit different situations: the setting is what
+	// the launcher writes and what a player should ever need, the environment
+	// variable suits a desktop shell, and the marker file predates both and is
+	// still honoured so existing installs do not regress.
 	const char *skipAv = getenv("CTR_SKIP_AV_ASSETS");
-	int allowMissingAv = (skipAv != NULL) && (skipAv[0] == '1');
+	int allowMissingAv = g_ctrds.skipAv || ((skipAv != NULL) && (skipAv[0] == '1'));
 
 	if (!allowMissingAv)
 	{
@@ -959,8 +965,7 @@ int NativeAssets_Validate(void)
 
 	if (allowMissingAv)
 	{
-		Platform_Log("[CTR Native] CTR_SKIP_AV_ASSETS=1: skipping %s and %s checks (no intro video or XA audio).\n", NATIVE_ASSETS_TEST_STR_PATH,
-		        NATIVE_ASSETS_XNF_PATH);
+		Platform_Log("[CTR Native] skipping %s and %s (no intro video or XA audio).\n", NATIVE_ASSETS_TEST_STR_PATH, NATIVE_ASSETS_XNF_PATH);
 	}
 	else
 	{

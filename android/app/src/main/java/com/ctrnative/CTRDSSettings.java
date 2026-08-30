@@ -87,6 +87,12 @@ final class CTRDSSettings {
                 new int[] { 0, 1, 2 },
                 new String[] { "Auto", "Always", "Never" }, 0),
 
+        // Most disc dumps in circulation are trimmed of the intro video and the
+        // XA audio. Neither is needed to play, but the asset check refuses to
+        // start without them, which looks exactly like a crash on launch.
+        new Option("skip_av", "Disc has no intro/XA audio",
+                new int[] { 0, 1 }, new String[] { "No", "Yes" }, 0),
+
         // Diagnostic. The PSX GPU refuses to draw primitives past a certain size
         // and the game relies on that; turning it off is how you find out
         // whether a piece of missing geometry is that rule firing.
