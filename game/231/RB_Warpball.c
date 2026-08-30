@@ -60,7 +60,21 @@ void RB_Warpball_Death(struct Thread *t)
 	struct TrackerWeapon *tw;
 
 	tw = t->object;
-	tw->ptrParticle->framesLeftInLife = 0;
+
+	// Particle_Init returns NULL when the pool is full, and the code that
+	// spawned this one checks for exactly that before touching the result --
+	// so NULL is an expected state here, and dereferencing it is a crash the
+	// moment the pool happens to be dry when the orb dies. The same file
+	// already guards this pointer where it animates the orb; this was the one
+	// place that did not.
+	//
+	// It became reachable because particles spawn per frame: above 30fps the
+	// pool is asked for several times as many, and runs out where it never did.
+	if (tw->ptrParticle != NULL)
+	{
+		tw->ptrParticle->framesLeftInLife = 0;
+	}
+
 	tw->fadeFrame = 0;
 
 	// play sound of warpball death

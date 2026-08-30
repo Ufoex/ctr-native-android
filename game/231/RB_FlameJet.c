@@ -276,7 +276,11 @@ void RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 	particle2 = Particle_Init(0, gGT->ptrSparkle, &emSet_fjHeat[0]);
 
 	// heat particle
-	if (particle2 != 0)
+	//
+	// particle1 is read here, so it has to be checked too: the pool can empty
+	// between the two allocations and leave the fire particle NULL while the
+	// heat one succeeded.
+	if ((particle2 != 0) && (particle1 != 0))
 	{
 		particle2->axis[0].startVal += particle1->axis[0].startVal;
 		particle2->axis[1].startVal += particle1->axis[1].startVal + 0x1000;
