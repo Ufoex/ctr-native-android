@@ -556,6 +556,21 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 	int viewportW;
 	int viewportH;
 
+	// The aspect comes from the game's setting, not the window. Taking it from
+	// the window made 4:3 stretch across a 16:9 panel instead of sitting inside
+	// it with bars either side, which is what switching aspect should do -- the
+	// widescreen mod widens the field of view, it does not squeeze the picture.
+	if (Ctrds_Widescreen())
+	{
+		s_presentAspectW = 16;
+		s_presentAspectH = 9;
+	}
+	else
+	{
+		s_presentAspectW = 4;
+		s_presentAspectH = 3;
+	}
+
 	if ((g_windowWidth <= 0) || (g_windowHeight <= 0) || (s_presentAspectW <= 0) || (s_presentAspectH <= 0))
 	{
 		s_presentViewport.x = 0;
@@ -2535,6 +2550,9 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	{
 		return;
 	}
+
+	// Cheap, and it lets the aspect setting take effect without a restart.
+	NativeRenderer_UpdatePresentationViewport();
 
 	NativeRenderer_UpdateVRAM();
 

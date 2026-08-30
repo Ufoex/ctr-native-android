@@ -196,8 +196,13 @@ enum CtrdsSetting
 	CTRDS_SET_FXAA,
 	CTRDS_SET_CRT,
 	CTRDS_SET_ONLINE,
-	CTRDS_SET_COUNT
+	CTRDS_SET_ALL
 };
+
+// Online is built and working but there is no public server to reach, so it is
+// left out of the list rather than offering something that cannot connect. Drop
+// this back to CTRDS_SET_ALL to show it again.
+#define CTRDS_SET_COUNT CTRDS_SET_ONLINE
 
 // The caps offered on the panel. 480 is "uncapped" in practice: the hardware
 // runs out long before the pacing does.
@@ -367,7 +372,8 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 		y += 15;
 	}
 
-	if (Ctrds_OnlineEnabled() && (st.message[0] != '\0'))
+	// Online status stays hidden along with its row.
+	if ((CTRDS_SET_COUNT > CTRDS_SET_ONLINE) && Ctrds_OnlineEnabled() && (st.message[0] != '\0'))
 	{
 		DecalFont_DrawLineOT(st.message, centreX, y + 3, FONT_SMALL, JUSTIFY_CENTER, head);
 		y += 15;
