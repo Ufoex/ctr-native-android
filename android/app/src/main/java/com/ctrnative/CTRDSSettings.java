@@ -95,17 +95,15 @@ final class CTRDSSettings {
                 new int[] { 0, 1, 2 },
                 new String[] { "Auto", "Always", "Never" }, 0),
 
-        // Most disc dumps in circulation are trimmed of the intro video and the
-        // XA audio. Neither is needed to play, but the asset check refuses to
-        // start without them, which looks exactly like a crash on launch.
-        new Option("skip_av", "Disc has no intro/XA audio",
-                new int[] { 0, 1 }, new String[] { "No", "Yes" }, 0),
-
-        // Diagnostic. The PSX GPU refuses to draw primitives past a certain size
-        // and the game relies on that; turning it off is how you find out
-        // whether a piece of missing geometry is that rule firing.
-        new Option("prim_reject", "Oversize polygon cull",
-                new int[] { 0, 1 }, new String[] { "Off", "On" }, 1),
+        // skip_av and prim_reject are deliberately not offered here.
+        //
+        // Neither is a preference. The missing intro and XA audio are a property
+        // of the disc, not something to choose, and the native side already
+        // detects it and writes its own marker; the oversize polygon cull is a
+        // diagnostic for finding out whether the PSX size rule is what ate a
+        // piece of geometry. Both stay settable by hand in ctrds.cfg, and any
+        // line already there is preserved on save, so nothing changes for a
+        // config that has one.
     };
 
     private final File file;
