@@ -627,6 +627,20 @@ void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 	val_X = pb->rect.w;
 	val_X = val_X / 2;
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): these corners are unprojected to build the culling frustum,
+	// so each axis has to undo what SetMatrixVP did to it -- which is exactly
+	// what the 0x600/0x360 below is for on Y. Widescreen narrows the
+	// projection's X, so X here must widen by the inverse. Without it the
+	// frustum still describes the 4:3 field and everything the extra width
+	// reveals is rejected before it is drawn: walls get cut along a hard
+	// diagonal with the sky showing through.
+	if (Ctrds_Widescreen())
+	{
+		val_X = val_X * CTRDS_WIDE_DEN / CTRDS_WIDE_NUM;
+	}
+#endif
+
 	val_Y = ((pb->rect.h * 0x600) / 0x360);
 	val_Y = val_Y / 2;
 
