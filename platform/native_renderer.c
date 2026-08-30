@@ -831,7 +831,23 @@ internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget 
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glViewport(0, 0, target->width, target->height);
-	NativeRenderer_DrawVRAMRegion(x, y, target->width, target->height);
+
+	// The destination is the target, which may be scaled; the source is always
+	// the native-resolution rectangle in VRAM. Passing the target's own size as
+	// the source read 2048x864 of a 1024-wide VRAM at 4x and dragged the other
+	// framebuffer in with it -- a copy of the game in the corner of the screen.
+	{
+		int srcW = target->width;
+		int srcH = target->height;
+
+		if ((target == &s_mainRenderTarget) && (s_internalScale > 1))
+		{
+			srcW /= s_internalScale;
+			srcH /= s_internalScale;
+		}
+
+		NativeRenderer_DrawVRAMRegion(x, y, srcW, srcH);
+	}
 	glClear(GL_STENCIL_BUFFER_BIT);
 	glEnable(GL_STENCIL_TEST);
 
