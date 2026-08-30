@@ -59,6 +59,9 @@ public final class CTRNativeLauncherActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Before anything else that could throw.
+        CTRCrashLog.install(getApplicationContext());
+
         settings = new CTRDSSettings(getConfigFile());
         buildLauncherView();
     }
@@ -355,7 +358,7 @@ public final class CTRNativeLauncherActivity extends Activity {
             if ((cursor != null) && cursor.moveToFirst() && !cursor.isNull(0)) {
                 return cursor.getLong(0);
             }
-        } catch (Exception exception) {
+        } catch (Exception | Error exception) {
             return -1;
         }
 

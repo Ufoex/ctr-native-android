@@ -45,6 +45,11 @@ public class CTRNativeActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // The game half needs this as much as the launcher does: a native crash
+        // after PLAY looks identical to a launcher crash from the outside.
+        CTRCrashLog.install(getApplicationContext());
+
         requestHighestRefreshRate(getWindow(), getWindowManager().getDefaultDisplay());
         enterImmersiveMode();
 
