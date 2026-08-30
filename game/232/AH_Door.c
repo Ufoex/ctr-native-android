@@ -721,13 +721,19 @@ void AH_Door_LInB(struct Instance *inst)
 	otherDoorInst->matrix.t[2] += (ratio * AH_DOOR_PAIR_OFFSET >> 0xc);
 
 	// both doors always face camera
-	headers = inst->model->headers;
+	headers = Model_GetHeaders(inst->model, "left adventure-door headers");
 
-	headers->flags |= 2;
+	if (headers != NULL)
+	{
+		headers->flags |= 2;
+	}
 
-	headers = otherDoorInst->model->headers;
+	headers = Model_GetHeaders(otherDoorInst->model, "right adventure-door headers");
 
-	headers->flags |= 2;
+	if (headers != NULL)
+	{
+		headers->flags |= 2;
+	}
 
 	if (
 	    // Level ID is N Sanity Beach, check door to Glacier Park

@@ -60,7 +60,7 @@ int howl_InitGlobals(char *filename)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80029a50-0x80029ab4
 void howl_ParseHeader(struct HowlHeader *hh)
 {
-	u32 addr = (u32)hh;
+	u8 *addr = (u8 *)hh;
 
 	sdata->ptrHowlHeader = (struct HowlHeader *)addr;
 	addr += sizeof(struct HowlHeader);
@@ -86,7 +86,7 @@ void howl_ParseHeader(struct HowlHeader *hh)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80029ab4-0x80029b2c
 void howl_ParseCseqHeader(struct CseqHeader *ch)
 {
-	u32 addr = (u32)ch;
+	u8 *addr = (u8 *)ch;
 
 	sdata->ptrCseqHeader = (struct CseqHeader *)addr;
 	addr += sizeof(struct CseqHeader);
@@ -100,7 +100,7 @@ void howl_ParseCseqHeader(struct CseqHeader *ch)
 	sdata->ptrCseqSongStartOffset = (s16 *)addr;
 	addr += sizeof(s16) * ch->numSongs;
 
-	addr = (addr + 3) & ~3;
+	addr = (u8 *)(((uintptr_t)addr + 3) & ~(uintptr_t)3);
 
 	sdata->ptrCseqSongData = (char *)addr;
 }
@@ -141,7 +141,7 @@ int howl_LoadHeader(char *filename)
 			MEMPACK_ReallocMem(numSector << 0xb);
 
 			// if header needs more sectors loaded, like CTR-U which needs 3 sectors
-			if (numSector < 2 || LOAD_HowlHeaderSectors(&sdata->KartHWL_CdFile, (void *)((int)alloc + 0x800), 1, numSector - 1) != 0)
+				if (numSector < 2 || LOAD_HowlHeaderSectors(&sdata->KartHWL_CdFile, (u8 *)alloc + 0x800, 1, numSector - 1) != 0)
 			{
 				// initilaize header and pointer table
 				howl_ParseHeader(alloc);

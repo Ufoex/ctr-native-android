@@ -369,11 +369,11 @@ static void VehPickupItem_MissileLoadPlayerView(struct GameTracker *gGT, struct 
 
 static void VehPickupItem_MissileLoadAiView(struct Driver *driver)
 {
-	SVECTOR rot = {driver->rotCurr.x, driver->rotCurr.y, driver->rotCurr.z, 0};
+	SVec3 rot = {.x = driver->rotCurr.x, .y = driver->rotCurr.y, .z = driver->rotCurr.z};
 	MATRIX matrix = {0};
 	MATRIX unusedInverse;
 
-	RotMatrix(&rot, &matrix);
+	ConvertRotToMatrix(&matrix, &rot);
 	matrix.t[0] = CTR_MipsSra(driver->posCurr.x, 8);
 	matrix.t[1] = CTR_MipsSra(driver->posCurr.y, 8);
 	matrix.t[2] = CTR_MipsSra(driver->posCurr.z, 8);
@@ -832,7 +832,7 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES | COLL_SEARCH_HIGH_LOD;
 		}
 
-		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+		COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(gGT->level1, "VehPickupItem mine mesh"));
 
 		COLL_SearchBSP_CallbackQUADBLK(&probeTop, &probeBottom, sps, MINE_COLL_CALLBACK_FLAGS);
 
@@ -842,12 +842,16 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 			RB_Hazard_CollLevInst(sps, weaponTh);
 
-			struct InstDef *instDef = sps->bspHitbox->data.hitbox.instDef;
+			struct InstDef *instDef = BSP_GetInstDef(COLL_Scratch_GetHost(sps)->bspHitbox, "VehPickupItem hitbox InstDef");
+			if (instDef == NULL)
+			{
+				return;
+			}
 
 			s16 modelTouched = instDef->modelID;
 			if ((modelTouched == MINE_HITBOX_FRUIT_MODEL) || (modelTouched == MINE_HITBOX_RANDOM_MODEL))
 			{
-				mw->crateInst = instDef->ptrInstance;
+				mw->crateInst = InstDef_GetInstance(instDef);
 			}
 
 			else
@@ -880,7 +884,10 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		VehPhysForce_RotAxisAngle(&weaponInst->matrix, rotationNormal, d->angle);
 
-		d->instTntSend = weaponInst;
+		if (weaponID == WEAPON_ID_MINE)
+		{
+			d->instTntSend = weaponInst;
+		}
 
 		// dropped a mine
 		d->actionsFlagSet |= ACTION_DROPPING_MINE;
@@ -916,7 +923,11 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		VehPickupItem_CopyMatrix(&weaponInst->matrix, &dInst->matrix);
 
 		// potion always faces camera
-		weaponInst->model->headers[0].flags |= BEAKER_MODEL_HEADER_CAMERA_FLAG;
+		struct ModelHeader *weaponHeaders = Model_GetHeaders(weaponInst->model, "pickup model headers");
+		if (weaponHeaders != NULL)
+		{
+			weaponHeaders[0].flags |= BEAKER_MODEL_HEADER_CAMERA_FLAG;
+		}
 
 		weaponTh = weaponInst->thread;
 		weaponTh->funcThDestroy = PROC_DestroyInstance;
@@ -989,7 +1000,7 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			modelID = DYNAMIC_SHIELD;
 		}
 
-		struct Instance *instColor = INSTANCE_Birth3D(gGT->modelPtr[modelID], sdata->s_shield, 0);
+		struct Instance *instColor = INSTANCE_Birth3D(gGT->modelPtr[modelID], sdata->s_shield, weaponTh);
 
 		struct Instance *instHighlight = INSTANCE_Birth3D(gGT->modelPtr[DYNAMIC_HIGHLIGHT], highlightName, weaponTh);
 
@@ -1137,7 +1148,11 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		// sets nodeCurrIndex
 		RB_Warpball_SeekDriver(tw, d->checkpoint.currentIndex, d);
 
-		struct CheckpointNode *cn = gGT->level1->ptr_restart_points;
+		struct CheckpointNode *cn = Level_GetRestartPoints(gGT->level1, "VehPickupItem warpball checkpoint nodes");
+		if (cn == NULL)
+		{
+			return;
+		}
 		tw->nodeNextIndex = tw->nodeCurrIndex;
 		tw->ptrNodeCurr = &cn[tw->nodeCurrIndex];
 

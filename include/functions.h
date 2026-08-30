@@ -44,10 +44,24 @@ void CDSYS_XAPauseForce(void);
 void CDSYS_XAPauseAtEnd(void);
 
 struct MetaDataMODEL *COLL_LevModelMeta(u32 id);
+int COLL_Scratch_RunSelfTest(void);
+struct CollScratchHost *COLL_Scratch_GetHost(struct ScratchpadStruct *sps);
+void COLL_Scratch_SetThread(struct ScratchpadStruct *sps, struct Thread *thread);
+void COLL_Scratch_SetCallback(struct ScratchpadStruct *sps, CollThBuckCallback callback);
+void COLL_Scratch_SetMeshInfo(struct ScratchpadStruct *sps, struct mesh_info *meshInfo);
+void COLL_Scratch_SetMeshInfo2(struct ScratchpadStruct *sps, struct mesh_info *meshInfo);
+void COLL_Scratch_SetBspHitbox(struct ScratchpadStruct *sps, struct BSP *bsp);
+void COLL_Scratch_SetCandidateQuadblock(struct ScratchpadStruct *sps, struct QuadBlock *quad);
+void COLL_Scratch_SetHitQuadblock(struct ScratchpadStruct *sps, struct QuadBlock *quad);
+void COLL_Scratch_SetBspHitboxHistory(struct ScratchpadStruct *sps, int index, struct BSP *bsp);
+void COLL_Scratch_SetHitLevelVertex(struct ScratchpadStruct *sps, int index, struct LevVertex *vertex);
+void COLL_Scratch_SetHitBspSearchVertex(struct ScratchpadStruct *sps, int index, struct BspSearchVertex *vertex);
+void COLL_Scratch_SetSearchVertexLevel(struct ScratchpadStruct *sps, int index, struct LevVertex *vertex);
+void COLL_Scratch_SetSearchTriangleQuadblock(struct ScratchpadStruct *sps, int index, struct QuadBlock *quad);
 void COLL_SearchBSP_CallbackQUADBLK(const SVec3 *top, const SVec3 *bottom, struct ScratchpadStruct *sps, s32 hitRadius);
 void COLL_SearchBSP_CallbackPARAM(struct BSP *root, struct BoundingBox *bbox, CollBspLeafCallback callback, struct ScratchpadStruct *sps);
 
-void CTR_CycleTex_AllModels(u32 numModels, struct Model **pModelArray, int timer);
+void CTR_CycleTex_AllModels(u32 numModels, struct CtrAssetRef32 *pModelArray, int timer);
 void CTR_CycleTex_LEV(struct AnimTex *animtex, int timer);
 void CTR_ErrorScreen(u8 r, u8 g, u8 b);
 void CTR_CycleTex_Model(struct AnimTex *animtex, int timer);
@@ -78,8 +92,8 @@ int DecalFont_DrawMultiLine(char *str, int posX, int posY, int maxPixLen, s16 fo
 void DecalGlobal_EmptyFunc_MainFrame_ResetDB(void);
 void DecalGlobal_Clear(struct GameTracker *gGT);
 void DecalGlobal_Store(struct GameTracker *gGT, struct LevTexLookup *LTL);
-int *DecalGlobal_FindInLEV(struct Level *level, char *str);
-int *DecalGlobal_FindInMPK(u32 *icons, char *str);
+struct IconGroup *DecalGlobal_FindInLEV(struct Level *level, char *str);
+struct Icon *DecalGlobal_FindInMPK(struct Icon *icons, char *str);
 void DecalHUD_DrawPolyFT4(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *primMem, uint32_t *ot, char transparency, s16 scale);
 void DecalHUD_DrawPolyGT4(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *primMem, uint32_t *ot, u32 color0, u32 color1, u32 color2, u32 color3,
                           char transparency, s16 scale);
@@ -285,14 +299,85 @@ void Garage_Leave(void);
 void INSTANCE_Birth(struct Instance *inst, struct Model *model, const char *name, struct Thread *th, int flags);
 struct Instance *INSTANCE_Birth2D(struct Model *model, const char *name, struct Thread *th);
 struct Instance *INSTANCE_Birth3D(struct Model *model, const char *name, struct Thread *th);
-struct Instance *INSTANCE_BirthWithThread(int modelID, const char *name, int poolType, int bucket, void *funcThTick, int objSize, struct Thread *parent);
+struct Instance *INSTANCE_BirthWithThread(int modelID, const char *name, int poolType, int bucket, ThreadFunc funcThTick, int objSize,
+					 struct Thread *parent);
 struct Instance *INSTANCE_BirthWithThread_Stack(int *spArr);
 void INSTANCE_Death(struct Instance *inst);
 u16 INSTANCE_GetNumAnimFrames(struct Instance *pInstance, int animIndex);
 void INSTANCE_LevInitAll(struct InstDef *levInstDef, int numInst);
+struct ModelHeader *Model_GetHeaders(const struct Model *model, const char *context);
+int Model_SetRuntimeHeaders(struct Model *model, struct ModelHeader *headers);
+void Model_ClearRuntimeHeaders(struct Model *model);
+void Model_ClearAllRuntimeHeaders(void);
+struct ModelFrame *ModelHeader_GetFrameData(const struct ModelHeader *header, const char *context);
+struct CtrAssetRef32 *ModelHeader_GetTextureLayoutRefs(const struct ModelHeader *header, size_t minimumCount, const char *context);
+struct TextureLayout *ModelHeader_GetTextureLayout(const struct ModelHeader *header, size_t textureIndex, const char *context);
+u32 *ModelHeader_GetColors(const struct ModelHeader *header, const char *context);
+struct ModelAnim *ModelHeader_GetAnimation(const struct ModelHeader *header, size_t animationIndex, const char *context);
+struct AnimTex *ModelHeader_GetAnimTex(const struct ModelHeader *header, const char *context);
+u32 *ModelAnim_GetDeltaArray(const struct ModelAnim *animation, const char *context);
+struct Model *InstDef_GetModel(const struct InstDef *instDef, const char *context);
+struct Instance *InstDef_GetInstance(const struct InstDef *instDef);
+int InstDef_SetInstance(struct InstDef *instDef, struct Instance *instance);
+struct Instance *InstDefRef_GetInstance(struct CtrAssetRef32 reference, const char *context);
+struct Icon *IconRefArray_Get(const struct CtrAssetRef32 *references, size_t index, const char *context);
+struct Icon *IconGroup_GetIcon(const struct IconGroup *group, size_t index, const char *context);
+
+// Relocated LEV accessors
+struct mesh_info *Level_GetMeshInfo(const struct Level *level, const char *context);
+struct Skybox *Level_GetSkybox(const struct Level *level, const char *context);
+struct AnimTex *Level_GetAnimTex(const struct Level *level, const char *context);
+struct InstDef *Level_GetInstDefs(const struct Level *level, const char *context);
+struct CtrAssetRef32 *Level_GetModelRefs(const struct Level *level, const char *context);
+struct Model *Level_GetModel(const struct Level *level, size_t index, const char *context);
+struct CtrAssetRef32 *Level_GetInstDefRefs(const struct Level *level, size_t minimumCount, const char *context);
+struct InstDef *Level_GetInstDef(const struct Level *level, size_t index, const char *context);
+int *Level_GetVisOVertSrc(const struct Level *level, const char *context);
+struct WaterVert *Level_GetWater(const struct Level *level, const char *context);
+struct LevTexLookup *Level_GetTexLookup(const struct Level *level, const char *context);
+struct Icon *Level_GetNamedTextures(const struct Level *level, const char *context);
+struct TextureLayout *Level_GetWaterEnvMap(const struct Level *level, const char *context);
+struct SpawnType1 *Level_GetSpawnType1(const struct Level *level, const char *context);
+struct SpawnType2 *Level_GetSpawnType2(const struct Level *level, const char *context);
+struct SpawnType2 *Level_GetSpawnType2PosRot(const struct Level *level, const char *context);
+struct CheckpointNode *Level_GetRestartPoints(const struct Level *level, const char *context);
+int *Level_GetVisSCVertSrc(const struct Level *level, const char *context);
+struct SCVert *Level_GetSCVerts(const struct Level *level, const char *context);
+struct CtrAssetRef32 *Level_GetNavHeaderRefs(const struct Level *level, const char *context);
+struct NavHeader *Level_GetNavHeader(const struct Level *level, size_t index, const char *context);
+struct VisMem *Level_GetVisMem(const struct Level *level, const char *context);
+void LevelRuntime_Invalidate(const struct Level *level);
+void LevelRuntime_InvalidateRange(const void *start, const void *end);
+void LevelRuntime_InvalidateAll(void);
+
+struct QuadBlock *MeshInfo_GetQuadBlocks(const struct mesh_info *mesh, const char *context);
+struct LevVertex *MeshInfo_GetVertices(const struct mesh_info *mesh, const char *context);
+struct BSP *MeshInfo_GetBspRoot(const struct mesh_info *mesh, const char *context);
+struct TextureLayout *QuadBlock_GetTextureMid(const struct QuadBlock *quad, size_t index, const char *context);
+struct TextureLayout *QuadBlock_GetTextureLow(const struct QuadBlock *quad, const char *context);
+struct PVS *QuadBlock_GetPVS(const struct QuadBlock *quad, const char *context);
+int *PVS_GetLeafSrc(const struct PVS *pvs, size_t wordCount, const char *context);
+int *PVS_GetFaceSrc(const struct PVS *pvs, size_t wordCount, const char *context);
+struct CtrAssetRef32 *PVS_GetInstanceRefs(const struct PVS *pvs, const char *context);
+int *PVS_GetExtraSrc(const struct PVS *pvs, size_t wordCount, const char *context);
+struct BSP *BSP_GetLeafHitboxes(const struct BSP *bsp, const char *context);
+struct QuadBlock *BSP_GetLeafQuadBlocks(const struct BSP *bsp, const char *context);
+struct InstDef *BSP_GetInstDef(const struct BSP *bsp, const char *context);
+struct LevVertex *SCVert_GetVertex(const struct SCVert *vertex, const char *context);
+struct LevVertex *WaterVert_GetVertex(const struct WaterVert *vertex, const char *context);
+struct OVert *WaterVert_GetOVert(const struct WaterVert *vertex, const char *context);
+void *SpawnType1_GetPointer(const struct SpawnType1 *spawn, size_t index, size_t accessSize, size_t alignment, const char *context);
+SVec3 *SpawnType2_GetPositions(const struct SpawnType2 *spawn, const char *context);
+struct SpawnPosRot *SpawnType2_GetPosRot(const struct SpawnType2 *spawn, const char *context);
+struct ShortVertex *Skybox_GetVertices(const struct Skybox *skybox, const char *context);
+struct SkyboxFace *Skybox_GetFaces(const struct Skybox *skybox, size_t segment, const char *context);
+struct Icon *LevTexLookup_GetIcons(const struct LevTexLookup *lookup, const char *context);
+struct CtrAssetRef32 *LevTexLookup_GetIconGroupRefs(const struct LevTexLookup *lookup, const char *context);
+struct IconGroup *LevTexLookup_GetIconGroup(const struct LevTexLookup *lookup, size_t index, const char *context);
+struct NavFrame *NavHeader_GetLast(const struct NavHeader *header);
 
 // JitPool
-int JitPool_Add(struct JitPool *AP);
+struct Item *JitPool_Add(struct JitPool *AP);
 void JitPool_Clear(struct JitPool *AP);
 void JitPool_Init(struct JitPool *AP, int maxItems, int itemSize, char *name);
 void JitPool_Remove(struct JitPool *AP, struct Item *item);
@@ -314,7 +399,7 @@ void *LIST_GetFirstItem(struct LinkedList *L);
 void *LIST_GetNextItem(struct Item *I);
 
 void LOAD_AppendQueue(struct BigHeader *bigfile, int type, int fileIndex, void *destinationPtr, void (*callback)(struct LoadQueueSlot *));
-int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(struct LoadQueueSlot *));
+void *LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(struct LoadQueueSlot *));
 void LOAD_Hub_Main(struct BigHeader *bigfilePtr);
 void LOAD_Hub_ReadFile(struct BigHeader *bigfile, int levID, int packID);
 void LIST_Init(struct LinkedList *L, struct Item *item, int itemSize, int numItems);
@@ -335,8 +420,10 @@ void OVR231_InitData(void);
 void OVR232_ResetRuntimeState(void);
 void OVR232_InitData(void);
 void OVR233_RebuildInitMatrixTable(void);
+void OVR233_RebuildCreditsModelHeaders(void);
 void OVR233_ResetRuntimeState(void);
 void OVR233_InitData(void);
+int OVR233_RunParticleEmitterLayoutSelfTest(void);
 #endif
 void LOAD_ReadFileASyncCallback(u8 result, u8 *unk);
 
@@ -361,8 +448,11 @@ void MainLoadVLC_Callback(struct LoadQueueSlot *param_1);
 
 void LOAD_InitCD(void);
 int LOAD_InitCDvol(void);
-void LOAD_RunPtrMap(char *origin, int *patchArr, int numPtrs); // 1st param might be `struct Level*`, 2nd param might be `char*`
-void LOAD_LangFile(int bigfilePtr, int lang);
+int LOAD_RunPtrMap(void *assetBase, size_t assetSize, const u32 *patchEntries, size_t patchMapByteSize);
+void LOAD_LangFile(struct BigHeader *bigfile, int lang);
+#if defined(CTR_NATIVE) && UINTPTR_MAX > UINT32_MAX
+int LOAD_RebuildNativeLanguagePointers(void);
+#endif
 
 void LOAD_NextQueuedFile(void);
 
@@ -397,6 +487,7 @@ void RenderStars(struct PushBuffer *pb, struct PrimMem *primMem, struct Stars *s
 void RenderWeather(struct PushBuffer *pb, struct PrimMem *primMem, struct RainBuffer *rainBuffer, u8 numPlyr, int gameMode1);
 void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTrackerConfetti *confetti, int frameTimer, int gameMode1);
 void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct JitPool *rain, u8 numPlyr, int gameMode1);
+int RedBeaker_RunHostLayoutSelfTest(void);
 void *RenderBucket_QueueLevInstances(struct CameraDC *cDC, struct OTMem *otMem, void *rbi, u32 lodMask, u8 numPlyr, int gameMode1);
 void *RenderBucket_QueueNonLevInstances(struct Item *item, struct OTMem *otMem, void *rbi, u32 lodMask, u8 numPlyr, int gameMode1);
 void RenderBucket_Execute(void *param_1, struct PrimMem *param_2);
@@ -435,6 +526,7 @@ void MainGameStart_Initialize(struct GameTracker *gGT, b32 boolStopAudio);
 void MainInit_VisMem(struct GameTracker *gGT);
 void MainInit_RainBuffer(struct GameTracker *gGT);
 void MainInit_Drivers(struct GameTracker *gGT);
+void MainInit_RebindNativeRuntimeStorage(struct GameTracker *gGT);
 void MainInit_JitPoolsNew(struct GameTracker *gGT);
 void MainInit_JitPoolsReset(struct GameTracker *gGT);
 
@@ -586,7 +678,7 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList);
 void PickupBots_Init(void);
 void PickupBots_Update(void);
 
-struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *name, struct Thread *relativeTh);
+struct Thread *PROC_BirthWithObject(int flags, ThreadFunc funcThTick, const char *name, struct Thread *relativeTh);
 void PROC_CheckAllForDead(void);
 void PROC_CheckBloodlineForDead(struct Thread **replaceSelf, struct Thread *th);
 void PROC_CollidePointWithBucket(struct Thread *th, struct BucketSearchParams *buf);
@@ -652,7 +744,8 @@ int UI_ConvertX_2(int posX, int scale);
 int UI_ConvertY_2(int posY, int scale);
 
 void UI_INSTANCE_InitAll(void);
-struct Instance *UI_INSTANCE_BirthWithThread(int modelID, int tickFunc, int hudSlot, int rotateToHud, int pushBuffer, int threadName);
+struct Instance *UI_INSTANCE_BirthWithThread(int modelID, ThreadFunc tickFunc, int hudSlot, int rotateToHud, struct PushBuffer *pushBuffer,
+					    const char *threadName);
 
 void UI_DrawBattleScores(int posX, int posY, struct Driver *d);
 void UI_BattleDrawHeadArrows(struct Driver *player);
@@ -677,6 +770,7 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver);
 void UI_JumpMeter_Update(struct Driver *d);
 void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver);
 u32 UI_VsQuipReadDriver(struct Driver *driver, int offset, int size);
+int UI_VsQuipRunOffsetSelfTest(void);
 void UI_VsQuipAssign(struct Driver *driver, struct QuipMeta *meta, struct Driver *bestDriver, int characterID);
 void UI_VsQuipAssignAll(void);
 void UI_VsQuipDrawAll(void);
@@ -707,6 +801,7 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY);
 void VehBirth_TeleportAll(struct GameTracker *gGT, u32 spawnFlags);
 struct Model *VehBirth_GetModelByName(char *searchName);
 void VehBirth_SetConsts(struct Driver *driver);
+int VehBirth_RunConstOffsetSelfTest(void);
 void VehBirth_EngineAudio_AllPlayers(void);
 void VehBirth_TireSprites(struct Thread *t);
 void VehBirth_NonGhost(struct Thread *t, int index);
@@ -781,6 +876,7 @@ void MainGameEnd_SoloRaceSaveHighScore(void);
 void MainGameEnd_Initialize(void);
 void Podium_InitModels(struct GameTracker *gGT);
 void VehLap_UpdateProgress(struct Driver *driver);
+int VehLap_RunCheckpointBoundsSelfTest(void);
 
 void VehStuckProc_RevEngine_Update(struct Thread *t, struct Driver *d);
 void VehStuckProc_RevEngine_PhysLinear(struct Thread *t, struct Driver *d);
@@ -918,6 +1014,7 @@ void RB_RainCloud_FadeAway(struct Thread *t);
 void RB_RainCloud_ThTick(struct Thread *t);
 void RB_RainCloud_Init(struct Driver *d);
 void RB_Explosion_ThTick(struct Thread *t);
+int RB_Explosion_RunPotionEmitterSelfTest(void);
 void RB_Explosion_InitPotion(struct Instance *inst);
 void RB_Explosion_InitGeneric(struct Instance *inst);
 void RB_Blowup_ThTick(struct Thread *t);
@@ -1066,7 +1163,7 @@ void AH_MaskHint_SpawnParticles(s16 numParticles, struct ParticleEmitter *emSet,
 void AH_MaskHint_LerpVol(int blend);
 void AH_MaskHint_Update(void);
 
-struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, struct ParticleEmitter *emSet);
+struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, const struct ParticleEmitter *emSet);
 void Particle_FuncPtr_PotionShatter(struct Particle *p);
 void Particle_FuncPtr_SpitTire(struct Particle *p);
 void Particle_FuncPtr_ExhaustUnderwater(struct Particle *p);
@@ -1116,7 +1213,7 @@ void CS_Credits_Init(void);
 char *CS_Credits_GetNextString(char *str);
 void CS_Credits_DestroyCreditGhost(void);
 void CS_Credits_AnimateCreditGhost(struct Instance *dst, struct Instance *src, int index);
-void CS_Credits_ThTick(void);
+void CS_Credits_ThTick(struct Thread *thread);
 b32 CS_Credits_IsTextValid(void);
 void CS_Credits_NewDancer(struct Thread *dancerTh, int dancerModelID);
 int CS_Credits_NewCreditGhosts(void);
@@ -1208,7 +1305,7 @@ int VehCalc_SteerAccel(int steeringFrameCount, int stage2FirstFrame, int stage2F
 void VehFrameProc_Driving(struct Thread *t, struct Driver *d);
 void VehFrameProc_Spinning(struct Thread *t, struct Driver *d);
 void VehFrameProc_LastSpin(struct Thread *t, struct Driver *d);
-void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroundSkidsScratch *scratch);
+void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroundSkidsScratch *scratch, struct PushBuffer *pb);
 void VehGroundSkids_Subset2(struct VehGroundSkidsScratch *scratch, const SVECTOR *v1, const SVECTOR *v2, const SVECTOR *v3);
 void GAMEPAD_ShockForce1(struct Driver *d, int frame, int val);
 u32 *RaceFlag_GetOT(void);
@@ -1242,7 +1339,7 @@ void GAMEPROG_NewProfile_OutsideAdv(struct GameProgress *gameProg);
 int LOAD_FindFile(char *filename, CdlFILE *cdlFile);
 int LOAD_HowlHeaderSectors(CdlFILE *cdlFileHWL, void *ptrDestination, int firstSector, int numSector);
 int CDSYS_XASeek(b32 boolCdControl, int categoryID, int xaID);
-void LibraryOfModels_Store(struct GameTracker *gGT, u32 numModels, struct Model **ptrModelArray);
+void LibraryOfModels_Store(struct GameTracker *gGT, u32 numModels, struct CtrAssetRef32 *ptrModelArray);
 void LOAD_DramFileCallback(struct LoadQueueSlot *lqs);
 int LOAD_GetBigfileIndex(u32 levelID, int lod, int fileIndexInGroup);
 void LOAD_HubSwapPtrs(struct GameTracker *gGT);
@@ -1299,8 +1396,9 @@ void AnimateWater3P(int timer, int numWaterVertices, struct WaterVert *waterVert
                     int *visOVertList1, int *visOVertList2);
 void AnimateWater4P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
                     int *visOVertList1, int *visOVertList2, int *visOVertList3);
-int RenderLists_Init1P2P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList, u8 numPlyr);
-int RenderLists_Init3P4P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList);
+int RenderLists_Init1P2P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, void *levRenderList, void *bspList, u8 numPlyr);
+int RenderLists_Init3P4P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, void *levRenderList, void *bspList);
+int RenderLists_RunHostLayoutSelfTest(void);
 // TODO:
 // CTR_Box_DrawWirePrims change void* ot to uint32_t* ot
 

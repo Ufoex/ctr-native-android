@@ -29,12 +29,26 @@ enum NativePerfBucket
 	NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM,
 	NATIVE_PERF_BUCKET_RENDERER_VERTEX_UPLOAD,
 	NATIVE_PERF_BUCKET_RENDERER_DRAW_TRIANGLES,
+	NATIVE_PERF_BUCKET_RENDERER_RESTORE_VRAM,
+	NATIVE_PERF_BUCKET_RENDERER_PRESENT_VRAM,
 	NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE,
 	NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK,
 	NATIVE_PERF_BUCKET_SWAP_WINDOW,
 	NATIVE_PERF_BUCKET_VSYNC_WAIT,
 	NATIVE_PERF_BUCKET_AUDIO_VBLANK,
 	NATIVE_PERF_BUCKET_COUNT
+};
+
+enum NativePerfCounter
+{
+	NATIVE_PERF_COUNTER_RENDERER_DRAW_CALLS,
+	NATIVE_PERF_COUNTER_RENDERER_DRAW_VERTICES,
+	NATIVE_PERF_COUNTER_GPU_SPLITS,
+	NATIVE_PERF_COUNTER_GPU_SPLIT_VERTICES,
+	NATIVE_PERF_COUNTER_GPU_SEMITRANS_SPLITS,
+	NATIVE_PERF_COUNTER_GPU_FRAMEBUFFER_FETCH_SPLITS,
+	NATIVE_PERF_COUNTER_GPU_FRAMEBUFFER_FETCH_MERGED_SPLITS,
+	NATIVE_PERF_COUNTER_COUNT
 };
 
 struct NativePerfFrameInfo
@@ -61,6 +75,7 @@ void NativePerf_EndFrame(const struct NativePerfFrameInfo *info);
 void NativePerf_RecordGpuFrame(u32 frameIndex, f64 gpuMs);
 void NativePerf_BeginScope(enum NativePerfBucket bucket);
 void NativePerf_EndScope(enum NativePerfBucket bucket);
+void NativePerf_AddCounter(enum NativePerfCounter counter, u32 amount);
 #else
 static inline int NativePerf_ConfigureFromArgs(int argc, char **argv)
 {
@@ -102,6 +117,12 @@ static inline void NativePerf_BeginScope(enum NativePerfBucket bucket)
 static inline void NativePerf_EndScope(enum NativePerfBucket bucket)
 {
 	(void)bucket;
+}
+
+static inline void NativePerf_AddCounter(enum NativePerfCounter counter, u32 amount)
+{
+	(void)counter;
+	(void)amount;
 }
 #endif
 

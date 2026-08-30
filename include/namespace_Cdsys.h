@@ -91,7 +91,7 @@ struct XNF
 	// size = numXAs_total
 	// int XaCdPos[0];
 };
-#define XNF_GETXACDPOS(x) (int *)((u32)x + sizeof(struct XNF))
+#define XNF_GETXACDPOS(x) ((int *)((u8 *)(x) + sizeof(struct XNF)))
 
 struct XaSize
 {
@@ -116,6 +116,13 @@ struct AudioMeta
 	char *name;
 };
 
-CTR_STATIC_ASSERT(sizeof(struct AudioMeta) == 8);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(offsetof(struct AudioMeta, name) == 0x4);
+CTR_STATIC_ASSERT(sizeof(struct AudioMeta) == 0x8);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct AudioMeta, name) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct AudioMeta) == 0x10);
+#endif
 
 #endif

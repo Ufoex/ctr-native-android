@@ -164,7 +164,7 @@ b32 MM_Characters_boolIsInvalid(s16 *iconPerPlayer, s16 characterID, s16 player)
 // specific to main menu lev, altered in oxide mod
 struct Model *MM_Characters_GetModelByName(const char *name)
 {
-	struct Model **models;
+	struct CtrAssetRef32 *models;
 	struct Model *model;
 	struct Level *level1 = sdata->gGT->level1;
 
@@ -174,7 +174,7 @@ struct Model *MM_Characters_GetModelByName(const char *name)
 		return NULL;
 	}
 
-	models = level1->ptrModelsPtrArray;
+	models = Level_GetModelRefs(level1, "MM_Characters_GetModelByName model references");
 	if (models == NULL)
 	{
 		return NULL;
@@ -182,8 +182,15 @@ struct Model *MM_Characters_GetModelByName(const char *name)
 
 	// loop through all models in array
 	// of model pointers, until nullptr
-	for (model = models[0]; model != NULL; models++, model = models[0])
+	for (u32 index = 0; index < level1->numModels; index++)
 	{
+		if (!CtrAssetRef_ResolveOptional(models[index], sizeof(*model), _Alignof(struct Model), (void **)&model,
+						"MM_Characters_GetModelByName model") ||
+		    (model == NULL))
+		{
+			break;
+		}
+
 		if ((ModelName_ReadWord(model->name, 0) == ModelName_ReadWord(name, 0)) && (ModelName_ReadWord(model->name, 1) == ModelName_ReadWord(name, 1)) &&
 		    (ModelName_ReadWord(model->name, 2) == ModelName_ReadWord(name, 2)) && (ModelName_ReadWord(model->name, 3) == ModelName_ReadWord(name, 3)))
 		{
@@ -303,7 +310,7 @@ void MM_Characters_DrawWindows(b32 boolShowDrivers)
 		s16 *currCharacterID = &D230.characterSelectPlayerState.currentCharacterID[playerIndex];
 
 		driverInst->animFrame = 0;
-		driverInst->vertSplit = 0;
+		driverInst->animIndex = 0;
 
 		struct Model *model = MM_Characters_GetModelByName(data.MetaDataCharacters[(int)*currCharacterID].name_Debug);
 

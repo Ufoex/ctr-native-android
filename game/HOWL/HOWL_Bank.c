@@ -123,11 +123,11 @@ int Bank_AssignSpuAddrs()
 
 		MEMPACK_ReallocMem(((sdata->audioAllocSize + 0x7ff) & 0xfffff800) + 0x800);
 
-		ret = LOAD_HowlSectorChainStart(&sdata->KartHWL_CdFile,                        // CdLoc of HOWL
-		                                (void *)((int)sdata->ptrSampleBlock2 + 0x800), // destination
-		                                sdata->bankSectorOffset + 1,                   // offset of howl
-		                                sdata->numAudioSectors                         // number of sectors
-		);
+			ret = LOAD_HowlSectorChainStart(&sdata->KartHWL_CdFile,                // CdLoc of HOWL
+			                                (u8 *)sdata->ptrSampleBlock2 + 0x800, // destination
+			                                sdata->bankSectorOffset + 1,           // offset of howl
+			                                sdata->numAudioSectors                 // number of sectors
+			);
 
 		if (ret == 0)
 		{
@@ -193,7 +193,7 @@ int Bank_AssignSpuAddrs()
 			// start transfer
 			SpuSetTransferStartAddr(spuAddrStart);
 
-			SpuWrite((u8 *)((int)sdata->ptrSampleBlock2 + 0x800), (size_t)sdata->audioAllocSize);
+				SpuWrite((u8 *)sdata->ptrSampleBlock2 + 0x800, (size_t)sdata->audioAllocSize);
 		}
 
 		sdata->bankLoadStage++;

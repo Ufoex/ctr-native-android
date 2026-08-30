@@ -1,5 +1,10 @@
 #include <common.h>
 
+static int RB_CrateAny_IsNoDriver(const struct Driver *driver)
+{
+	return (uintptr_t)driver == 1;
+}
+
 // add to buildList, overwrite original
 // RB_CrateAny_ThTick_Explode at 800b3d04,
 // and add new LinCs to zGlobalMetaModels.c
@@ -41,14 +46,6 @@ struct Driver *RB_CrateAny_GetDriver(struct Thread *t, struct ScratchpadStruct *
 	{
 		// get driver that used the weapon
 		driver = ((struct TrackerWeapon *)t->object)->driverParent;
-
-		// if this is an AI, quit
-
-		// it's odd that it casts "1" as struct Driver*, but callers of this function *do* check the return value == 1, so it must be intentional.
-		if ((driver->actionsFlagSet & ACTION_BOT) != 0)
-		{
-			return (struct Driver *)1;
-		}
 
 		return driver;
 	}
@@ -235,13 +232,8 @@ int RB_CrateWeapon_ThCollide(struct Thread *crateThread, struct Thread *collidin
 	crateInst = crateThread->inst;
 	crateObj = ((struct Crate *)crateThread->object);
 
-	if (crateObj->cooldown == 0)
+	if ((crateObj->cooldown == 0) && ((crateInst->scale.x == 0) || (crateInst->scale.x == 0x1000)))
 	{
-		if ((crateInst->scale.x != 0) && (crateInst->scale.x != 0x1000))
-		{
-			return 0;
-		}
-
 		crateObj->cooldown = 0x1e;
 
 		if (crateInst->scale.x == 0x1000)
@@ -249,7 +241,11 @@ int RB_CrateWeapon_ThCollide(struct Thread *crateThread, struct Thread *collidin
 			RB_CrateAny_ExplodeInit(crateInst, 0xfafafa0, true);
 
 			driver = RB_CrateAny_GetDriver(collidingTh, sps);
-			if ((int)driver == 1)
+			if (RB_CrateAny_IsNoDriver(driver))
+			{
+				return 1;
+			}
+			if ((driver->actionsFlagSet & ACTION_BOT) != 0)
 			{
 				return 1;
 			}
@@ -363,13 +359,8 @@ int RB_CrateFruit_ThCollide(struct Thread *crateThread, struct Thread *colliding
 	crateInst = crateThread->inst;
 	crateObj = ((struct Crate *)crateThread->object);
 
-	if (crateObj->cooldown == 0)
+	if ((crateObj->cooldown == 0) && ((crateInst->scale.x == 0) || (crateInst->scale.x == 0x1000)))
 	{
-		if ((crateInst->scale.x != 0) && (crateInst->scale.x != 0x1000))
-		{
-			return 0;
-		}
-
 		crateObj->cooldown = 0x1e;
 
 		if (crateInst->scale.x == 0x1000)
@@ -377,7 +368,7 @@ int RB_CrateFruit_ThCollide(struct Thread *crateThread, struct Thread *colliding
 			RB_CrateAny_ExplodeInit(crateInst, 0xf2953a0, false);
 
 			driver = RB_CrateAny_GetDriver(collidingTh, sps);
-			if ((int)driver == 1)
+			if (RB_CrateAny_IsNoDriver(driver))
 			{
 				return 1;
 			}
@@ -456,13 +447,8 @@ int RB_CrateTime_ThCollide(struct Thread *crateThread, struct Thread *driverTh, 
 	crateInst = crateThread->inst;
 	crateObj = ((struct Crate *)crateThread->object);
 
-	if (crateObj->cooldown == 0)
+	if ((crateObj->cooldown == 0) && ((crateInst->scale.x == 0) || (crateInst->scale.x == 0x1000)))
 	{
-		if ((crateInst->scale.x != 0) && (crateInst->scale.x != 0x1000))
-		{
-			return 0;
-		}
-
 		crateObj->cooldown = 0x1e;
 
 		if (crateInst->scale.x == 0x1000)
@@ -471,7 +457,7 @@ int RB_CrateTime_ThCollide(struct Thread *crateThread, struct Thread *driverTh, 
 
 			gGT = sdata->gGT;
 			driver = RB_CrateAny_GetDriver(driverTh, sps);
-			if ((int)driver == 1)
+			if (RB_CrateAny_IsNoDriver(driver))
 			{
 				return 1;
 			}

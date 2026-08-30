@@ -42,7 +42,11 @@ void AnimateQuadVertex(int timer, struct SCVert *scVert, u32 *visBits)
 		return;
 	}
 
-	struct LevVertex *levVert = scVert->v;
+	struct LevVertex *levVert = SCVert_GetVertex(scVert, "AnimateQuad vertex");
+	if (levVert == NULL)
+	{
+		return;
+	}
 	u32 offsetPosZw = (u32)scVert->offset_pos_zw;
 	s32 flags = (s32)offsetPosZw >> 16;
 	struct AnimateQuadTrig trig = AnimateQuad_GetTrig((flags & 0x3fff) + timer);
@@ -113,8 +117,12 @@ void AnimateWaterVertex(struct WaterVert *waterVert, u16 colorOffset, int firstO
 		return;
 	}
 
-	struct LevVertex *levVert = waterVert->v;
-	struct OVert *waterColor = waterVert->w;
+	struct LevVertex *levVert = WaterVert_GetVertex(waterVert, "AnimateWater level vertex");
+	struct OVert *waterColor = WaterVert_GetOVert(waterVert, "AnimateWater ocean vertex");
+	if ((levVert == NULL) || (waterColor == NULL))
+	{
+		return;
+	}
 	u16 first = CTR_ReadU16LE((char *)waterColor + firstOffset);
 	u16 second = CTR_ReadU16LE((char *)waterColor + secondOffset);
 

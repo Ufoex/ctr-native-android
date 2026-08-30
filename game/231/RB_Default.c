@@ -25,7 +25,7 @@ void RB_Default_LInB(struct Instance *inst)
 
 	sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND | QUADBLOCK_FLAG_COLLISION_SURFACE;
 	sps->Union.QuadBlockColl.quadFlagsIgnored = 0;
-	sps->ptr_mesh_info = sdata->gGT->level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(sdata->gGT->level1, "RB_Default collision mesh"));
 
 	// Make a hitbox
 	probeTop->x = inst->matrix.t[0];

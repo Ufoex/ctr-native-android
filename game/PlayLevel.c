@@ -247,7 +247,13 @@ void PlayLevel_UpdateLapStats(void)
 			// if player did not JUST cross finish backwards
 			else
 			{
-				u32 trackLen = gGT->level1->ptr_restart_points[0].distToFinish;
+				struct CheckpointNode *restartPoints =
+				    Level_GetRestartPoints(gGT->level1, "PlayLevel checkpoint nodes");
+				if (restartPoints == NULL)
+				{
+					goto UpdateFinishedDriverRank;
+				}
+				u32 trackLen = restartPoints[0].distToFinish;
 
 				if (
 				    // if player did not EVER cross finish backwards

@@ -9,10 +9,10 @@ void RB_Potion_OnShatter_TeethCallback(struct ScratchpadStruct *sps, void *hitOb
 	struct InstDef *instDef;
 	struct Instance *teethInst;
 
-	instDef = bspHitbox->data.hitbox.instDef;
+	instDef = BSP_GetInstDef(bspHitbox, "RB_Potion teeth hitbox InstDef");
 	if (instDef != NULL)
 	{
-		if (teethInst = instDef->ptrInstance, teethInst != NULL)
+		if (teethInst = InstDef_GetInstance(instDef), teethInst != NULL)
 		{
 			if (instDef->modelID == STATIC_TEETH) // tiger temple door
 			{
@@ -34,8 +34,8 @@ void RB_Potion_OnShatter_TeethSearch(struct Instance *inst)
 	sps->Input1.hitRadiusSquared = 0x19000;
 	sps->Input1.modelID = inst->model->id;
 
-	sps->Union.ThBuckColl.thread = inst->thread;
-	sps->Union.ThBuckColl.funcCallback = RB_Potion_OnShatter_TeethCallback;
+	COLL_Scratch_SetThread(sps, inst->thread);
+	COLL_Scratch_SetCallback(sps, RB_Potion_OnShatter_TeethCallback);
 
 	PROC_StartSearch_Self(sps);
 }
@@ -52,6 +52,7 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 
 	struct BSP *bspHitbox;
 	struct InstDef *instDef;
+	struct Instance *teethInst;
 
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 
@@ -97,7 +98,7 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES | COLL_SEARCH_HIGH_LOD | COLL_SEARCH_FORCE_INSTANCE_HIT;
 	}
 
-	sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(gGT->level1, "RB_Potion collision mesh"));
 
 	COLL_SearchBSP_CallbackQUADBLK(&posBottom, &posTop, sps, 0);
 
@@ -178,19 +179,19 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 	// hit BSP hitbox, and instance is TEETH
 	else
 	{
-		bspHitbox = sps->bspHitbox;
+		bspHitbox = COLL_Scratch_GetHost(sps)->bspHitbox;
 
 		if ((
 		        // bsp->flags & hitbox
 		        ((bspHitbox->flag & 0x80) != 0) && (
 		                                               // hitbox contains instDef
-		                                               instDef = bspHitbox->data.hitbox.instDef, instDef != 0)) &&
+		                                               instDef = BSP_GetInstDef(bspHitbox, "RB_Potion collision InstDef"), instDef != 0)) &&
 
 		    // instDef->modelID == TEETH
 		    (instDef->modelID == STATIC_TEETH) &&
 
 		    // instDef->instance exists
-		    (instDef->ptrInstance != 0))
+		    (teethInst = InstDef_GetInstance(instDef), teethInst != 0))
 		{
 			// if door is open, quit
 			if ((sdata->doorAccessFlags & 1) == 1)
@@ -200,7 +201,7 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 
 			// open door if door is closed,
 			// then destroy mine right after
-			RB_Teeth_OpenDoor(instDef->ptrInstance);
+			RB_Teeth_OpenDoor(teethInst);
 		}
 	}
 

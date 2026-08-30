@@ -176,7 +176,6 @@ enum LoadHubConstants
 	LOAD_HUB_TRIGGER_NONE = 0,
 	LOAD_HUB_TRIGGER_ID_BIAS = 1,
 	LOAD_HUB_MEMPACK_PAIR_INDEX_SUM = 3,
-	LOAD_HUB_PATCH_MEM_ACTIVE = 1,
 };
 
 CTR_STATIC_ASSERT(LOAD_ADV_HUB_COUNT == 5);
@@ -184,7 +183,6 @@ CTR_STATIC_ASSERT(LOAD_ADV_HUB_CONNECTION_COUNT == 3);
 CTR_STATIC_ASSERT(LOAD_HUB_TRIGGER_NONE == 0);
 CTR_STATIC_ASSERT(LOAD_HUB_TRIGGER_ID_BIAS == 1);
 CTR_STATIC_ASSERT(LOAD_HUB_MEMPACK_PAIR_INDEX_SUM == 3);
-CTR_STATIC_ASSERT(LOAD_HUB_PATCH_MEM_ACTIVE == 1);
 
 enum LoadQueueConstants
 {
@@ -365,6 +363,15 @@ struct LoadQueueSlot
 
 #define LOAD_QUEUE_CALLBACK_SET_POINTER ((void (*)(struct LoadQueueSlot *)) - 2)
 
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(offsetof(struct LoadQueueSlot, ptrDestination) == 0xc);
+CTR_STATIC_ASSERT(offsetof(struct LoadQueueSlot, callbackFuncPtr) == 0x14);
 CTR_STATIC_ASSERT(sizeof(struct LoadQueueSlot) == 0x18);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct LoadQueueSlot, ptrDestination) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct LoadQueueSlot, callbackFuncPtr) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct LoadQueueSlot) == 0x28);
+#endif
 
 #endif

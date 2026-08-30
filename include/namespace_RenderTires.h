@@ -33,7 +33,7 @@ struct DrawTiresScratch
 	u32 savedRegs[12];
 	s32 numPlyr;
 	s32 playerCounter;
-	struct Icon **wheelSprites;
+	u32 wheelSpritesPtr32;
 	u32 tireColor;
 	s32 otRangeNormal;
 	s32 otRangeSecondary;
@@ -72,7 +72,7 @@ CTR_STATIC_ASSERT(offsetof(struct DrawTiresWheelLocal, center) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct DrawTiresWheelLocal, rim) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct DrawTiresScratch, numPlyr) == 0x30);
 CTR_STATIC_ASSERT(offsetof(struct DrawTiresScratch, playerCounter) == 0x34);
-CTR_STATIC_ASSERT(offsetof(struct DrawTiresScratch, wheelSprites) == 0x38);
+CTR_STATIC_ASSERT(offsetof(struct DrawTiresScratch, wheelSpritesPtr32) == 0x38);
 CTR_STATIC_ASSERT(offsetof(struct DrawTiresScratch, tireColor) == 0x3c);
 CTR_STATIC_ASSERT(offsetof(struct DrawTiresScratch, otRangeNormal) == 0x40);
 CTR_STATIC_ASSERT(offsetof(struct DrawTiresScratch, otRangeSecondary) == 0x44);

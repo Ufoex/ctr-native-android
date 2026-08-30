@@ -1,28 +1,86 @@
 #include <common.h>
 
+enum
+{
+	UI_VS_QUIP_DRIVER_QUIP_RETAIL_BEGIN = 0x4f0,
+	UI_VS_QUIP_DRIVER_QUIP_RETAIL_END = 0x4f8,
+	UI_VS_QUIP_DRIVER_STATS_RETAIL_BEGIN = 0x514,
+	UI_VS_QUIP_DRIVER_STATS_RETAIL_END = 0x56c,
+	UI_VS_QUIP_DRIVER_DERIVED_RETAIL_BEGIN = 0x574,
+	UI_VS_QUIP_DRIVER_DERIVED_RETAIL_END = 0x580,
+};
+
+CTR_STATIC_ASSERT(
+    offsetof(struct Driver, quip4) + sizeof(((struct Driver *)0)->quip4) - offsetof(struct Driver, quip1) ==
+    UI_VS_QUIP_DRIVER_QUIP_RETAIL_END - UI_VS_QUIP_DRIVER_QUIP_RETAIL_BEGIN);
+CTR_STATIC_ASSERT(
+    offsetof(struct Driver, unused_alignment_56b) + sizeof(((struct Driver *)0)->unused_alignment_56b) -
+	    offsetof(struct Driver, timeElapsedInRace) ==
+    UI_VS_QUIP_DRIVER_STATS_RETAIL_END - UI_VS_QUIP_DRIVER_STATS_RETAIL_BEGIN);
+CTR_STATIC_ASSERT(
+    offsetof(struct Driver, numTimesAttacked) + sizeof(((struct Driver *)0)->numTimesAttacked) -
+	    offsetof(struct Driver, NumMissilesComparedToNumAttacks) ==
+    UI_VS_QUIP_DRIVER_DERIVED_RETAIL_END - UI_VS_QUIP_DRIVER_DERIVED_RETAIL_BEGIN);
+
+static u8 *UI_VsQuipResolveDriverField(struct Driver *driver, int retailOffset, int size)
+{
+	struct DriverRange
+	{
+		int retailBegin;
+		int retailEnd;
+		size_t nativeBegin;
+	};
+	static const struct DriverRange ranges[] = {
+	    {UI_VS_QUIP_DRIVER_QUIP_RETAIL_BEGIN, UI_VS_QUIP_DRIVER_QUIP_RETAIL_END, offsetof(struct Driver, quip1)},
+	    {UI_VS_QUIP_DRIVER_STATS_RETAIL_BEGIN, UI_VS_QUIP_DRIVER_STATS_RETAIL_END, offsetof(struct Driver, timeElapsedInRace)},
+	    {UI_VS_QUIP_DRIVER_DERIVED_RETAIL_BEGIN, UI_VS_QUIP_DRIVER_DERIVED_RETAIL_END,
+	     offsetof(struct Driver, NumMissilesComparedToNumAttacks)},
+	};
+
+	if ((driver == NULL) || ((size != 1) && (size != 2) && (size != 4)))
+	{
+		return NULL;
+	}
+
+	for (size_t i = 0; i < len(ranges); i++)
+	{
+		const struct DriverRange *range = &ranges[i];
+
+		if ((retailOffset >= range->retailBegin) && (retailOffset <= range->retailEnd - size))
+		{
+			return (u8 *)driver + range->nativeBegin + (retailOffset - range->retailBegin);
+		}
+	}
+
+	return NULL;
+}
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80054a08-0x80054a78
 u32 UI_VsQuipReadDriver(struct Driver *d, int offset, int size)
 {
-	char *data = (char *)d + offset;
+	u8 *field = UI_VsQuipResolveDriverField(d, offset, size);
 
-	if (size == 2)
+	if (field == NULL)
 	{
-		return *(s16 *)data;
-	}
-
-	if (size < 3)
-	{
-		if (size == 1)
-		{
-			return *(u8 *)data;
-		}
-
 		return 0;
 	}
+	if (size == 1)
+	{
+		return field[0];
+	}
+	if (size == 2)
+	{
+		s16 value;
 
+		memcpy(&value, field, sizeof(value));
+		return (u32)(s32)value;
+	}
 	if (size == 4)
 	{
-		return *(u32 *)data;
+		u32 value;
+
+		memcpy(&value, field, sizeof(value));
+		return value;
 	}
 
 	return 0;
@@ -139,6 +197,99 @@ static struct QuipMeta UI_VsQuipMetaFromRaw(struct QuipMetaRaw *raw)
 	meta.dataSize = raw->dataSize;
 
 	return meta;
+}
+
+int UI_VsQuipRunOffsetSelfTest(void)
+{
+	struct Driver driver;
+	struct QuipMetaRaw *ranges[][2] = {
+	    {
+		(struct QuipMetaRaw *)(void *)(UI_VsQuipData() + UI_QUIP_VS_META_OFF),
+		(struct QuipMetaRaw *)(void *)(UI_VsQuipData() + UI_QUIP_VS_META_END),
+	    },
+	    {
+		(struct QuipMetaRaw *)(void *)(UI_VsQuipData() + UI_QUIP_BAT_META_OFF),
+		(struct QuipMetaRaw *)(void *)(UI_VsQuipData() + UI_QUIP_BAT_META_END),
+	    },
+	};
+	int metaCount = 0;
+	int readerCount = 0;
+
+	memset(&driver, 0, sizeof(driver));
+	for (size_t rangeIndex = 0; rangeIndex < len(ranges); rangeIndex++)
+	{
+		for (struct QuipMetaRaw *raw = ranges[rangeIndex][0]; raw < ranges[rangeIndex][1]; raw++)
+		{
+			const int condition = raw->conditionType;
+
+			metaCount++;
+			if (condition == 3)
+			{
+				if ((raw->driverOffset != UI_VS_QUIP_DRIVER_STATS_RETAIL_BEGIN + 0x4c) || (raw->dataSize != 8))
+				{
+					fprintf(stderr, "[CTR VsQuip] self-test failed: attacked-player array metadata\n");
+					return 1;
+				}
+				continue;
+			}
+			if ((condition == 2) || (condition == 7) || (condition == 9))
+			{
+				continue;
+			}
+
+			u8 *field = UI_VsQuipResolveDriverField(&driver, raw->driverOffset, raw->dataSize);
+			u32 expected;
+
+			if (field == NULL)
+			{
+				fprintf(stderr, "[CTR VsQuip] self-test failed: unresolved metadata offset=0x%x size=%d condition=%d\n",
+					raw->driverOffset, raw->dataSize, condition);
+				return 1;
+			}
+			readerCount++;
+			switch (raw->dataSize)
+			{
+			case 1:
+				field[0] = 0x5a;
+				expected = 0x5a;
+				break;
+			case 2:
+			{
+				const s16 value = 0x1234;
+				memcpy(field, &value, sizeof(value));
+				expected = 0x1234;
+				break;
+			}
+			case 4:
+			{
+				const u32 value = 0x12345678;
+				memcpy(field, &value, sizeof(value));
+				expected = value;
+				break;
+			}
+			default:
+				fprintf(stderr, "[CTR VsQuip] self-test failed: unsupported metadata size=%d\n", raw->dataSize);
+				return 1;
+			}
+
+			if (UI_VsQuipReadDriver(&driver, raw->driverOffset, raw->dataSize) != expected)
+			{
+				fprintf(stderr, "[CTR VsQuip] self-test failed: read offset=0x%x size=%d\n", raw->driverOffset, raw->dataSize);
+				return 1;
+			}
+		}
+	}
+
+	if ((metaCount != 51) || (readerCount != 46) ||
+	    (UI_VsQuipResolveDriverField(&driver, UI_VS_QUIP_DRIVER_QUIP_RETAIL_BEGIN - 1, 1) != NULL) ||
+	    (UI_VsQuipResolveDriverField(&driver, UI_VS_QUIP_DRIVER_DERIVED_RETAIL_END, 1) != NULL))
+	{
+		fprintf(stderr, "[CTR VsQuip] self-test failed: inventory metas=%d readers=%d\n", metaCount, readerCount);
+		return 1;
+	}
+
+	printf("[CTR VsQuip] self-test passed: metas=51 readers=46 retail-ranges=translated\n");
+	return 0;
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80054bfc-0x800550f4

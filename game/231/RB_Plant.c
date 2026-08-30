@@ -451,12 +451,15 @@ void RB_Plant_LInB(struct Instance *inst)
 	plantBoxDesc.bbox.max.y = 0x80;
 	plantBoxDesc.bbox.max.z = 0x1e0;
 
-	ptrSpawnType1 = sdata->gGT->level1->ptrSpawnType1;
-	if (ptrSpawnType1->count > 0)
+	ptrSpawnType1 = Level_GetSpawnType1(sdata->gGT->level1, "RB_Plant spawn table");
+	if ((ptrSpawnType1 != NULL) && (ptrSpawnType1->count > 0))
 	{
 		// puts plants on separate cycles
-		void **pointers = ST1_GETPOINTERS(ptrSpawnType1);
-		metaArray = (s16 *)pointers[ST1_SPAWN];
+		metaArray = SpawnType1_GetPointer(ptrSpawnType1, ST1_SPAWN, sizeof(*metaArray), _Alignof(s16), "RB_Plant spawn metadata");
+		if (metaArray == NULL)
+		{
+			return;
+		}
 
 		plantID = inst->name[strlen(inst->name) - 1] - '0';
 		plantObj->cooldown = metaArray[plantID * 2 + 0];

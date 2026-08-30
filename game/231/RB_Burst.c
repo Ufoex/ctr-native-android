@@ -1,5 +1,12 @@
 #include <common.h>
 
+struct RBBurstObject
+{
+	struct Instance *instances[3];
+};
+
+CTR_STATIC_ASSERT(sizeof(struct RBBurstObject) == 3 * sizeof(void *));
+
 static struct InstDrawPerPlayer *RB_Burst_GetIDPP(struct Instance *inst, int playerIndex)
 {
 	return (struct InstDrawPerPlayer *)((char *)inst + sizeof(struct Instance) + (playerIndex * sizeof(struct InstDrawPerPlayer)));
@@ -23,13 +30,13 @@ void RB_Burst_ProcessBucket(struct Thread *thread)
 
 	for (; thread != NULL; thread = thread->siblingThread)
 	{
-		u32 *burst = thread->object;
+		struct RBBurstObject *burst = thread->object;
 
 		for (int i = 0; i < gGT->numPlyrCurrGame; i++)
 		{
-			struct Instance *shockwaveInst = (struct Instance *)(uintptr_t)burst[0];
-			struct Instance *burstInst = (struct Instance *)(uintptr_t)burst[1];
-			struct Instance *warpedBurstInst = (struct Instance *)(uintptr_t)burst[2];
+			struct Instance *shockwaveInst = burst->instances[0];
+			struct Instance *burstInst = burst->instances[1];
+			struct Instance *warpedBurstInst = burst->instances[2];
 
 			if (burstInst == NULL)
 			{
@@ -49,12 +56,11 @@ void RB_Burst_ProcessBucket(struct Thread *thread)
 	}
 }
 
-static void RB_Burst_UpdateSlot(int *slot)
+static void RB_Burst_UpdateSlot(struct Instance **slot)
 {
-	struct Instance *inst;
+	struct Instance *inst = *slot;
 	int nextFrame;
 
-	inst = (struct Instance *)*slot;
 	if (inst == NULL)
 	{
 		return;
@@ -68,20 +74,19 @@ static void RB_Burst_UpdateSlot(int *slot)
 	}
 
 	INSTANCE_Death(inst);
-	*slot = 0;
+	*slot = NULL;
 }
 
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 231 0x800b1d2c-0x800b1e90.
 void RB_Burst_ThTick(struct Thread *t)
 {
-	int *burst;
-	burst = t->object;
+	struct RBBurstObject *burst = t->object;
 
-	RB_Burst_UpdateSlot(&burst[1]);
-	RB_Burst_UpdateSlot(&burst[2]);
-	RB_Burst_UpdateSlot(&burst[0]);
+	RB_Burst_UpdateSlot(&burst->instances[1]);
+	RB_Burst_UpdateSlot(&burst->instances[2]);
+	RB_Burst_UpdateSlot(&burst->instances[0]);
 
-	if ((burst[1] == 0) && (burst[2] == 0))
+	if ((burst->instances[1] == NULL) && (burst->instances[2] == NULL))
 	{
 		t->flags |= THREAD_FLAG_DEAD;
 	}
@@ -99,7 +104,7 @@ void RB_Burst_CollThBucket(struct ScratchpadStruct *sps, void *hitObject)
 
 	gGT = sdata->gGT;
 
-	weaponTh = sps->Union.ThBuckColl.thread;
+	weaponTh = COLL_Scratch_GetHost(sps)->thread;
 	tw = weaponTh->object;
 	void *weaponObj = weaponTh->object;
 
@@ -198,13 +203,13 @@ void RB_Burst_CollLevInst(struct ScratchpadStruct *sps, void *hitObject)
 	struct InstDef *instdef;
 	struct MetaDataMODEL *meta;
 
-	instdef = bspHitbox->data.hitbox.instDef;
+	instdef = BSP_GetInstDef(bspHitbox, "RB_Burst hitbox InstDef");
 	if (instdef == NULL)
 	{
 		return;
 	}
 
-	inst = instdef->ptrInstance;
+	inst = InstDef_GetInstance(instdef);
 	if (inst == NULL)
 	{
 		return;
@@ -232,7 +237,7 @@ void RB_Burst_CollLevInst(struct ScratchpadStruct *sps, void *hitObject)
 			return;
 		}
 
-		meta->LInC(inst, sps->Union.ThBuckColl.thread, sps);
+		meta->LInC(inst, COLL_Scratch_GetHost(sps)->thread, sps);
 		return;
 	}
 
@@ -255,10 +260,11 @@ void RB_Burst_Init(struct Instance *weaponInst)
 	struct ModelHeader *headers;
 	struct Instance *currInst;
 	struct Thread *t;
-	int *burst;
+	struct RBBurstObject *burst;
 
 	// initialize thread for burst
-	currInst = INSTANCE_BirthWithThread(STATIC_WARPEDBURST, s_burst_explosion1, SMALL, BURST, RB_Burst_ThTick, 0xc, 0);
+	currInst = INSTANCE_BirthWithThread(STATIC_WARPEDBURST, s_burst_explosion1, SMALL, BURST, RB_Burst_ThTick,
+					    sizeof(struct RBBurstObject), 0);
 
 	// get thread from instance
 	t = currInst->thread;
@@ -268,21 +274,24 @@ void RB_Burst_Init(struct Instance *weaponInst)
 
 	// ====== First Instance =========
 
-	burst[1] = (int)currInst;
+	burst->instances[1] = currInst;
 	currInst->depthBiasNormal += -2;
 
 	// set rotation to identity matrix
 	CTR_MatrixSetRotIdentity(&currInst->matrix);
 
 	// set flag to always point to camera
-	headers = currInst->model->headers;
-	headers[0].flags |= 2;
+	headers = Model_GetHeaders(currInst->model, "burst first model headers");
+	if (headers != NULL)
+	{
+		headers[0].flags |= 2;
+	}
 
 	// ======== Next one ===========
 
 	currInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_WARPEDBURST], s_burst_explosion2, t);
 
-	burst[2] = (int)currInst;
+	burst->instances[2] = currInst;
 	currInst->depthBiasNormal += -2;
 
 	currInst->flags |= VISIBLE_DURING_GAMEPLAY;
@@ -297,29 +306,35 @@ void RB_Burst_Init(struct Instance *weaponInst)
 	currInst->matrix.m[2][2] = 0x1000;
 
 	// set flag to always point to camera
-	headers = currInst->model->headers;
-	headers[0].flags |= 2;
+	headers = Model_GetHeaders(currInst->model, "burst second model headers");
+	if (headers != NULL)
+	{
+		headers[0].flags |= 2;
+	}
 
 	// ======= Next One ===========
 
 	currInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_SHOCKWAVE_RED], s_burst_shockwave1, t);
 
-	burst[0] = (int)currInst;
+	burst->instances[0] = currInst;
 	currInst->depthBiasNormal += -2;
 
 	// instance flags
 	currInst->flags |= (VISIBLE_DURING_GAMEPLAY | DRAW_BILLBOARD);
 
 	// set flag to always point to camera
-	headers = currInst->model->headers;
-	headers[0].flags |= 2;
-	headers[1].flags |= 2;
+	headers = Model_GetHeaders(currInst->model, "burst shockwave headers");
+	if (headers != NULL)
+	{
+		headers[0].flags |= 2;
+		headers[1].flags |= 2;
+	}
 
 	// ======= End of Instance =========
 
 	for (int i = 0; /*i < 3*/; i++)
 	{
-		currInst = (struct Instance *)burst[i];
+		currInst = burst->instances[i];
 
 		currInst->matrix.t[0] = weaponInst->matrix.t[0];
 		currInst->matrix.t[1] = weaponInst->matrix.t[1] + -0x30;
@@ -398,8 +413,8 @@ void RB_Burst_Init(struct Instance *weaponInst)
 
 	sps->Input1.modelID = modelID;
 
-	sps->Union.ThBuckColl.thread = weaponInst->thread;
-	sps->Union.ThBuckColl.funcCallback = RB_Burst_CollThBucket;
+	COLL_Scratch_SetThread(sps, weaponInst->thread);
+	COLL_Scratch_SetCallback(sps, RB_Burst_CollThBucket);
 
 	struct Thread *driverTh = tw->driverParent->instSelf->thread;
 
@@ -415,7 +430,7 @@ void RB_Burst_Init(struct Instance *weaponInst)
 	// check collision with all Tracking thread
 	PROC_CollideHitboxWithBucket(gGT->threadBuckets[TRACKING].thread, sps, 0);
 
-	sps->Union.ThBuckColl.funcCallback = RB_Burst_CollLevInst;
+	COLL_Scratch_SetCallback(sps, RB_Burst_CollLevInst);
 
 	PROC_StartSearch_Self(sps);
 	return;
@@ -434,10 +449,9 @@ static void RB_Burst_DrawAll_SetPushBuffer(struct Instance *inst, int playerInde
 	}
 }
 
-static struct Instance *RB_Burst_DrawAll_GetSlot(u32 *burst, int index)
+static struct Instance *RB_Burst_DrawAll_GetSlot(struct RBBurstObject *burst, int index)
 {
-	// NOTE(aalhendi): burst thread object is retail-width instance slots.
-	return (struct Instance *)(uintptr_t)burst[index];
+	return burst->instances[index];
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b25b8-0x800b28c0.
@@ -460,7 +474,7 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 
 		for (thread = gGT->threadBuckets[BURST].thread; thread != NULL; thread = thread->siblingThread)
 		{
-			u32 *burst = thread->object;
+			struct RBBurstObject *burst = thread->object;
 			struct Instance *burstInst = RB_Burst_DrawAll_GetSlot(burst, 1);
 			SVECTOR pos;
 			VECTOR transformed;
@@ -481,7 +495,7 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 			pos.vz = burstInst->matrix.t[2];
 
 			CTR_GteLoadSV0(&pos);
-			gte_mvmva(0, 0, 0, 3, 0);
+			gte_rt();
 			CTR_GteStoreMAC(&transformed.vx);
 
 			absX = transformed.vx;
@@ -526,7 +540,7 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 
 		for (thread = gGT->threadBuckets[BURST].thread; thread != NULL; thread = thread->siblingThread)
 		{
-			u32 *burst = thread->object;
+			struct RBBurstObject *burst = thread->object;
 			struct PushBuffer *targetPB = pb;
 
 			if ((selectedThread[playerIndex] != NULL) && (selectedThread[playerIndex] != thread))

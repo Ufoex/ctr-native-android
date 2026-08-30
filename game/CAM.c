@@ -413,14 +413,13 @@ s32 CAM_Path_GetNumPoints(void)
 		return 0;
 	}
 
-	ptrSpawnType1 = level1->ptrSpawnType1;
-	if (ptrSpawnType1->count < 3)
+	ptrSpawnType1 = Level_GetSpawnType1(level1, "CAM_Path_GetNumPoints spawn table");
+	if ((ptrSpawnType1 == NULL) || (ptrSpawnType1->count < 3))
 	{
 		return 0;
 	}
 
-	void **ptrs = ST1_GETPOINTERS(ptrSpawnType1);
-	introCam = ptrs[ST1_CAMERA_PATH];
+	introCam = SpawnType1_GetPointer(ptrSpawnType1, ST1_CAMERA_PATH, sizeof(*introCam), _Alignof(s16), "camera intro path");
 	if (introCam == NULL)
 	{
 		return 0;
@@ -454,8 +453,12 @@ u8 CAM_Path_Move(s32 frameIndex, s16 *position, s16 *rotation, s16 *pathFlagsOut
 		return 0;
 	}
 
-	void **ptrs = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
-	s16 *ptrCam = ptrs[ST1_CAMERA_PATH];
+	struct SpawnType1 *spawn = Level_GetSpawnType1(sdata->gGT->level1, "CAM_Path_Move spawn table");
+	s16 *ptrCam = SpawnType1_GetPointer(spawn, ST1_CAMERA_PATH, sizeof(*ptrCam), _Alignof(s16), "camera path");
+	if (ptrCam == NULL)
+	{
+		return 0;
+	}
 
 	u16 pathNumNode = (u16)ptrCam[0];
 	u16 pathFlags = (u16)ptrCam[1];
@@ -498,7 +501,11 @@ void CAM_StartOfRace(struct CameraDC *cDC)
 
 	if (hasFlyInCamera)
 	{
-		s32 flyInData = (s32)level1->ptr_restart_points;
+		struct CheckpointNode *restartPoints = Level_GetRestartPoints(level1, "CAM_StartOfRace restart points");
+		if (restartPoints == NULL)
+		{
+			return;
+		}
 		cDC->trackPathProgress = 0;
 		cDC->transitionBlend = 0;
 
@@ -507,7 +514,7 @@ void CAM_StartOfRace(struct CameraDC *cDC)
 
 		// when camera reaches player, be zoomed in
 		cDC->cameraMode = 0;
-		cDC->trackPathNode = (struct CheckpointNode *)(flyInData + 0x18);
+		cDC->trackPathNode = &restartPoints[2];
 
 		// if 1 or less screens
 		cDC->transitionFrame = 0xA5;
@@ -546,11 +553,12 @@ void CAM_EndOfRace_Battle(struct CameraDC *cDC, struct Driver *d)
 void CAM_EndOfRace(struct CameraDC *cDC, struct Driver *d)
 {
 	struct GameTracker *gGT = sdata->gGT;
+	struct SpawnType1 *spawn = Level_GetSpawnType1(gGT->level1, "CAM_EndOfRace spawn table");
 
 #if BUILD > SepReview
 
 	// If not in Battle Mode and track path points exist and game is on 1P or 2P mode
-	if (((gGT->gameMode1 & BATTLE_MODE) == 0) && (1 < gGT->level1->ptrSpawnType1->count) && (gGT->numPlyrCurrGame < 3))
+	if (((gGT->gameMode1 & BATTLE_MODE) == 0) && (spawn != NULL) && (1 < spawn->count) && (gGT->numPlyrCurrGame < 3))
 	{
 		// Activate end-of-race cDC flag in CameraDC struct
 		cDC->flags |= CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED;
@@ -564,7 +572,7 @@ void CAM_EndOfRace(struct CameraDC *cDC, struct Driver *d)
 
 #else
 
-	if (gGT->level1->ptrSpawnType1->count < 2 || gGT->numPlyrCurrGame > 2)
+	if ((spawn == NULL) || (spawn->count < 2) || (gGT->numPlyrCurrGame > 2))
 		CAM_EndOfRace_Battle(cDC, d);
 	else
 		cDC->flags |= CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED;
@@ -613,6 +621,8 @@ void CAM_FindClosestQuadblock(struct ScratchpadStruct *sps, struct CameraDC *cDC
 {
 	struct GameTracker *gGT;
 	struct mesh_info *meshInfo;
+	struct BSP *bspRoot;
+	struct QuadBlock *quadBlocks;
 	struct QuadBlock *quad;
 
 	(void)d;
@@ -650,14 +660,16 @@ void CAM_FindClosestQuadblock(struct ScratchpadStruct *sps, struct CameraDC *cDC
 
 	gGT = sdata->gGT;
 
-	if ((gGT->level1 == NULL) || (gGT->level1->ptr_mesh_info == NULL) || (gGT->level1->ptr_mesh_info->bspRoot == NULL))
+	meshInfo = Level_GetMeshInfo(gGT->level1, "CAM_FindClosestQuadblock mesh");
+	bspRoot = MeshInfo_GetBspRoot(meshInfo, "CAM_FindClosestQuadblock BSP");
+	quadBlocks = MeshInfo_GetQuadBlocks(meshInfo, "CAM_FindClosestQuadblock quad blocks");
+	if ((meshInfo == NULL) || (bspRoot == NULL) || (quadBlocks == NULL))
 	{
-		sps->ptr_mesh_info = NULL;
+		COLL_Scratch_SetMeshInfo(sps, NULL);
 		return;
 	}
 
-	meshInfo = gGT->level1->ptr_mesh_info;
-	sps->ptr_mesh_info = meshInfo;
+	COLL_Scratch_SetMeshInfo(sps, meshInfo);
 
 	if (cDC->ptrQuadBlock != NULL)
 	{
@@ -666,7 +678,7 @@ void CAM_FindClosestQuadblock(struct ScratchpadStruct *sps, struct CameraDC *cDC
 
 	if (sps->boolDidTouchQuadblock == 0)
 	{
-		COLL_SearchBSP_CallbackPARAM(meshInfo->bspRoot, &sps->bbox, COLL_FIXED_BSPLEAF_TestQuadblocks, sps);
+		COLL_SearchBSP_CallbackPARAM(bspRoot, &sps->bbox, COLL_FIXED_BSPLEAF_TestQuadblocks, sps);
 	}
 
 	if (sps->boolDidTouchQuadblock == 0)
@@ -677,9 +689,9 @@ void CAM_FindClosestQuadblock(struct ScratchpadStruct *sps, struct CameraDC *cDC
 
 	cDC->quadBlockSearchHit = true;
 
-	quad = sps->hit.ptrQuadblock;
+	quad = COLL_Scratch_GetHost(sps)->hitQuadblock;
 	cDC->ptrQuadBlock = quad;
-	gGT->unk1cac[0] = quad - meshInfo->ptrQuadBlockArray;
+	gGT->unk1cac[0] = quad - quadBlocks;
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80018ec0-0x80018fec.
@@ -692,7 +704,7 @@ void CAM_StartLine_FlyIn_FixY(SVec3 *posRot)
 	sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND | QUADBLOCK_FLAG_COLLISION_SURFACE;
 	sps->Union.QuadBlockColl.quadFlagsIgnored = 0;
 	sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
-	sps->ptr_mesh_info = sdata->gGT->level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(sdata->gGT->level1, "CAM fly-in mesh"));
 
 	pos.x = posRot->x;
 	pos.y = posRot->y;
@@ -907,7 +919,7 @@ static s32 CAM_FollowDriver_TrackPath_MulLo(s32 a, s32 b)
 
 static struct CheckpointNode *CAM_FollowDriver_TrackPath_GetNode(struct CameraDC *cDC, struct CheckpointNode *node, s32 speed)
 {
-	struct CheckpointNode *nodes = sdata->gGT->level1->ptr_restart_points;
+	struct CheckpointNode *nodes = Level_GetRestartPoints(sdata->gGT->level1, "CAM track-path restart points");
 	u8 nodeIndex;
 
 	if (speed > 0)
@@ -1429,7 +1441,7 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 
 	CAM_FindClosestQuadblock(sps, cDC, d, &cam->pos);
 
-	struct QuadBlock *quad = sps->hit.ptrQuadblock;
+	struct QuadBlock *quad = COLL_Scratch_GetHost(sps)->hitQuadblock;
 	if ((sps->boolDidTouchQuadblock == 0) || ((quad->quadFlags & CAM_FOLLOW_DRIVER_QUAD_FLAGS_SKIP_TERRAIN_HEIGHT) != 0))
 	{
 		if (cam->pos.y < (s32)cDC->heightSmoothing.currentOffset + CTR_MipsSra(d->posCurr.y, 8))
@@ -1482,7 +1494,7 @@ LAB_8001ab04:
 
 	if (cDC->BlastedLerp.boolLerpPending != 0)
 	{
-		cam->delta.y = cam->pos.y + (s32) * (s16 *)((s32)cDC + 0xc8);
+		cam->delta.y = cam->pos.y + cDC->BlastedLerp.unkOffset[0];
 	}
 
 	if (d->kartState == KS_MASK_GRABBED)
@@ -1630,13 +1642,13 @@ LAB_8001ab04:
 		// if startline camera
 		else
 		{
-			struct SpawnType1 *st1 = gGT->level1->ptrSpawnType1;
-			void **pointers = ST1_GETPOINTERS(st1);
-			u8 *cameraPath = pointers[ST1_CAMERA_PATH];
+			struct SpawnType1 *st1 = Level_GetSpawnType1(gGT->level1, "CAM_StartOfRace spawn table");
+			u8 *cameraPath =
+			    SpawnType1_GetPointer(st1, ST1_CAMERA_PATH, sizeof(*cameraPath), _Alignof(u8), "CAM_StartOfRace camera path");
 			s32 flyInDone = 0;
 
 			// No camera + No ghosts (battle maps)
-			if (st1->count < 4)
+			if ((st1 == NULL) || (st1->count < 4) || (cameraPath == NULL))
 			{
 				// startline fly-in is done
 				flyInDone = 1;
@@ -1824,7 +1836,7 @@ void CAM_ThTick(struct Thread *t)
 	u32 uVar10;
 	struct PVS *psVar11;
 	s32 *piVar12;
-	struct Instance **ppsVar13;
+	struct CtrAssetRef32 *ppsVar13;
 	struct SpawnType1 *psVar14;
 	struct CheckpointNode *psVar15;
 	u32 uVar16;
@@ -1892,16 +1904,19 @@ void CAM_ThTick(struct Thread *t)
 		goto SkipNewCameraEOR;
 	}
 
-	psVar14 = gGT->level1->ptrSpawnType1;
+	psVar14 = Level_GetSpawnType1(gGT->level1, "CAM end-of-race spawn table");
 
 	psVar21 = 0;
-	if (psVar14->count < 3)
+	if ((psVar14 == NULL) || (psVar14->count < 3))
 	{
 		goto SkipNewCameraEOR;
 	}
 
-	void **ptrs = ST1_GETPOINTERS(psVar14);
-	psVar19 = ptrs[ST1_CAMERA_EOR];
+	psVar19 = SpawnType1_GetPointer(psVar14, ST1_CAMERA_EOR, sizeof(*psVar19), _Alignof(s16), "CAM end-of-race cameras");
+	if (psVar19 == NULL)
+	{
+		goto SkipNewCameraEOR;
+	}
 
 	// number of EOR cameras
 	sVar6 = *psVar19;
@@ -1929,9 +1944,14 @@ void CAM_ThTick(struct Thread *t)
 			uVar16 = (u32)*psVar20;
 
 			// +2 to include respawnPoint and modeID
-			psVar20 = (s16 *)((s32)psVar19 + data.EndOfRace_Camera_Size[iVar7] + 2);
+			psVar20 = (s16 *)((u8 *)psVar19 + data.EndOfRace_Camera_Size[iVar7] + 2);
 
-			psVar15 = &gGT->level1->ptr_restart_points[uVar16];
+			struct CheckpointNode *restartPoints = Level_GetRestartPoints(gGT->level1, "CAM end-of-race restart points");
+			if ((restartPoints == NULL) || (uVar16 >= (u32)gGT->level1->cnt_restart_points))
+			{
+				continue;
+			}
+			psVar15 = &restartPoints[uVar16];
 
 			if ((uVar22 == uVar16) || (uVar22 == psVar15->nextIndex_forward) || (uVar22 == psVar15->nextIndex_left) ||
 			    (uVar22 == psVar15->nextIndex_backward) || (uVar22 == psVar15->nextIndex_right))
@@ -2029,7 +2049,7 @@ void CAM_ThTick(struct Thread *t)
 	case 9:
 	case 13:
 		sVar6 = *psVar19;
-		psVar15 = gGT->level1->ptr_restart_points;
+		psVar15 = Level_GetRestartPoints(gGT->level1, "CAM end-of-race track path");
 		cDC->trackPathProgress = 0;
 		cDC->trackPathNode = psVar15 + sVar6;
 		(cDC->transitionTo).pos.x = psVar21[2];
@@ -2343,37 +2363,47 @@ LAB_8001c150:
 
 	if (cDC->ptrQuadBlock != 0)
 	{
-		psVar11 = cDC->ptrQuadBlock->pvs;
-		if ((psVar11 != 0) && (piVar12 = psVar11->visLeafSrc, piVar12 != 0))
+		struct mesh_info *mesh = Level_GetMeshInfo(gGT->level1, "CAM visibility mesh");
+		struct QuadBlock *quadBlocks = MeshInfo_GetQuadBlocks(mesh, "CAM visibility quad blocks");
+		size_t leafWords = (mesh == NULL) ? 0 : ((size_t)mesh->numBspNodes + 31u) >> 5u;
+		size_t faceWords = (mesh == NULL) ? 0 : ((size_t)mesh->numQuadBlock + 31u) >> 5u;
+		size_t extraWords = ((gGT->level1->configFlags & 4) == 0)
+					? (((size_t)gGT->level1->numWaterVertices + 31u) >> 5u)
+					: (((size_t)gGT->level1->numSCVert + 31u) >> 5u);
+
+		psVar11 = QuadBlock_GetPVS(cDC->ptrQuadBlock, "CAM visibility PVS");
+		piVar12 = PVS_GetLeafSrc(psVar11, leafWords, "CAM leaf visibility");
+		if (piVar12 != 0)
 		{
 			cDC->visLeafSrc = piVar12;
-			gGT->unk1cac[1] = cDC->ptrQuadBlock - gGT->level1->ptr_mesh_info->ptrQuadBlockArray;
-		}
-		if (cDC->ptrQuadBlock != 0)
-		{
-			psVar11 = cDC->ptrQuadBlock->pvs;
-			if ((psVar11 != 0) && (piVar12 = psVar11->visFaceSrc, piVar12 != 0))
+			if (quadBlocks != NULL)
 			{
-				cDC->visFaceSrc = piVar12;
+				gGT->unk1cac[1] = cDC->ptrQuadBlock - quadBlocks;
 			}
-			if (cDC->ptrQuadBlock != 0)
+		}
+
+		piVar12 = PVS_GetFaceSrc(psVar11, faceWords, "CAM face visibility");
+		if (piVar12 != 0)
+		{
+			cDC->visFaceSrc = piVar12;
+		}
+
+		ppsVar13 = PVS_GetInstanceRefs(psVar11, "CAM instance visibility");
+		if (ppsVar13 != 0)
+		{
+			cDC->visInstSrc = ppsVar13;
+		}
+
+		piVar12 = PVS_GetExtraSrc(psVar11, extraWords, "CAM extra visibility");
+		if (piVar12 != 0)
+		{
+			if ((gGT->level1->configFlags & 4) == 0)
 			{
-				psVar11 = cDC->ptrQuadBlock->pvs;
-				if ((psVar11 != 0) && (ppsVar13 = psVar11->visInstSrc, ppsVar13 != 0))
-				{
-					cDC->visInstSrc = ppsVar13;
-				}
-				if (((cDC->ptrQuadBlock != 0) && (psVar11 = cDC->ptrQuadBlock->pvs, psVar11 != 0)) && (piVar12 = psVar11->visExtraSrc, piVar12 != 0))
-				{
-					if ((gGT->level1->configFlags & 4) == 0)
-					{
-						cDC->visOVertSrc = piVar12;
-					}
-					else
-					{
-						cDC->visSCVertSrc = piVar12;
-					}
-				}
+				cDC->visOVertSrc = piVar12;
+			}
+			else
+			{
+				cDC->visSCVertSrc = piVar12;
 			}
 		}
 	}

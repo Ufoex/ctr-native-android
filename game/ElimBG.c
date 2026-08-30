@@ -95,12 +95,10 @@ void ElimBG_SaveScreenshot_Full(struct GameTracker *gGT)
 
 	// vram copy, then overwrite vram with pause image
 
-	u32 start1 = (u32)gGT->db[0].primMem.end;
-	u32 start2 = (u32)gGT->db[1].primMem.end;
-	start1 -= ELIM_BG_PRIMMEM_PAUSE_BYTES;
-	start2 -= ELIM_BG_PRIMMEM_PAUSE_BYTES;
-	gGT->db[0].primMem.end = (void *)start1;
-	gGT->db[1].primMem.end = (void *)start2;
+	u8 *start1 = (u8 *)gGT->db[0].primMem.end - ELIM_BG_PRIMMEM_PAUSE_BYTES;
+	u8 *start2 = (u8 *)gGT->db[1].primMem.end - ELIM_BG_PRIMMEM_PAUSE_BYTES;
+	gGT->db[0].primMem.end = start1;
+	gGT->db[1].primMem.end = start2;
 
 	// double-buffered packed 4bpp pause strips
 	sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB0] = (char *)start1;
@@ -213,11 +211,16 @@ void ElimBG_ToggleAllInstances(struct GameTracker *gGT, b32 boolGameIsPaused)
 	struct InstDef *ptrInstDefs;
 
 	lev = gGT->level1;
+	ptrInstDefs = Level_GetInstDefs(lev, "ElimBG instance definitions");
+	if (ptrInstDefs == NULL)
+	{
+		return;
+	}
 
 	// Loop through all instances in level
-	for (ptrInstDefs = &lev->ptrInstDefs[0]; ptrInstDefs < &lev->ptrInstDefs[lev->numInstances]; ptrInstDefs++)
+	for (u32 index = 0; index < lev->numInstances; index++)
 	{
-		inst = ptrInstDefs->ptrInstance;
+		inst = InstDef_GetInstance(&ptrInstDefs[index]);
 
 		if (inst != 0)
 		{
@@ -267,8 +270,8 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 
 		DrawSync(0);
 
-		gGT->db[0].primMem.end = (void *)((int)gGT->db[0].primMem.end + ELIM_BG_PRIMMEM_PAUSE_BYTES);
-		gGT->db[1].primMem.end = (void *)((int)gGT->db[1].primMem.end + ELIM_BG_PRIMMEM_PAUSE_BYTES);
+		gGT->db[0].primMem.end = (u8 *)gGT->db[0].primMem.end + ELIM_BG_PRIMMEM_PAUSE_BYTES;
+		gGT->db[1].primMem.end = (u8 *)gGT->db[1].primMem.end + ELIM_BG_PRIMMEM_PAUSE_BYTES;
 
 		// Enable all instances
 		ElimBG_ToggleAllInstances(gGT, 0);

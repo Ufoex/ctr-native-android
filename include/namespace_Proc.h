@@ -60,6 +60,8 @@ typedef void (*ThreadSimpleCollideFunc)(struct Thread *self);
 typedef int (*ThreadScratchCollideFunc)(struct Thread *self, struct Thread *other, void *funcThCollide, struct ScratchpadStruct *sps);
 typedef int (*ThreadBurstCollideFunc)(struct Thread *self, struct Thread *other, void *funcThCollide, int modelID);
 
+#define PROC_STACK_ITEM_SIZE(retailSize) ((retailSize) + sizeof(struct Item) - 8u)
+
 enum
 {
 	THREAD_DRIVER_HIT_RADIUS = 0x40,
@@ -185,6 +187,7 @@ struct DriverCollisionSearch
 
 CTR_STATIC_ASSERT(offsetof(struct DriverCollisionSearch, bucket) == 0);
 CTR_STATIC_ASSERT(offsetof(struct DriverCollisionSearch, hitDir) == sizeof(struct BucketSearchParams));
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct Thread, driverHitRadiusSquared) == 0x38);
 CTR_STATIC_ASSERT(offsetof(struct Thread, driverCollisionReserved_0x3c) == 0x3c);
 CTR_STATIC_ASSERT(offsetof(struct Thread, driverCollisionReserved_0x3e) == 0x3e);
@@ -197,6 +200,21 @@ CTR_STATIC_ASSERT(offsetof(struct BucketSearchParams, bestDistSq) == 0xc);
 CTR_STATIC_ASSERT(offsetof(struct BucketSearchParams, dist) == 0x10);
 CTR_STATIC_ASSERT(sizeof(struct BucketSearchParams) == 0x18);
 CTR_STATIC_ASSERT(sizeof(struct DriverCollisionSearch) == 0x20);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Thread, driverHitRadiusSquared) == 0x68);
+CTR_STATIC_ASSERT(offsetof(struct Thread, driverCollisionReserved_0x3c) == 0x6c);
+CTR_STATIC_ASSERT(offsetof(struct Thread, driverCollisionReserved_0x3e) == 0x6e);
+CTR_STATIC_ASSERT(offsetof(struct Thread, driverCollisionReserved_0x40) == 0x70);
+CTR_STATIC_ASSERT(offsetof(struct Thread, driverHitRadius) == 0x72);
+CTR_STATIC_ASSERT(offsetof(struct Thread, modelIndex) == 0x74);
+CTR_STATIC_ASSERT(sizeof(struct Thread) == 0x78);
+CTR_STATIC_ASSERT(offsetof(struct BucketSearchParams, th) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct BucketSearchParams, bestDistSq) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct BucketSearchParams, dist) == 0x14);
+CTR_STATIC_ASSERT(sizeof(struct BucketSearchParams) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct DriverCollisionSearch) == 0x28);
+#endif
 CTR_STATIC_ASSERT(THREAD_FLAG_DEAD == 0x0800);
 CTR_STATIC_ASSERT(THREAD_FLAG_DISABLE_COLLISION == 0x1000);
 
@@ -231,6 +249,13 @@ struct ThreadBucket
 	// size is 0x14
 };
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct ThreadBucket) == 0x14);
+#else
+CTR_STATIC_ASSERT(offsetof(struct ThreadBucket, s_longName) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct ThreadBucket, s_shortName) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct ThreadBucket, boolCantPause) == 0x18);
+CTR_STATIC_ASSERT(sizeof(struct ThreadBucket) == 0x20);
+#endif
 
 #endif

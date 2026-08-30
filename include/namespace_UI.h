@@ -120,6 +120,14 @@ CTR_STATIC_ASSERT(OFFSETOF(struct UIMap, mode) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct UIMapSpawnMetadata, topHalfMode) == 0x12);
 CTR_STATIC_ASSERT(sizeof(struct UIMapSpawnMetadata) == 0x14);
 CTR_STATIC_ASSERT(sizeof(struct QuipStr) == 0x8);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct QuipMeta) == 0x18);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct QuipMeta, ptrQuipStrNext) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct QuipMeta, conditionType) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct QuipMeta, threshold) == 0x14);
+CTR_STATIC_ASSERT(sizeof(struct QuipMeta) == 0x20);
+#endif
 
 #endif

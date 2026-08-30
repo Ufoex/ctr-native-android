@@ -9,14 +9,10 @@ void DecalFont_SetJfontDimensions()
 	struct Icon *jfontSmall0x18;
 	struct GameTracker *gGT = sdata->gGT;
 
-	struct Icon **iconPtrArray;
+	jfontBig = IconGroup_GetIcon(gGT->iconGroup[0xE], 0, "Japanese large-font icon");
 
-	iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[0xE]);
-	jfontBig = iconPtrArray[0];
-
-	iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[0xF]);
-	jfontSmall = iconPtrArray[0];
-	jfontSmall0x18 = iconPtrArray[0x18];
+	jfontSmall = IconGroup_GetIcon(gGT->iconGroup[0xF], 0, "Japanese small-font icon");
+	jfontSmall0x18 = IconGroup_GetIcon(gGT->iconGroup[0xF], 0x18, "Japanese small-font icon 0x18");
 
 	sdata->font_jfontBigIconData[0] = *(u32 *)&jfontBig->texLayout.u0;
 	sdata->font_jfontBigIconData[1] = *(u32 *)&jfontBig->texLayout.u1;

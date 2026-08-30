@@ -78,6 +78,21 @@ CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_JUMP_BASE == 7);
 CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_JUMP_OXIDE == 7);
 CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_COUNT == 0x14);
 
+struct BakedGteMathEntry
+{
+	struct MatrixND *physEntry;
+	int numEntries;
+};
+
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct BakedGteMathEntry) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct BakedGteMathEntry, numEntries) == 0x4);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct BakedGteMathEntry) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct BakedGteMathEntry, numEntries) == 0x8);
+#endif
+
 struct SoundFadeInput
 {
 	int unk;
@@ -1767,7 +1782,7 @@ struct Data
 	// 80082788 -- JpnTrial
 	// 80083b74 -- EurRetail
 	// 80086b1c -- JpnRetail
-	int voiceSetPtr[0x10];
+	void *voiceSetPtr[0x10];
 
 	// 800838dc -- UsaRetail
 	u8 voiceID[0x18];
@@ -2675,11 +2690,7 @@ struct Data
 	// (0xF) oxide uses crash bandicoot
 
 	// 0x80087EF4 - pointer to 0x80086e94
-	struct
-	{
-		void *physEntry;
-		int numEntries;
-	} bakedGteMath[BAKED_GTE_MATRIX_COUNT];
+	struct BakedGteMathEntry bakedGteMath[BAKED_GTE_MATRIX_COUNT];
 
 	// 0x80087f94
 	struct Scrub MetaDataScrub[7];
@@ -2791,8 +2802,14 @@ struct Data
 CTR_STATIC_ASSERT(offsetof(struct Data, podiumModel_firstPlace) == offsetof(struct Data, driverModelExtras) + sizeof(((struct Data *)0)->driverModelExtras));
 CTR_STATIC_ASSERT(offsetof(struct Data, currSlot) == offsetof(struct Data, driverModelExtras) + 11 * sizeof(void *));
 CTR_STATIC_ASSERT(sizeof(((struct Data *)0)->characterIDs_2P_AIs) == 0x1c);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct Data, bakedGteMath) == 0x7554);
 CTR_STATIC_ASSERT(sizeof(((struct Data *)0)->bakedGteMath) == BAKED_GTE_MATRIX_COUNT * 8);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Data, bakedGteMath) == 0x8bb0);
+CTR_STATIC_ASSERT(sizeof(((struct Data *)0)->bakedGteMath) == BAKED_GTE_MATRIX_COUNT * 16);
+#endif
 
 // 0x8008D218 -- Early June? PizzaHut USA
 // 0x8008b3d0 -- SepReview
@@ -2977,7 +2994,7 @@ struct sData
 	// 8008bfe0 - JpnTrial
 	// 8008d41c - EurRetail
 	// 80090490 - JpnRetail
-	int ptrMPK; // maybe is `void*` instead of `int`
+	u8 *ptrMPK;
 
 	// 8008d08c
 	// ptrLEV, stored here during loading,
@@ -3521,10 +3538,10 @@ struct sData
 	// 8008c40c JpnTrial
 	// 8008d858 EurRetail
 	// 800908cc JpnRetail
-	int ptrPushBufferUI;
+	struct PushBuffer *ptrPushBufferUI;
 
 	// 8008d4b8
-	int ptrFruitDisp; // should maybe be `struct Instance*` instead of `int`?
+	struct Instance *ptrFruitDisp;
 
 	// 8008d4bc
 	int menuReadyToPass;
@@ -4012,7 +4029,7 @@ struct sData
 	struct EngineFX *howl_metaEngineFX;
 
 	// 8008d7d4
-	int howl_endOfHowl;
+	u8 *howl_endOfHowl;
 
 	// 8008d7d8
 	struct OtherFX *howl_metaOtherFX;
@@ -4125,7 +4142,7 @@ struct sData
 	// 8008d844
 	// save parameters so you can
 	// call the function over and over
-	int howlChainParams[4];
+	struct HowlChainParams howlChainParams;
 
 	// 8008d854
 	void *ptrHubAlloc;
@@ -4160,8 +4177,9 @@ struct sData
 	struct BigHeader *ptrBigfile1;
 
 	// 8008d870
-	// ptr to array of model pointers (real ND name)
-	int **PLYROBJECTLIST; // maybe should be `struct Model**`
+	// Pointer into the MPK's serialized 32-bit model-reference array.
+	// LP64 consumers must resolve each entry instead of widening the file.
+	struct CtrAssetRef32 *PLYROBJECTLIST;
 
 	// 8008d874
 	// activated in FUN_80035e20,
@@ -4323,7 +4341,7 @@ struct sData
 	// 8008c84c -- JpnTrial
 	// 8008dca8 -- EurRetail
 	// 80090d1c -- JpnRetail
-	int ptrLoadSaveObj;
+	struct SelectProfileLoadSaveObj *ptrLoadSaveObj;
 
 // 8008bd24 -- SepReview
 // 8008d8f8 -- UsaRetail
@@ -5181,11 +5199,16 @@ struct sData *sdata = &sdata_static;
 // SP
 // 801ff800 - 80200000
 
+CTR_STATIC_ASSERT(offsetof(struct Terrain, name) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct Terrain) == 0x40);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, flags) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, speedMultiplier) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, slowUntilSpeed) == 0xc);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, counterSteerRatio) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, turnLeanScale) == 0x14);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, em_OddFrame) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, em_EvenFrame) == 0x1c);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, groundFrictionScale) == 0x20);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, turnAngleScale) == 0x24);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, turnResponseScale) == 0x28);
@@ -5195,11 +5218,30 @@ CTR_STATIC_ASSERT(offsetof(struct Terrain, botTargetSpeedScale) == 0x38);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, botAccelerationScale) == 0x3a);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, botFrictionScale) == 0x3c);
 CTR_STATIC_ASSERT(offsetof(struct Terrain, padding_0x3e) == 0x3e);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct Terrain) == 0x50);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, flags) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, speedMultiplier) == 0xc);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, slowUntilSpeed) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, counterSteerRatio) == 0x14);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, turnLeanScale) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, em_OddFrame) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, em_EvenFrame) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, groundFrictionScale) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, turnAngleScale) == 0x34);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, turnResponseScale) == 0x38);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, skidSound) == 0x40);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, botSpeedFlags) == 0x46);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, botTargetSpeedScale) == 0x48);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, botAccelerationScale) == 0x4a);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, botFrictionScale) == 0x4c);
+CTR_STATIC_ASSERT(offsetof(struct Terrain, padding_0x3e) == 0x4e);
+#endif
 CTR_STATIC_ASSERT(sizeof(((struct Terrain *)0)->botSpeedFlags) == 0x2);
 CTR_STATIC_ASSERT(sizeof(((struct Terrain *)0)->botTargetSpeedScale) == 0x2);
 CTR_STATIC_ASSERT(sizeof(((struct Terrain *)0)->botAccelerationScale) == 0x2);
 CTR_STATIC_ASSERT(sizeof(((struct Terrain *)0)->botFrictionScale) == 0x2);
-CTR_STATIC_ASSERT(sizeof(struct Scrub) == 0x10);
 CTR_STATIC_ASSERT(sizeof(ScrubFlags) == 0x4);
 CTR_STATIC_ASSERT(sizeof(TerrainFlags) == 0x4);
 CTR_STATIC_ASSERT(sizeof(TerrainBotFlags) == 0x2);
@@ -5216,16 +5258,37 @@ CTR_STATIC_ASSERT(SCRUB_FLAG_APPLY_IMPACT == 0x1);
 CTR_STATIC_ASSERT(SCRUB_FLAG_SLAM_ON_HARD_IMPACT == 0x2);
 CTR_STATIC_ASSERT(SCRUB_FLAG_SKIP_WALL_RUB_TIMER == 0x4);
 CTR_STATIC_ASSERT(SCRUB_FLAG_KEEP_RESERVES == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Scrub, name) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct Scrub) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct Scrub, flags) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct Scrub, speedLimit) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct Scrub, impactAngle) == 0xC);
 CTR_STATIC_ASSERT(sizeof(struct MetaDataLEV) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataLEV, name_Debug) == 0x4);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataLEV, name_LNG) == 0x8);
 CTR_STATIC_ASSERT(sizeof(struct MetaDataMODEL) == 0xC);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataMODEL, LInB) == 0x4);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataMODEL, LInC) == 0x8);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct Scrub) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct Scrub, flags) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Scrub, speedLimit) == 0xc);
+CTR_STATIC_ASSERT(offsetof(struct Scrub, impactAngle) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct MetaDataLEV) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataLEV, name_Debug) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataLEV, name_LNG) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct MetaDataMODEL) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataMODEL, LInB) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct MetaDataMODEL, LInC) == 0x10);
+#endif
 
 #if BUILD == UsaRetail
 #define OFFSETOF_SDATA(ELEMENT) ((u32)0x8008cf6c + OFFSETOF(struct sData, ELEMENT))
 #define OFFSETOF_DATA(ELEMENT)  ((u32)0x800809a0 + OFFSETOF(struct Data, ELEMENT))
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(OFFSETOF_DATA(rowsQuit) == 0x800841BC);
 CTR_STATIC_ASSERT(OFFSETOF_DATA(menuQuit) == 0x800841D0);
 CTR_STATIC_ASSERT(OFFSETOF_DATA(playerIconAdvMap) == 0x80086418);
@@ -5235,6 +5298,18 @@ CTR_STATIC_ASSERT(OFFSETOF_SDATA(botCrashNavRot) == 0x8008D9EC);
 CTR_STATIC_ASSERT(OFFSETOF_SDATA(vehicleCollisionImpactStrength) == 0x8008D9F4);
 CTR_STATIC_ASSERT(OFFSETOF_SDATA(talkMaskXASamplePeak) == 0x8008D9F8);
 CTR_STATIC_ASSERT(OFFSETOF_SDATA(talkMaskMaxMouthFrame) == 0x8008D9FC);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Data, rowsQuit) == 0x4c38);
+CTR_STATIC_ASSERT(offsetof(struct Data, menuQuit) == 0x4c50);
+CTR_STATIC_ASSERT(offsetof(struct Data, playerIconAdvMap) == 0x7050);
+CTR_STATIC_ASSERT(offsetof(struct sData, AkuAkuHintState) == 0xa28);
+CTR_STATIC_ASSERT(offsetof(struct sData, lngStrings) == 0xa30);
+CTR_STATIC_ASSERT(offsetof(struct sData, botCrashNavRot) == 0xbf0);
+CTR_STATIC_ASSERT(offsetof(struct sData, vehicleCollisionImpactStrength) == 0xbf8);
+CTR_STATIC_ASSERT(offsetof(struct sData, talkMaskXASamplePeak) == 0xbfc);
+CTR_STATIC_ASSERT(offsetof(struct sData, talkMaskMaxMouthFrame) == 0xc00);
+#endif
 #endif
 
 #endif

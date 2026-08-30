@@ -60,10 +60,10 @@ int LOAD_HowlSectorChainStart(CdlFILE *cdlFileHWL, void *ptrDestination, int fir
 	}
 
 	// backup, so chain can use it later
-	sdata->howlChainParams[0] = (int)cdlFileHWL;
-	sdata->howlChainParams[1] = (int)ptrDestination;
-	sdata->howlChainParams[2] = (int)firstSector;
-	sdata->howlChainParams[3] = (int)numSector;
+	sdata->howlChainParams.cdlFile = cdlFileHWL;
+	sdata->howlChainParams.destination = ptrDestination;
+	sdata->howlChainParams.firstSector = firstSector;
+	sdata->howlChainParams.numSectors = numSector;
 
 	CDSYS_SetMode_StreamData();
 
@@ -88,13 +88,13 @@ int LOAD_HowlSectorChainStart(CdlFILE *cdlFileHWL, void *ptrDestination, int fir
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003266c-0x800326b4.
 int LOAD_HowlSectorChainEnd()
 {
-	int *howlChainParams;
 	int howlChainState = sdata->howlChainState;
-	howlChainParams = sdata->howlChainParams;
+	struct HowlChainParams *howlChainParams = &sdata->howlChainParams;
 
 	if (howlChainState == -1)
 	{
-		LOAD_HowlSectorChainStart((CdlFILE *)howlChainParams[0], (void *)howlChainParams[1], howlChainParams[2], howlChainParams[3]);
+		LOAD_HowlSectorChainStart(howlChainParams->cdlFile, howlChainParams->destination, howlChainParams->firstSector,
+					  howlChainParams->numSectors);
 
 		return 0;
 	}

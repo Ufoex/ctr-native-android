@@ -191,7 +191,7 @@ void MM_Title_MenuUpdate(void)
 			gGT->boolDemoMode = 1;
 
 			// set number of players to 1
-			gGT->numPlyrCurrGame = 1;
+			gGT->numPlyrNextGame = 1;
 
 			gGT->demoCountdownTimer = TITLE_DEMO_RACE_FRAMES;
 
@@ -306,8 +306,8 @@ void MM_Title_SetTrophyDPP(void)
 	secondaryFlags |= ~DRAW_SUCCESSFUL;
 	idpp1->instFlags &= secondaryFlags;
 
-	int otRangeNormal = idpp2->otRangeNormal;
-	int otRangeSecondary = idpp2->otRangeSecondary;
+	u32 *otRangeNormal = idpp2->otRangeNormal;
+	u32 *otRangeSecondary = idpp2->otRangeSecondary;
 	int depthOffset = CTR_ReadU32LE(&idpp2->depthOffset[0]);
 
 	idpp1->otRangeNormal = otRangeNormal;
@@ -492,6 +492,7 @@ void MM_Title_ThTick(struct Thread *title)
 void MM_Title_Init(void)
 {
 	struct GameTracker *gGT = sdata->gGT;
+	struct SpawnType1 *spawn = Level_GetSpawnType1(gGT->level1, "MM_Title spawn table");
 
 	if (
 	    // if "title" object is nullptr
@@ -507,17 +508,16 @@ void MM_Title_Init(void)
 	    (gGT->modelPtr[STATIC_RINGTOP] != 0) &&
 
 	    // IntroCam ptr exists
-	    (gGT->level1->ptrSpawnType1->count > 2))
+	    (spawn != NULL) && (spawn->count > 2))
 	{
 		// freecam mode
 		gGT->cameraDC[0].cameraMode = CAMERA_MODE_FREECAM;
 
 		gGT->pushBuffer[0].distanceToScreen_CURR = TITLE_INTRO_DISTANCE_TO_SCREEN;
 
-		void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
-
 		// pointer to Intro Cam, to view Crash holding Trophy in main menu
-		D230.titleIntroCameraPath = pointers[ST1_CAMERA_PATH];
+		D230.titleIntroCameraPath = SpawnType1_GetPointer(spawn, ST1_CAMERA_PATH, sizeof(*D230.titleIntroCameraPath),
+								 _Alignof(struct TitleCameraPathFrame), "MM_Title intro camera path");
 
 		struct Thread *t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Title), NONE, MEDIUM, OTHER), MM_Title_ThTick, 0, 0);
 

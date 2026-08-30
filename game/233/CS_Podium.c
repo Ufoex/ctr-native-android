@@ -694,7 +694,14 @@ void CS_Podium_FullScene_Init(void)
 
 	// position and rotation of podium scene
 	// Y coordinate (podiumPos.y) has added height
-	posRot = gGT->level1->ptrSpawnType2_PosRot[1].posRot;
+	struct SpawnType2 *spawns = Level_GetSpawnType2PosRot(gGT->level1, "CS_Podium spawns");
+	posRot = ((spawns == NULL) || (gGT->level1->numSpawnType2_PosRot <= 1))
+		     ? NULL
+		     : SpawnType2_GetPosRot(&spawns[1], "CS_Podium spawn");
+	if (posRot == NULL)
+	{
+		return;
+	}
 	InitData.podiumPos.x = posRot->pos.x;
 	InitData.podiumPos.y = posRot->pos.y + PODIUM_SCENE_SPAWN_Y_OFFSET;
 	InitData.podiumPos.z = posRot->pos.z;
@@ -750,7 +757,7 @@ void CS_Podium_FullScene_Init(void)
 
 	CS_Podium_Stand_Init(&InitData);
 
-	victoryCamThread = (struct Thread *)PROC_BirthWithObject(PODIUM_VICTORY_CAMERA_THREAD_FLAGS, (void *)CS_Camera_ThTick_Podium, R233.s_victorycam, NULL);
+	victoryCamThread = PROC_BirthWithObject(PODIUM_VICTORY_CAMERA_THREAD_FLAGS, CS_Camera_ThTick_Podium, R233.s_victorycam, NULL);
 
 	// if it allocated correctly
 	if (victoryCamThread != 0)

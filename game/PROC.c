@@ -58,10 +58,8 @@ void PROC_DestroyObject(void *object, int threadFlags)
 		myPool = &sdata->gGT->JitPools.smallStack;
 	}
 
-	// in allocation, "next" and "prev" are abstracted
-	// with obj+=8, so not all structs need "next" and "prev",
-	// now subtract 8 bytes to access those two pointers
-	object = (void *)((u8 *)object - 8);
+	// The free-list Item header is hidden from thread-object consumers.
+	object = (void *)((u8 *)object - sizeof(struct Item));
 
 	// add object back to free list
 	LIST_AddFront(&myPool->free, (struct Item *)object);
@@ -180,7 +178,7 @@ void PROC_CheckAllForDead()
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004205c-0x8004228c.
-struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *name, struct Thread *relativeTh)
+struct Thread *PROC_BirthWithObject(int flags, ThreadFunc funcThTick, const char *name, struct Thread *relativeTh)
 {
 	int bucketID;
 	struct JitPool *stackPool;
@@ -222,17 +220,17 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	{
 		if (stackObj != 0)
 		{
-			PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+			PROC_DestroyObject((u8 *)stackObj + sizeof(struct Item), flags);
 		}
 		return 0;
 	}
 
 	// validate size fits in pool
-	if ((u32)(flags >> 0x10) >= (stackPool->itemSize - 8))
+	if ((u32)(flags >> 0x10) >= (stackPool->itemSize - sizeof(struct Item)))
 	{
 		if (stackObj != 0)
 		{
-			PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+			PROC_DestroyObject((u8 *)stackObj + sizeof(struct Item), flags);
 		}
 		return 0;
 	}
@@ -249,7 +247,7 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	// check thread allocated
 	if (th == 0)
 	{
-		PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+		PROC_DestroyObject((u8 *)stackObj + sizeof(struct Item), flags);
 		return 0;
 	}
 
@@ -295,7 +293,7 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	// set remaining fields AFTER linking (ASM order)
 	th->funcThTick = funcThTick;
 	th->name = name;
-	th->object = (void *)(((u32)stackObj) + 8);
+	th->object = (u8 *)stackObj + sizeof(struct Item);
 
 	return th;
 }
@@ -414,7 +412,7 @@ void PROC_PerBspLeaf_CheckInstances(struct BSP *bspLeaf, struct ScratchpadStruct
 	struct InstDef *instDef;
 	CollThBuckCallback callback;
 
-	bspHitbox = bspLeaf->data.leaf.bspHitboxArray;
+	bspHitbox = BSP_GetLeafHitboxes(bspLeaf, "PROC leaf hitboxes");
 	if (bspHitbox == NULL)
 	{
 		return;
@@ -432,8 +430,9 @@ void PROC_PerBspLeaf_CheckInstances(struct BSP *bspLeaf, struct ScratchpadStruct
 			continue;
 		}
 
-		instDef = bspHitbox->data.hitbox.instDef;
-		if ((instDef != NULL) && ((instDef->ptrInstance->flags & DRAW_COLLISION_MASK) == 0))
+		instDef = BSP_GetInstDef(bspHitbox, "PROC hitbox InstDef");
+		struct Instance *instance = InstDef_GetInstance(instDef);
+		if ((instance != NULL) && ((instance->flags & DRAW_COLLISION_MASK) == 0))
 		{
 			continue;
 		}
@@ -469,7 +468,7 @@ void PROC_PerBspLeaf_CheckInstances(struct BSP *bspLeaf, struct ScratchpadStruct
 
 		CTR_SET_VEC3(sps->Union.ThBuckColl.centerDelta.v, (s16)distX, (s16)distY, (s16)distZ);
 
-		callback = sps->Union.ThBuckColl.funcCallback;
+		callback = COLL_Scratch_GetHost(sps)->callback;
 		callback(sps, bspHitbox);
 	}
 }
@@ -493,7 +492,12 @@ void PROC_StartSearch_Self(struct ScratchpadStruct *sps)
 
 	gGT = sdata->gGT;
 
-	COLL_SearchBSP_CallbackPARAM(gGT->level1->ptr_mesh_info->bspRoot, &sps->Union.ThBuckColl.bbox, PROC_PerBspLeaf_CheckInstances, sps);
+	struct mesh_info *mesh = Level_GetMeshInfo(gGT->level1, "PROC collision mesh");
+	struct BSP *bspRoot = MeshInfo_GetBspRoot(mesh, "PROC collision BSP");
+	if (bspRoot != NULL)
+	{
+		COLL_SearchBSP_CallbackPARAM(bspRoot, &sps->Union.ThBuckColl.bbox, PROC_PerBspLeaf_CheckInstances, sps);
+	}
 }
 
 
@@ -562,7 +566,7 @@ void PROC_CollideHitboxWithBucket(struct Thread *collThread, struct ScratchpadSt
 
 		CTR_SET_VEC3(sps->Union.ThBuckColl.centerDelta.v, (s16)distX, (s16)distY, (s16)distZ);
 
-		callback = sps->Union.ThBuckColl.funcCallback;
+		callback = COLL_Scratch_GetHost(sps)->callback;
 		callback(sps, collThread);
 	}
 }

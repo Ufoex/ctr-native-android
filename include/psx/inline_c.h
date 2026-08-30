@@ -137,9 +137,9 @@ extern int doCOP2(int op);
 	}
 
 // mtc2 8
-#define gte_lddp(r0)                \
-	{                               \
-		MTC2(*(uint32_t *)(r0), 8); \
+#define gte_lddp(r0)           \
+	{                          \
+		MTC2((uint32_t)(r0), 8); \
 	}
 
 // ctc2 13 14 15

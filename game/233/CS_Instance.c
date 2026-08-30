@@ -27,8 +27,22 @@ void CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u32 animFram
 	int scaleX, scaleY, scaleZ;
 	int deltaDX, deltaDY, deltaDZ;
 
-	headers = inst->model->headers;
-	ptrAnim = headers->ptrAnimations[animIndex];
+	if ((inst == NULL) || (inst->model == NULL) || (animIndex < 0))
+	{
+		return;
+	}
+
+	headers = Model_GetHeaders(inst->model, "cutscene frame model headers");
+	if (headers == NULL)
+	{
+		return;
+	}
+
+	ptrAnim = ModelHeader_GetAnimation(headers, (size_t)animIndex, "cutscene frame animation");
+	if (ptrAnim == NULL)
+	{
+		return;
+	}
 
 	if ((int)animFrame < 0)
 	{
@@ -150,28 +164,24 @@ int CS_Instance_GetNumAnimFrames(struct Instance *modelInst, int animIndex, int 
 		return 0;
 	}
 
-	if (LOD >= model->numHeaders)
+	if ((LOD < 0) || (LOD >= model->numHeaders) || (animIndex < 0))
 	{
 		return 0;
 	}
 
-	header = &model->headers[LOD];
+	header = Model_GetHeaders(model, "cutscene animation-count model headers");
 	if (header == NULL)
 	{
 		return 0;
 	}
+	header = &header[LOD];
 
 	if (animIndex >= (int)header->numAnimations)
 	{
 		return 0;
 	}
 
-	if (header->ptrAnimations == NULL)
-	{
-		return 0;
-	}
-
-	anim = header->ptrAnimations[animIndex];
+	anim = ModelHeader_GetAnimation(header, (size_t)animIndex, "cutscene animation-count animation");
 	if (anim == NULL)
 	{
 		return 0;
@@ -217,7 +227,7 @@ int CS_Instance_SafeCheckAnimFrame(struct Instance *inst, int animIndex, int LOD
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ac694-0x800ac714
 b32 CS_Instance_BoolPlaySound(struct CutsceneObj *cs, struct Instance *desiredInst)
 {
-	struct Instance **visInstSrc;
+	struct CtrAssetRef32 *visInstSrc;
 	struct InstDrawPerPlayer *idpp;
 
 	if ((desiredInst == NULL) || ((cs->flags & CS_FLAG_SOUND_ONSCREEN_ONLY) == 0))
@@ -238,9 +248,9 @@ b32 CS_Instance_BoolPlaySound(struct CutsceneObj *cs, struct Instance *desiredIn
 #endif
 
 	// Same code as warppad_thtick
-	while (visInstSrc[0] != 0)
+	while (visInstSrc[0].bits != 0)
 	{
-		if (visInstSrc[0] == desiredInst)
+		if (InstDefRef_GetInstance(visInstSrc[0], "CS_Instance visible level instance") == desiredInst)
 		{
 			idpp = INST_GETIDPP(desiredInst);
 			return (idpp[0].instFlags & DRAW_SUCCESSFUL) != 0;

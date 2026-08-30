@@ -90,8 +90,16 @@ struct SelectProfileRuntimeState
 	s16 submitNameMode;
 };
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct SelectProfileLoadSaveIcon) == 0xc);
 CTR_STATIC_ASSERT(sizeof(struct SelectProfileLoadSaveObj) == 0x8);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct SelectProfileLoadSaveIcon, rot) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct SelectProfileLoadSaveIcon) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct SelectProfileLoadSaveObj, icons) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct SelectProfileLoadSaveObj) == 0x10);
+#endif
 CTR_STATIC_ASSERT(sizeof(struct SelectProfileRuntimeState) == 0x10);
 CTR_STATIC_ASSERT(OFFSETOF(struct SelectProfileRuntimeState, mode) == 0x00);
 CTR_STATIC_ASSERT(OFFSETOF(struct SelectProfileRuntimeState, actionActive) == 0x02);

@@ -18,8 +18,13 @@ void LOAD_Hub_ReadFile(struct BigHeader *bigfile, int levID, int packID)
 	// wipe the pack to reload the new hub
 	MEMPACK_SwapPacks(packID);
 	MEMPACK_ClearLowMem();
+#if defined(CTR_NATIVE)
+	// The range-aware allocator reset released the inactive level sidecar.
+	// Do not retain its host pointer while the replacement is loading.
+	gGT->visMem2 = NULL;
+#endif
 
-	sdata->PatchMem_Size = LOAD_HUB_PATCH_MEM_ACTIVE;
+	sdata->load_inProgress = 1;
 	gGT->level2 = 0;
 	gGT->levID_in_each_mempack[packID] = levID;
 
@@ -47,7 +52,7 @@ void LOAD_Hub_SwapNow()
 	// ptrintf("gGT->level2 = 0x%08x\n",gGT->level2);
 	// ptrintf("SWAPPING 1...\n");
 
-	LevInstDef_RePack(gGT->level1->ptr_mesh_info, 1);
+	LevInstDef_RePack(Level_GetMeshInfo(gGT->level1, "LOAD_Hub_SwapNow old mesh"), 1);
 
 	// Aug 5
 	// ptrintf("SWAPPING 2...\n");
@@ -92,13 +97,15 @@ void LOAD_Hub_SwapNow()
 
 	if (level1 != 0)
 	{
-		LibraryOfModels_Store(gGT, level1->numModels, level1->ptrModelsPtrArray);
+		struct mesh_info *mesh = Level_GetMeshInfo(level1, "LOAD_Hub_SwapNow mesh");
 
-		INSTANCE_LevInitAll(level1->ptrInstDefs, level1->numInstances);
+		LibraryOfModels_Store(gGT, level1->numModels, Level_GetModelRefs(level1, "LOAD_Hub_SwapNow model references"));
 
-		LevInstDef_UnPack(level1->ptr_mesh_info);
+		INSTANCE_LevInitAll(Level_GetInstDefs(level1, "LOAD_Hub_SwapNow instance definitions"), level1->numInstances);
 
-		DecalGlobal_Store(gGT, level1->levTexLookup);
+		LevInstDef_UnPack(mesh);
+
+		DecalGlobal_Store(gGT, Level_GetTexLookup(level1, "LOAD_Hub_SwapNow texture lookup"));
 	}
 
 	MEMPACK_SwapPacks(gGT->activeMempackIndex);
@@ -176,13 +183,11 @@ void LOAD_Hub_Main(struct BigHeader *bigfilePtr)
 			u32 currLevelID = gGT->levelID - GEM_STONE_VALLEY;
 
 			// ctr hubs are 0-4
-			if (currLevelID >= LOAD_ADV_HUB_COUNT)
+			if (currLevelID < LOAD_ADV_HUB_COUNT)
 			{
-				return;
+				LOAD_Hub_ReadFile(bigfilePtr, LOAD_HUB_CONNECTED_LEV(currLevelID, nextLevelID - LOAD_HUB_TRIGGER_ID_BIAS),
+				                  LOAD_HUB_MEMPACK_PAIR_INDEX_SUM - gGT->activeMempackIndex);
 			}
-
-			LOAD_Hub_ReadFile(bigfilePtr, LOAD_HUB_CONNECTED_LEV(currLevelID, nextLevelID - LOAD_HUB_TRIGGER_ID_BIAS),
-			                  LOAD_HUB_MEMPACK_PAIR_INDEX_SUM - gGT->activeMempackIndex);
 		}
 	}
 }

@@ -157,14 +157,19 @@ static int RenderLists_Select1P2PSlot(const struct BSP *bsp, struct PushBuffer *
 	return RENDER_LIST_SLOT_DYNAMIC_SUBDIV;
 }
 
-static struct VisMemBspListNode **RenderLists_Get1P2PHead(void *LevRenderList, int slotIndex)
+static struct VisMemBspListNode **RenderLists_GetHead(struct DrawLevelOvr1PRenderList *renderList, int slotIndex)
 {
-	if (slotIndex == RENDER_LIST_SLOT_FULL_DYNAMIC)
+	if ((renderList == NULL) || (slotIndex < 0) || (slotIndex > RENDER_LIST_SLOT_FULL_DYNAMIC))
 	{
-		return (struct VisMemBspListNode **)((char *)LevRenderList + 0x28);
+		return NULL;
 	}
 
-	return (struct VisMemBspListNode **)((char *)LevRenderList + slotIndex * 8 + 4);
+	if (slotIndex == RENDER_LIST_SLOT_FULL_DYNAMIC)
+	{
+		return &renderList->bspListStart_FullDynamic;
+	}
+
+	return &renderList->list[slotIndex].bspListStart;
 }
 
 static int RenderLists_Select3P4PSlot(const struct BSP *bsp)
@@ -232,8 +237,8 @@ static void RenderLists_PushChild(struct BSP *bspRoot, const int *visLeafList, s
 	*stack = record + 1;
 }
 
-static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, struct PushBuffer *pb, void *LevRenderList, struct VisMemBspListNode *bspList,
-                                u8 numPlyr)
+static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, struct PushBuffer *pb,
+                                struct DrawLevelOvr1PRenderList *renderList, struct VisMemBspListNode *bspList, u8 numPlyr)
 {
 	struct RenderListsScratchRecord *stackBase = CTR_SCRATCHPAD_PTR(struct RenderListsScratchRecord, RENDER_LISTS_STACK_OFFSET);
 	struct RenderListsScratchRecord *stackEnd = CTR_SCRATCHPAD_PTR(struct RenderListsScratchRecord, CTR_SCRATCHPAD_SIZE);
@@ -251,7 +256,7 @@ static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, str
 	{
 		int slotIndex = RenderLists_Select1P2PSlot(bspRoot, pb, lodDistanceThreshold);
 
-		RenderLists_LinkBsp(bspRoot, bspRoot, RenderLists_Get1P2PHead(LevRenderList, slotIndex), bspList);
+		RenderLists_LinkBsp(bspRoot, bspRoot, RenderLists_GetHead(renderList, slotIndex), bspList);
 		return 1;
 	}
 
@@ -277,7 +282,7 @@ static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, str
 			}
 
 			int slotIndex = RenderLists_Select1P2PSlot(bsp, pb, lodDistanceThreshold);
-			RenderLists_LinkBsp(bspRoot, bsp, RenderLists_Get1P2PHead(LevRenderList, slotIndex), bspList);
+			RenderLists_LinkBsp(bspRoot, bsp, RenderLists_GetHead(renderList, slotIndex), bspList);
 			count++;
 		}
 
@@ -288,7 +293,8 @@ static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, str
 	}
 }
 
-static int RenderLists_Walk3P4P(struct BSP *bspRoot, const int *visLeafList, struct PushBuffer *pb, void *LevRenderList, struct VisMemBspListNode *bspList)
+static int RenderLists_Walk3P4P(struct BSP *bspRoot, const int *visLeafList, struct PushBuffer *pb,
+                                struct DrawLevelOvr1PRenderList *renderList, struct VisMemBspListNode *bspList)
 {
 	struct RenderListsScratchRecord *stackBase = CTR_SCRATCHPAD_PTR(struct RenderListsScratchRecord, RENDER_LISTS_STACK_OFFSET);
 	struct RenderListsScratchRecord *stackEnd = CTR_SCRATCHPAD_PTR(struct RenderListsScratchRecord, CTR_SCRATCHPAD_SIZE);
@@ -304,7 +310,7 @@ static int RenderLists_Walk3P4P(struct BSP *bspRoot, const int *visLeafList, str
 	if ((bspRoot->flag & BSP_NODE_FLAG_LEAF) != 0)
 	{
 		int slotIndex = RenderLists_Select3P4PSlot(bspRoot);
-		struct VisMemBspListNode **head = (struct VisMemBspListNode **)((char *)LevRenderList + slotIndex * 8 + 4);
+		struct VisMemBspListNode **head = RenderLists_GetHead(renderList, slotIndex);
 
 		RenderLists_LinkBsp(bspRoot, bspRoot, head, bspList);
 		return 1;
@@ -332,7 +338,7 @@ static int RenderLists_Walk3P4P(struct BSP *bspRoot, const int *visLeafList, str
 			}
 
 			int slotIndex = RenderLists_Select3P4PSlot(bsp);
-			struct VisMemBspListNode **head = (struct VisMemBspListNode **)((char *)LevRenderList + slotIndex * 8 + 4);
+			struct VisMemBspListNode **head = RenderLists_GetHead(renderList, slotIndex);
 
 			RenderLists_LinkBsp(bspRoot, bsp, head, bspList);
 			count++;
@@ -360,16 +366,102 @@ void RenderLists_PreInit()
 	}
 }
 
-int RenderLists_Init1P2P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList, u8 numPlyr)
+int RenderLists_Init1P2P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, void *levRenderList, void *bspList, u8 numPlyr)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006fe70-0x800702d4.
 	RenderLists_Load1P2PGteState(pb);
-	return RenderLists_Walk1P2P(bspRoot, visLeafList, pb, (void *)LevRenderList, bspList, numPlyr);
+	return RenderLists_Walk1P2P(bspRoot, visLeafList, pb, levRenderList, bspList, numPlyr);
 }
 
-int RenderLists_Init3P4P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList)
+int RenderLists_Init3P4P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, void *levRenderList, void *bspList)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80070388-0x80070720.
 	RenderLists_Load1P2PGteState(pb);
-	return RenderLists_Walk3P4P(bspRoot, visLeafList, pb, (void *)LevRenderList, bspList);
+	return RenderLists_Walk3P4P(bspRoot, visLeafList, pb, levRenderList, bspList);
+}
+
+int RenderLists_RunHostLayoutSelfTest(void)
+{
+	struct DrawLevelOvr1PRenderList renderList;
+	struct VisMemBspListNode nodes[RENDER_LIST_SLOT_FULL_DYNAMIC + 1];
+
+	memset(&renderList, 0, sizeof(renderList));
+	memset(nodes, 0, sizeof(nodes));
+
+	for (int slotIndex = 0; slotIndex < DRAW_LEVEL_OVR1P_RENDER_LIST_SLOT_COUNT; slotIndex++)
+	{
+		struct VisMemBspListNode **head = RenderLists_GetHead(&renderList, slotIndex);
+
+		if (head != &renderList.list[slotIndex].bspListStart)
+		{
+			fprintf(stderr, "[CTR RenderLists] self-test failed: slot=%d host head mismatch\n", slotIndex);
+			return 1;
+		}
+		*head = &nodes[slotIndex];
+	}
+
+	struct VisMemBspListNode **fullDynamicHead = RenderLists_GetHead(&renderList, RENDER_LIST_SLOT_FULL_DYNAMIC);
+	if (fullDynamicHead != &renderList.bspListStart_FullDynamic)
+	{
+		fprintf(stderr, "[CTR RenderLists] self-test failed: full-dynamic host head mismatch\n");
+		return 1;
+	}
+	*fullDynamicHead = &nodes[RENDER_LIST_SLOT_FULL_DYNAMIC];
+
+	for (int slotIndex = 0; slotIndex < DRAW_LEVEL_OVR1P_RENDER_LIST_SLOT_COUNT; slotIndex++)
+	{
+		if (renderList.list[slotIndex].bspListStart != &nodes[slotIndex])
+		{
+			fprintf(stderr, "[CTR RenderLists] self-test failed: slot=%d write mismatch\n", slotIndex);
+			return 1;
+		}
+	}
+	if ((renderList.bspListStart_FullDynamic != &nodes[RENDER_LIST_SLOT_FULL_DYNAMIC]) ||
+	    (RenderLists_GetHead(&renderList, -1) != NULL) ||
+	    (RenderLists_GetHead(&renderList, RENDER_LIST_SLOT_FULL_DYNAMIC + 1) != NULL))
+	{
+		fprintf(stderr, "[CTR RenderLists] self-test failed: full-dynamic or bounds mismatch\n");
+		return 1;
+	}
+
+	for (int bucketIndex = 0; bucketIndex < OVR226_BUCKET_COUNT; bucketIndex++)
+	{
+		if (sDrawLevelOvr1PBuckets[bucketIndex].role != bucketIndex)
+		{
+			fprintf(stderr, "[CTR RenderLists] self-test failed: canonical bucket=%d role=%u\n",
+			        bucketIndex, sDrawLevelOvr1PBuckets[bucketIndex].role);
+			return 1;
+		}
+	}
+
+	u8 clipCursor;
+	struct QuadBlock *renderedList[1];
+	u32 visibilityWords[2];
+	u32 orderingTable[DRAW_LEVEL_OVR1P_MAX_OT_INDEX + 1];
+	struct PushBuffer pushBuffer;
+	struct DrawLevelOvr1PClipRecord clipRecord;
+	struct TextureLayout *waterEnvMap = (struct TextureLayout *)(void *)visibilityWords;
+
+	memset(&pushBuffer, 0, sizeof(pushBuffer));
+	memset(&clipRecord, 0, sizeof(clipRecord));
+	sDrawLevelOvr1P_ClipRecordCursor = &clipCursor;
+	sDrawLevelOvr1P_RenderedListCursor = renderedList;
+	sDrawLevelOvr1P_VisibilityWordCursor = visibilityWords;
+	sDrawLevelOvr1P_WaterEnvMap = waterEnvMap;
+	pushBuffer.ptrOT = orderingTable;
+	clipRecord.otEntry = (u32)(uintptr_t)&orderingTable[23];
+	if ((DrawLevelOvr1P_GetClipRecordCursor() != &clipCursor) ||
+	    (DrawLevelOvr1P_GetRenderedListCursor() != renderedList) ||
+	    (sDrawLevelOvr1P_VisibilityWordCursor != visibilityWords) ||
+	    (sDrawLevelOvr1P_WaterEnvMap != waterEnvMap) ||
+	    (DrawLevelOvr1P_ResolveClipRecordOtEntry(&pushBuffer, &clipRecord) != &orderingTable[23]))
+	{
+		fprintf(stderr, "[CTR RenderLists] self-test failed: host pointer sidecar or clip OT rebase mismatch\n");
+		return 1;
+	}
+
+	printf("[CTR RenderLists] self-test passed: pointer-size=%zu slot-size=%zu full-dynamic=0x%zx named-heads=6 dispatch=canonical-index host-cursors=4 clip-ot=rebased\n",
+	       sizeof(void *), sizeof(struct DrawLevelOvr1PRenderListSlot),
+	       offsetof(struct DrawLevelOvr1PRenderList, bspListStart_FullDynamic));
+	return 0;
 }

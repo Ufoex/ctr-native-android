@@ -21,7 +21,7 @@ enum
 	VEH_BIRTH_RESERVED_0x412_INITIAL = 0x600,
 	VEH_BIRTH_STEERING_FRAMES_RESET = 10000,
 	VEH_BIRTH_QUIP_NONE = -1,
-	VEH_BIRTH_PLAYER_THREAD_FLAGS = SIZE_RELATIVE_POOL_BUCKET(DRIVER_NTSC_RETAIL_SIZE, NONE, LARGE, PLAYER),
+	VEH_BIRTH_PLAYER_THREAD_FLAGS = SIZE_RELATIVE_POOL_BUCKET(DRIVER_RACE_OBJECT_SIZE, NONE, LARGE, PLAYER),
 };
 
 CTR_STATIC_ASSERT(VEH_BIRTH_ADV_RETURN_LEVEL_COUNT == 0x14);
@@ -43,7 +43,11 @@ CTR_STATIC_ASSERT(VEH_BIRTH_WHEEL_SIZE == 0xccc);
 CTR_STATIC_ASSERT(VEH_BIRTH_RESERVED_0x412_INITIAL == 0x600);
 CTR_STATIC_ASSERT(VEH_BIRTH_STEERING_FRAMES_RESET == 10000);
 CTR_STATIC_ASSERT(VEH_BIRTH_QUIP_NONE == -1);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(VEH_BIRTH_PLAYER_THREAD_FLAGS == 0x62c0100);
+#else
+CTR_STATIC_ASSERT(VEH_BIRTH_PLAYER_THREAD_FLAGS == 0x6d80100);
+#endif
 
 static int VehBirth_IsDoor5InstDef(struct InstDef *instDef)
 {
@@ -71,7 +75,11 @@ static int VehBirth_IsDoor5InstDef(struct InstDef *instDef)
 
 static struct InstDef *VehBirth_FindDoor5(struct Level *level)
 {
-	struct InstDef *instDef = level->ptrInstDefs;
+	struct InstDef *instDef = Level_GetInstDefs(level, "VehBirth instance definitions");
+	if (instDef == NULL)
+	{
+		return NULL;
+	}
 
 	for (int i = 0; i < (int)level->numInstances; i++, instDef++)
 	{
@@ -119,7 +127,10 @@ static int VehBirth_ShouldUseStartlineInAdv(struct GameTracker *gGT, s16 *warppa
 
 static struct SpawnPosRot *VehBirth_SpawnType2PosRot(struct Level *level)
 {
-	return level->ptrSpawnType2_PosRot[1].posRot;
+	struct SpawnType2 *spawns = Level_GetSpawnType2PosRot(level, "VehBirth position/rotation spawns");
+	return ((spawns == NULL) || (level->numSpawnType2_PosRot <= 1))
+		   ? NULL
+		   : SpawnType2_GetPosRot(&spawns[1], "VehBirth position/rotation spawn");
 }
 
 static void VehBirth_SetBottomFromPos(SVec3 *posBottom, const SVec3 *pos)
@@ -137,10 +148,10 @@ static u8 VehBirth_GetStartlineIndex(struct Driver *d)
 static void VehBirth_SetStartlinePosition(struct Driver *d, struct Level *level, SVec3 *posBottom)
 {
 	u8 spawnIndex = VehBirth_GetStartlineIndex(d);
+	struct CheckpointNode *restartPoints = Level_GetRestartPoints(level, "VehBirth restart points");
 
 	d->actionsFlagSet |= ACTION_BEHIND_START_LINE;
-#ifdef CTR_NATIVE
-	if (level->ptr_restart_points == NULL)
+	if (restartPoints == NULL)
 	{
 		// NOTE(aalhendi): Retail does an unguarded low-address read here;
 		// native cannot dereference PS1 null-space for menu/hub-style LEVs.
@@ -148,8 +159,7 @@ static void VehBirth_SetStartlinePosition(struct Driver *d, struct Level *level,
 	}
 	else
 	{
-#endif
-		d->distanceToFinish_checkpoint = level->ptr_restart_points[0].distToFinish << 3;
+		d->distanceToFinish_checkpoint = restartPoints[0].distToFinish << 3;
 	}
 	VehBirth_SetBottomFromPos(posBottom, &level->DriverSpawn[spawnIndex].pos);
 }
@@ -177,6 +187,7 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY)
 
 	struct GameTracker *gGT = sdata->gGT;
 	struct Level *level1 = gGT->level1;
+	struct mesh_info *mesh;
 	struct Instance *dInst;
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 
@@ -186,7 +197,7 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY)
 	int spawnAtBoss;
 	int spawnOutsideBoss = 0;
 
-	if ((level1 == NULL) || (level1->ptr_mesh_info == NULL))
+	if ((level1 == NULL) || ((mesh = Level_GetMeshInfo(level1, "VehBirth teleport mesh")) == NULL))
 	{
 		return;
 	}
@@ -200,7 +211,7 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY)
 	{
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
 	}
-	sps->ptr_mesh_info = level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, mesh);
 
 	gGT->gameMode2 &= ~VEH_FREEZE_DOOR;
 	spawnAtBoss = gGT->gameMode2 & SPAWN_AT_BOSS;
@@ -280,7 +291,7 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY)
 	else
 	{
 		d->AxisAngle3_normalVec = sps->hit.plane.normal;
-		d->lastValid = sps->hit.ptrQuadblock;
+		d->lastValid = COLL_Scratch_GetHost(sps)->hitQuadblock;
 	}
 
 	d->AxisAngle1_normalVec = d->AxisAngle3_normalVec;
@@ -539,16 +550,22 @@ struct Model *VehBirth_GetModelByName(char *searchName)
 		}
 	}
 
-	struct Model **models = (struct Model **)sdata->PLYROBJECTLIST;
+	struct CtrAssetRef32 *modelReferences = sdata->PLYROBJECTLIST;
 
 	if (
 	    // list is valid, and first element is valid
-	    (models != NULL) && (models[0] != NULL))
+	    (modelReferences != NULL) && (modelReferences[0].bits != 0))
 	{
 		// loop until all strings are checked (until current is not nullptr)
-		for (int i = 0; models[i] != NULL; i++)
+		for (int i = 0; modelReferences[i].bits != 0; i++)
 		{
-			struct Model *m = models[i];
+			struct Model *m = NULL;
+			if (!CtrAssetRef_ResolveOptional(modelReferences[i], sizeof(*m), _Alignof(struct Model), (void **)&m,
+							"VehBirth driver model") ||
+			    (m == NULL))
+			{
+				return NULL;
+			}
 
 			if (VehBirth_ModelNameEquals(m, searchName))
 			{
@@ -560,21 +577,37 @@ struct Model *VehBirth_GetModelByName(char *searchName)
 	return NULL;
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80058a60-0x80058ba4.
-void VehBirth_SetConsts(struct Driver *driver)
+static u8 *VehBirth_ConstDestination(struct Driver *driver, int retailOffset, u32 valueSize)
 {
-	u8 *d = (u8 *)driver;
+	const int retailEnd = PROTOTYPE_KEY_OFFSET + (int)sizeof(driver->const_prototypeKey);
 
-	int engineID = data.MetaDataCharacters[data.characterIDs[driver->driverID]].engineID;
+	if ((driver == NULL) || ((valueSize != 1u) && (valueSize != 2u) && (valueSize != 4u)) ||
+	    (retailOffset < GRAVITY_OFFSET) || (retailOffset > retailEnd - (int)valueSize))
+	{
+		return NULL;
+	}
+
+	return (u8 *)driver + offsetof(struct Driver, const_Gravity) + (retailOffset - GRAVITY_OFFSET);
+}
+
+static int VehBirth_ApplyConstTable(struct Driver *driver, int engineID)
+{
+	if ((driver == NULL) || ((u32)engineID >= NUM_CLASSES))
+	{
+		return 0;
+	}
 
 	for (u32 i = 0; i < VEH_BIRTH_META_PHYS_COUNT; i++)
 	{
 		struct MetaPhys *metaPhys = &data.metaPhys[i];
-
-		u32 metaPhysSize = metaPhys->size;
-
+		const u32 metaPhysSize = (u32)metaPhys->size;
 		u32 rawValue = (u32)metaPhys->value[engineID];
-		u8 *dst = &d[metaPhys->offset];
+		u8 *dst = VehBirth_ConstDestination(driver, metaPhys->offset, metaPhysSize);
+
+		if (dst == NULL)
+		{
+			return 0;
+		}
 
 		if (metaPhysSize == 1)
 		{
@@ -597,6 +630,81 @@ void VehBirth_SetConsts(struct Driver *driver)
 			dst[3] = (u8)(rawValue >> 24);
 		}
 	}
+
+	return 1;
+}
+
+int VehBirth_RunConstOffsetSelfTest(void)
+{
+	struct Driver driver;
+
+	for (int engineID = 0; engineID < NUM_CLASSES; engineID++)
+	{
+		memset(&driver, 0xa5, sizeof(driver));
+		if (!VehBirth_ApplyConstTable(&driver, engineID))
+		{
+			fprintf(stderr, "[CTR VehBirth] self-test failed: unable to apply class %d\n", engineID);
+			return 1;
+		}
+
+		for (u32 index = 0; index < VEH_BIRTH_META_PHYS_COUNT; index++)
+		{
+			const struct MetaPhys *metaPhys = &data.metaPhys[index];
+			const u32 valueSize = (u32)metaPhys->size;
+			const u8 *src = VehBirth_ConstDestination(&driver, metaPhys->offset, valueSize);
+			u32 actual = 0;
+			u32 expected = (u32)metaPhys->value[engineID];
+			const u32 mask = (valueSize == 4u) ? 0xffffffffu : ((1u << (valueSize * 8u)) - 1u);
+
+			if (src == NULL)
+			{
+				fprintf(stderr, "[CTR VehBirth] self-test failed: invalid destination class=%d index=%u\n", engineID, index);
+				return 1;
+			}
+			memcpy(&actual, src, valueSize);
+			if (actual != (expected & mask))
+			{
+				fprintf(stderr, "[CTR VehBirth] self-test failed: value class=%d index=%u expected=0x%08x actual=0x%08x\n",
+					engineID, index, expected & mask, actual);
+				return 1;
+			}
+		}
+	}
+
+	if ((VehBirth_ConstDestination(&driver, GRAVITY_OFFSET - 1, 2u) != NULL) ||
+	    (VehBirth_ConstDestination(&driver, PROTOTYPE_KEY_OFFSET + 1, 4u) != NULL))
+	{
+		fprintf(stderr, "[CTR VehBirth] self-test failed: retail offset bounds\n");
+		return 1;
+	}
+
+	printf("[CTR VehBirth] self-test passed: constants=65 classes=4 retail-offsets=translated\n");
+	return 0;
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80058a60-0x80058ba4.
+void VehBirth_SetConsts(struct Driver *driver)
+{
+	/*
+	 * MetaPhys offsets are serialized NTSC-U offsets into the retail Driver
+	 * layout. Pointers earlier in Driver widen on LP64, while the constant
+	 * block itself retains its retail byte layout. Anchor the table to the
+	 * named native block instead of applying retail offsets to the widened
+	 * struct base.
+	 */
+	CTR_STATIC_ASSERT(
+	    offsetof(struct Driver, const_CollisionWeight) - offsetof(struct Driver, const_Gravity) ==
+	    COLLISION_WEIGHT_OFFSET - GRAVITY_OFFSET);
+	CTR_STATIC_ASSERT(
+	    offsetof(struct Driver, const_prototypeKey) - offsetof(struct Driver, const_Gravity) ==
+	    PROTOTYPE_KEY_OFFSET - GRAVITY_OFFSET);
+	CTR_STATIC_ASSERT(
+	    offsetof(struct Driver, const_prototypeKey) + sizeof(((struct Driver *)0)->const_prototypeKey) -
+		    offsetof(struct Driver, const_Gravity) ==
+	    (PROTOTYPE_KEY_OFFSET + 4u) - GRAVITY_OFFSET);
+
+	const int engineID = data.MetaDataCharacters[data.characterIDs[driver->driverID]].engineID;
+	(void)VehBirth_ApplyConstTable(driver, engineID);
 
 	return;
 }
@@ -632,7 +740,7 @@ void VehBirth_TireSprites(struct Thread *t)
 	struct IconGroup *tireAnim = gGT->iconGroup[0];
 	int driverID = d->driverID;
 
-	struct Icon **tire = ICONGROUP_GETICONS(tireAnim);
+	struct CtrAssetRef32 *tire = ICONGROUP_GETICONS(tireAnim);
 	d->wheelSprites = tire;
 
 	d->wheelSize = VEH_BIRTH_WHEEL_SIZE;
@@ -753,7 +861,7 @@ struct Driver *VehBirth_Player(int index)
 	struct Thread *t = PROC_BirthWithObject(VEH_BIRTH_PLAYER_THREAD_FLAGS, 0, sdata->s_player, 0);
 
 	struct Driver *d = t->object;
-	memset(d, 0, DRIVER_NTSC_RETAIL_SIZE);
+	memset(d, 0, DRIVER_RACE_OBJECT_SIZE);
 
 	VehBirth_NonGhost(t, index);
 

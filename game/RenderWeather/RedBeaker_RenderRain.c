@@ -22,14 +22,33 @@ static u32 RedBeaker_ReadWord(const void *base, int offset)
 	return *(const u32 *)(const void *)((const char *)base + offset);
 }
 
-static s16 RedBeaker_ReadS16(const void *base, int offset)
+static struct InstDrawPerPlayer *RedBeaker_GetCloudDraw(struct Instance *instance, int playerIndex)
 {
-	return *(const s16 *)(const void *)((const char *)base + offset);
+	if ((instance == NULL) || (playerIndex < 0) || (playerIndex >= 4))
+	{
+		return NULL;
+	}
+
+	return &INST_GETIDPP(instance)[playerIndex];
 }
 
-static s8 RedBeaker_ReadS8(const void *base, int offset)
+static s8 RedBeaker_GetCloudOtBias(struct Instance *instance, int playerIndex)
 {
-	return *(const s8 *)(const void *)((const char *)base + offset);
+	if ((instance == NULL) || (playerIndex < 0) || (playerIndex >= 4))
+	{
+		return 0;
+	}
+
+	// Retail advances its base by one 0x88-byte draw record per player and
+	// reads byte 0x50. Player zero therefore reads Instance.depthBiasNormal;
+	// later players read the low byte of the preceding draw record's
+	// retail-offset-0xd8 field, now named lodIndex.
+	if (playerIndex == 0)
+	{
+		return (s8)instance->depthBiasNormal;
+	}
+
+	return (s8)INST_GETIDPP(instance)[playerIndex - 1].lodIndex;
 }
 
 static u32 RedBeaker_NextRngByte(u32 *state0, u32 *state1)
@@ -201,7 +220,6 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 		struct RainLocal *rainLocal;
 		u32 screenBounds;
 		uint32_t *otBase;
-		int playerOffset;
 
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x00), 0);
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x04), 1);
@@ -215,11 +233,10 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 
 		screenBounds = RedBeaker_ReadWord(pb, 0x20);
 		otBase = pb->ptrOT;
-		playerOffset = playerIndex * sizeof(struct InstDrawPerPlayer);
 
 		for (rainLocal = firstRain; rainLocal != NULL; rainLocal = rainLocal->next)
 		{
-			char *instBase;
+			struct InstDrawPerPlayer *cloudDraw;
 			s32 cloudZ;
 			u32 scrollXY;
 			s32 scrollZ;
@@ -233,6 +250,11 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 			uint32_t *ot;
 
 			if (rainLocal->cloudInst == NULL)
+			{
+				continue;
+			}
+			cloudDraw = RedBeaker_GetCloudDraw(rainLocal->cloudInst, playerIndex);
+			if (cloudDraw == NULL)
 			{
 				continue;
 			}
@@ -250,10 +272,9 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 				rainLocal->scroll.z = (s16)nextScrollZ;
 			}
 
-			instBase = (char *)rainLocal->cloudInst + playerOffset;
-			CTC2((u32)(s32)RedBeaker_ReadS16(instBase, 0x8c), 5);
-			CTC2((u32)(s32)RedBeaker_ReadS16(instBase, 0x90), 6);
-			cloudZ = RedBeaker_ReadS16(instBase, 0x94);
+			CTC2((u32)(s32)(s16)cloudDraw->mvp.t[0], 5);
+			CTC2((u32)(s32)(s16)cloudDraw->mvp.t[1], 6);
+			cloudZ = (s16)cloudDraw->mvp.t[2];
 			CTC2((u32)cloudZ, 7);
 
 			if (cloudZ < 0 || cloudZ >= 0xc00)
@@ -274,7 +295,7 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 			scratch->colorTop = (u32)top | ((u32)top << 8) | ((u32)fade << 16);
 			scratch->colorBottom = (u32)fade | ((u32)fade << 8) | ((u32)fade << 16);
 
-			otOffset = ((cloudZ >> 7) + RedBeaker_ReadS8(instBase, 0x50) - 6);
+			otOffset = ((cloudZ >> 7) + RedBeaker_GetCloudOtBias(rainLocal->cloudInst, playerIndex) - 6);
 			if (otOffset < 0)
 			{
 				otOffset = 0;
@@ -299,4 +320,56 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 	}
 
 	primMem->cursor = prim;
+}
+
+int RedBeaker_RunHostLayoutSelfTest(void)
+{
+	struct
+	{
+		struct Instance instance;
+		struct InstDrawPerPlayer draw[4];
+	} storage;
+
+	memset(&storage, 0, sizeof(storage));
+	storage.instance.depthBiasNormal = 0x71;
+	for (int playerIndex = 0; playerIndex < 4; playerIndex++)
+	{
+		struct InstDrawPerPlayer *draw = RedBeaker_GetCloudDraw(&storage.instance, playerIndex);
+
+		if (draw != &storage.draw[playerIndex])
+		{
+			fprintf(stderr, "[CTR RedBeaker] self-test failed: player=%d draw address\n", playerIndex);
+			return 1;
+		}
+		draw->mvp.t[0] = 0x1000 + playerIndex;
+		draw->mvp.t[1] = 0x2000 + playerIndex;
+		draw->mvp.t[2] = 0x3000 + playerIndex;
+		draw->lodIndex = 0x20 + playerIndex;
+	}
+
+	for (int playerIndex = 0; playerIndex < 4; playerIndex++)
+	{
+		struct InstDrawPerPlayer *draw = RedBeaker_GetCloudDraw(&storage.instance, playerIndex);
+		const s8 expectedBias = (playerIndex == 0) ? 0x71 : (s8)(0x20 + playerIndex - 1);
+
+		if (((s16)draw->mvp.t[0] != 0x1000 + playerIndex) ||
+		    ((s16)draw->mvp.t[1] != 0x2000 + playerIndex) ||
+		    ((s16)draw->mvp.t[2] != 0x3000 + playerIndex) ||
+		    (RedBeaker_GetCloudOtBias(&storage.instance, playerIndex) != expectedBias))
+		{
+			fprintf(stderr, "[CTR RedBeaker] self-test failed: player=%d named field value\n", playerIndex);
+			return 1;
+		}
+	}
+
+	if ((RedBeaker_GetCloudDraw(&storage.instance, -1) != NULL) ||
+	    (RedBeaker_GetCloudDraw(&storage.instance, 4) != NULL))
+	{
+		fprintf(stderr, "[CTR RedBeaker] self-test failed: player bounds\n");
+		return 1;
+	}
+
+	printf("[CTR RedBeaker] self-test passed: pointer-size=%zu instance=0x%zx idpp=0x%zx players=4 retail-alias=named\n",
+	       sizeof(void *), sizeof(struct Instance), sizeof(struct InstDrawPerPlayer));
+	return 0;
 }

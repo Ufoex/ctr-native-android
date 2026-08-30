@@ -1,6 +1,8 @@
 #ifndef GAME_LAYOUTS_H
 #define GAME_LAYOUTS_H
 
+#include <ctr_asset_ref.h>
+
 // Game layout and namespace headers.
 #include <namespace_Bots.h>
 #include <namespace_Camera.h>

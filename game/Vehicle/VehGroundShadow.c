@@ -79,8 +79,8 @@ struct VehGroundShadowEntry
 	SVec3 local[3];
 	s8 state;
 	s8 depthBias;
-	struct Driver *driver;
-	struct Instance *inst;
+	u32 driverPtr32;
+	u32 instPtr32;
 	u8 idppFlags[VEH_GROUND_SHADOW_MAX_PLAYERS];
 	SVec3 pos;
 	u16 instFlags;
@@ -91,7 +91,7 @@ struct VehGroundShadowScratch
 	u8 pad_000[0xa4];
 	struct VehGroundShadowEntry entries[VEH_GROUND_SHADOW_MAX_DRIVERS];
 	u8 pad_1e4[0x14];
-	struct Driver *sentinelDriver;
+	u32 sentinelDriverPtr32;
 	u8 pad_1fc[0x28];
 	struct TextureLayout shadowTex[VEH_GROUND_SHADOW_TEXTURE_COUNT];
 };
@@ -100,13 +100,13 @@ CTR_STATIC_ASSERT(sizeof(struct VehGroundShadowEntry) == 0x28);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, local) == 0x00);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, state) == 0x12);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, depthBias) == 0x13);
-CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, driver) == 0x14);
-CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, inst) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, driverPtr32) == 0x14);
+CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, instPtr32) == 0x18);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, idppFlags) == 0x1c);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, pos) == 0x20);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowEntry, instFlags) == 0x26);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowScratch, entries) == 0xa4);
-CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowScratch, sentinelDriver) == 0x1f8);
+CTR_STATIC_ASSERT(offsetof(struct VehGroundShadowScratch, sentinelDriverPtr32) == 0x1f8);
 CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct VehGroundShadowScratch, shadowTex, 0) == 0x224);
 CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct VehGroundShadowScratch, shadowTex, 1) == 0x230);
 
@@ -184,12 +184,24 @@ static void VehGroundShadow_ProjectPoints(SVec3 points[VEH_GROUND_SHADOW_NUM_POI
 	}
 }
 
+static void VehGroundShadow_StorePointerWords(struct VehGroundShadowEntry *entry, struct Driver *driver, struct Instance *inst)
+{
+#if UINTPTR_MAX == UINT32_MAX
+	entry->driverPtr32 = (u32)(uintptr_t)driver;
+	entry->instPtr32 = (u32)(uintptr_t)inst;
+#else
+	(void)driver;
+	(void)inst;
+	entry->driverPtr32 = 0;
+	entry->instPtr32 = 0;
+#endif
+}
+
 static void VehGroundShadow_BuildEntry(struct VehGroundShadowEntry *entry, struct Driver *driver, int numPlayers)
 {
 	struct Instance *inst = driver->instSelf;
 
-	entry->driver = driver;
-	entry->inst = inst;
+	VehGroundShadow_StorePointerWords(entry, driver, inst);
 	entry->instFlags = (u16)inst->flags;
 
 	for (int playerIndex = numPlayers - 1; playerIndex >= 0; playerIndex--)
@@ -204,9 +216,8 @@ static void VehGroundShadow_BuildEntry(struct VehGroundShadowEntry *entry, struc
 	entry->state = VEH_GROUND_SHADOW_STATE_PENDING;
 }
 
-static void VehGroundShadow_TransformLocalAxes(struct VehGroundShadowEntry *entry)
+static void VehGroundShadow_TransformLocalAxes(struct VehGroundShadowEntry *entry, struct Driver *driver)
 {
-	struct Driver *driver = entry->driver;
 	MATRIX axisMatrix;
 	SVec3 local;
 	int height =
@@ -354,6 +365,7 @@ void VehGroundShadow_Main(void)
 	struct TextureLayout *shadowTex0 = &scratch->shadowTex[0];
 	struct TextureLayout *shadowTex1 = &scratch->shadowTex[1];
 	struct VehGroundShadowEntry *entries = scratch->entries;
+	struct Driver *nativeDrivers[VEH_GROUND_SHADOW_MAX_DRIVERS] = {0};
 	int numPlayers;
 
 	if (!VehGroundShadow_Subset1(shadowTex0, VEH_GROUND_SHADOW_ICON_LEFT))
@@ -386,15 +398,17 @@ void VehGroundShadow_Main(void)
 
 		if (driver != NULL)
 		{
+			nativeDrivers[driverIndex] = driver;
 			VehGroundShadow_BuildEntry(entry, driver, numPlayers);
 		}
 		else
 		{
-			entry->driver = NULL;
+			entry->driverPtr32 = 0;
+			entry->instPtr32 = 0;
 			entry->state = VEH_GROUND_SHADOW_STATE_PENDING;
 		}
 	}
-	scratch->sentinelDriver = NULL;
+	scratch->sentinelDriverPtr32 = 0;
 
 	for (int playerIndex = numPlayers - 1; playerIndex >= 0; playerIndex--)
 	{
@@ -427,7 +441,7 @@ void VehGroundShadow_Main(void)
 			u32 sxy[VEH_GROUND_SHADOW_NUM_POINTS];
 			s32 depth[VEH_GROUND_SHADOW_NUM_POINTS];
 
-			if (entry->driver == NULL)
+			if (nativeDrivers[driverIndex] == NULL)
 			{
 				break;
 			}
@@ -511,7 +525,7 @@ void VehGroundShadow_Main(void)
 
 			if (entry->state == VEH_GROUND_SHADOW_STATE_PENDING)
 			{
-				VehGroundShadow_TransformLocalAxes(entry);
+				VehGroundShadow_TransformLocalAxes(entry, nativeDrivers[driverIndex]);
 				VehGroundShadow_LoadGteRotMatrix(&pb->matrix_ViewProj);
 
 				if (entry->state == VEH_GROUND_SHADOW_STATE_CULLED)

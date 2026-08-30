@@ -23,11 +23,21 @@ struct LinkedList
 };
 
 CTR_STATIC_ASSERT(OFFSETOF(struct Item, next) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(OFFSETOF(struct Item, prev) == 0x4);
 CTR_STATIC_ASSERT(sizeof(struct Item) == 0x8);
 CTR_STATIC_ASSERT(OFFSETOF(struct LinkedList, first) == 0x0);
 CTR_STATIC_ASSERT(OFFSETOF(struct LinkedList, last) == 0x4);
 CTR_STATIC_ASSERT(OFFSETOF(struct LinkedList, count) == 0x8);
 CTR_STATIC_ASSERT(sizeof(struct LinkedList) == 0xC);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(OFFSETOF(struct Item, prev) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct Item) == 0x10);
+CTR_STATIC_ASSERT(OFFSETOF(struct LinkedList, first) == 0x0);
+CTR_STATIC_ASSERT(OFFSETOF(struct LinkedList, last) == 0x8);
+CTR_STATIC_ASSERT(OFFSETOF(struct LinkedList, count) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct LinkedList) == 0x18);
+#endif
 
 #endif

@@ -5,6 +5,8 @@
 
 int Platform_LogSetPath(const char *path);
 const char *Platform_LogGetPath(void);
+const char *Platform_LogGetArchivePath(void);
+int Platform_LogIsOpen(void);
 void Platform_LogInit(const char *appName);
 void Platform_LogShutdown(void);
 void Platform_LogFlush(void);

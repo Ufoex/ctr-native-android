@@ -8,6 +8,7 @@ void RB_Bubbles_RoosTubes()
 	struct GameTracker *gGT;
 	struct Level *level1;
 	struct SpawnType2 *spawnType2;
+	struct SpawnType2 *spawnArray;
 	int numSpawnPosCoords;
 	SVec3 *spawnPos;
 	int numFreeParticles;
@@ -35,7 +36,17 @@ void RB_Bubbles_RoosTubes()
 	}
 
 	// Roo's Tubes bubble spawn path
-	spawnType2 = &level1->ptrSpawnType2[1];
+	spawnArray = Level_GetSpawnType2(level1, "RB_Bubbles spawn paths");
+	if (spawnArray == NULL)
+	{
+		return;
+	}
+	spawnType2 = &spawnArray[1];
+	SVec3 *positions = SpawnType2_GetPositions(spawnType2, "RB_Bubbles positions");
+	if ((positions == NULL) || (spawnType2->numCoords < 2))
+	{
+		return;
+	}
 	d = gGT->drivers[0];
 
 	int timer = gGT->timer;
@@ -43,7 +54,7 @@ void RB_Bubbles_RoosTubes()
 	for (
 	    // initializer, skip one cause level geometry
 	    // covers the particles (see #ctr-early-content)
-	    numSpawnPosCoords = spawnType2->numCoords - 1, spawnPos = &spawnType2->positions[1], numFreeParticles = gGT->JitPools.particle.free.count;
+	    numSpawnPosCoords = spawnType2->numCoords - 1, spawnPos = &positions[1], numFreeParticles = gGT->JitPools.particle.free.count;
 
 	    // end condition
 	    (numSpawnPosCoords > 0) && (numFreeParticles >= 0x14);

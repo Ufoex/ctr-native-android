@@ -16,11 +16,14 @@ extern DRAWENV activeDrawEnv;
 extern int g_GPUDisabledState;
 
 int NativeGpu_HasPendingSplits(void);
+int NativeGpu_GetLastRendererDrawCount(void);
 void ClearSplits(void);
 void DrawAllSplits(void);
 void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive);
 int NativeGpu_GetStateSize(void);
 int NativeGpu_CaptureState(void *dst, int dstSize);
 int NativeGpu_RestoreState(const void *src, int srcSize);
+void NativeGpu_RenderTraceBegin(u32 replayFrame);
+void NativeGpu_RenderTraceEnd(u32 replayFrame);
 
 #endif

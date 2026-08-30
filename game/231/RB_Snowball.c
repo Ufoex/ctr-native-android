@@ -20,7 +20,19 @@ void RB_Snowball_ThTick(struct Thread *t)
 
 	if (sdata->gGT->level1->numSpawnType2_PosRot != 0)
 	{
-		ptrSpawnType2 = &sdata->gGT->level1->ptrSpawnType2_PosRot[snowObj->snowID];
+		struct SpawnType2 *spawns = Level_GetSpawnType2PosRot(sdata->gGT->level1, "RB_Snowball path table");
+		struct SpawnPosRot *frames;
+
+		if ((spawns == NULL) || (snowObj->snowID >= sdata->gGT->level1->numSpawnType2_PosRot))
+		{
+			return;
+		}
+		ptrSpawnType2 = &spawns[snowObj->snowID];
+		frames = SpawnType2_GetPosRot(ptrSpawnType2, "RB_Snowball path");
+		if (frames == NULL)
+		{
+			return;
+		}
 
 		// Retail checks DYNAMIC_SNOWBALL, but Blizzard Bluff uses TEMP_SNOWBALL.
 		if (modelID == DYNAMIC_SNOWBALL)
@@ -44,7 +56,7 @@ void RB_Snowball_ThTick(struct Thread *t)
 			pointIndex = (snowObj->numPoints * 2) - pointIndex;
 		}
 
-		frame = &ptrSpawnType2->posRot[pointIndex];
+		frame = &frames[pointIndex];
 
 		ConvertRotToMatrix(&snowInst->matrix, &frame->rot);
 
@@ -89,7 +101,15 @@ void RB_Snowball_LInB(struct Instance *inst)
 
 	snowObj->snowID = inst->name[strlen(inst->name) - 1] - '0';
 
-	snowObj->numPoints = sdata->gGT->level1->ptrSpawnType2_PosRot[snowObj->snowID].numCoords - 1;
+	struct SpawnType2 *spawns = Level_GetSpawnType2PosRot(sdata->gGT->level1, "RB_Snowball birth paths");
+	if ((spawns == NULL) || (snowObj->snowID >= sdata->gGT->level1->numSpawnType2_PosRot))
+	{
+		snowObj->numPoints = 0;
+	}
+	else
+	{
+		snowObj->numPoints = spawns[snowObj->snowID].numCoords - 1;
+	}
 
 	inst->scale.x = 0x1000;
 	inst->scale.y = 0x1000;

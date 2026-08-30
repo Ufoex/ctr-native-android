@@ -7,7 +7,7 @@ int DecalFont_GetLineWidthStrlen(char *character, int len, int fontType)
 	s16 font_buttonPixWidth;
 	s16 font_puncPixWidth;
 	int pixLength;
-	char c;
+	u8 c;
 #if BUILD == JpnRetail
 	u32 isRacingWheel;
 #endif
@@ -452,9 +452,7 @@ void DecalFont_DrawLineStrlen(char *str, s16 len, int posX, s16 posY, s16 fontTy
 
 				if (iconID < gGT->iconGroup[iconGroupID]->numIcons)
 				{
-					struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[iconGroupID]);
-
-					DecalHUD_DrawPolyGT4(iconPtrArray[iconID],
+					DecalHUD_DrawPolyGT4(IconGroup_GetIcon(gGT->iconGroup[iconGroupID], (size_t)iconID, "font icon"),
 
 					                     posX + pixWidthExtra, posY + pixHeightExtra,
 
@@ -470,9 +468,8 @@ void DecalFont_DrawLineStrlen(char *str, s16 len, int posX, s16 posY, s16 fontTy
 
 			if (iconStruct == 0)
 			{
-				struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[iconGroupID]);
 				if (kanaID < gGT->iconGroup[iconGroupID]->numIcons)
-					iconStruct = iconPtrArray[kanaID];
+					iconStruct = IconGroup_GetIcon(gGT->iconGroup[iconGroupID], (size_t)kanaID, "kana font icon");
 			}
 			if (iconStruct != 0)
 			{
@@ -489,13 +486,11 @@ void DecalFont_DrawLineStrlen(char *str, s16 len, int posX, s16 posY, s16 fontTy
 
 #else // i.e. european build
 
-			struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[iconGroupID]);
-
 			for (; numCharacters > 0; numCharacters--, pixWidthExtra += data.font_EurPixWidthExtra[fontType])
 			{
 				if (upsideDownCharacter)
 				{
-					DecalHUD_Arrow2D(iconPtrArray[iconID],
+					DecalHUD_Arrow2D(IconGroup_GetIcon(gGT->iconGroup[iconGroupID], (size_t)iconID, "European font arrow"),
 
 					                 posX + pixWidthExtra, posY + pixHeightExtra,
 
@@ -507,7 +502,7 @@ void DecalFont_DrawLineStrlen(char *str, s16 len, int posX, s16 posY, s16 fontTy
 				}
 				else
 				{
-					DecalHUD_DrawPolyGT4(iconPtrArray[iconID],
+					DecalHUD_DrawPolyGT4(IconGroup_GetIcon(gGT->iconGroup[iconGroupID], (size_t)iconID, "European font icon"),
 
 					                     posX + pixWidthExtra, posY + pixHeightExtra,
 
@@ -633,7 +628,7 @@ int DecalFont_DrawMultiLineStrlen(char *str, s16 len, s16 posX, s16 posY, s16 ma
 					}
 				}
 
-				lineLen = DecalFont_GetLineWidthStrlen(str, (u32)currPointer - (u32)str, (int)fontType);
+				lineLen = DecalFont_GetLineWidthStrlen(str, (int)(currPointer - str), (int)fontType);
 
 				if (
 				    // if parameter line length is longer than string line length
@@ -658,7 +653,7 @@ int DecalFont_DrawMultiLineStrlen(char *str, s16 len, s16 posX, s16 posY, s16 ma
 #if BUILD > UsaRetail
 		if (!(flags & 0x800))
 #endif
-			DecalFont_DrawLineStrlen(str, (u32)strPointer - (u32)str, (int)posX, posY + totalPassageHeight, (int)fontType, (int)flags);
+			DecalFont_DrawLineStrlen(str, (int)(strPointer - str), (int)posX, posY + totalPassageHeight, (int)fontType, (int)flags);
 
 #if BUILD > SepReview
 

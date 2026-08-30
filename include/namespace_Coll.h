@@ -103,7 +103,7 @@ struct BspSearchVertex
 	CollNormalAxis normalAxis;
 
 	// 0x8
-	struct LevVertex *pLevelVertex;
+	u32 levelVertexPtr32;
 
 	// 0xC
 	struct CollPlane plane;
@@ -113,7 +113,7 @@ struct BspSearchVertex
 
 struct BspSearchTriangle
 {
-	struct QuadBlock *quadblock;
+	u32 quadblockPtr32;
 	s32 triangleID;
 	s32 scrubDepth;
 };
@@ -139,7 +139,7 @@ struct BspSearchResult
 	u8 triangleID;
 
 	// 0x18
-	struct QuadBlock *ptrQuadblock;
+	u32 quadblockPtr32;
 };
 
 struct CollInstanceHitboxScratch
@@ -175,16 +175,12 @@ struct CollTriangleBarycentrics
 
 struct CollLevelTriangle
 {
-	struct LevVertex *v0;
-	struct LevVertex *v1;
-	struct LevVertex *v2;
+	u32 vertexPtr32[3];
 };
 
 struct CollBspSearchTriangle
 {
-	struct BspSearchVertex *v0;
-	struct BspSearchVertex *v1;
-	struct BspSearchVertex *v2;
+	u32 vertexPtr32[3];
 };
 
 struct BSP;
@@ -259,19 +255,19 @@ struct ScratchpadStruct
 			s16 pad16;
 
 			// 0x18
-			struct Thread *thread;
+			u32 threadPtr32;
 
 			// 0x1c
 			struct BoundingBox bbox;
 
 			// 0x28
-			CollThBuckCallback funcCallback;
+			u32 callbackPtr32;
 
 		} ThBuckColl;
 	} Union;
 
 	// 0x2C
-	struct mesh_info *ptr_mesh_info;
+	u32 meshInfoPtr32;
 
 	// 0x30
 	struct BoundingBox bbox;
@@ -290,10 +286,10 @@ struct ScratchpadStruct
 	s16 boolDidTouchHitbox;
 
 	// 0x44
-	struct mesh_info *ptr_mesh_info_2;
+	u32 meshInfo2Ptr32;
 
 	// 0x48
-	struct BSP *bspHitbox;
+	u32 bspHitboxPtr32;
 
 	// 0x4c
 	struct BspSearchResult candidate;
@@ -308,7 +304,7 @@ struct ScratchpadStruct
 	// 0x88
 	// COLL_MOVED_PlayerSearch can test up to 15 hitboxes, so this prevents
 	// duplicate collision handling within one search.
-	struct BSP *bspHitboxesHit[15];
+	u32 bspHitboxesHitPtr32[15];
 
 	// 0xc4
 	s32 numBspHitboxesHit;
@@ -374,6 +370,27 @@ struct ScratchpadStructExtended
 	// 1f800400 end of memory
 };
 
+/*
+ * The scratch image above is a fixed retail ABI. Live native pointers are
+ * carried separately so LP64 hosts never widen or truncate scratch fields.
+ * Access is keyed by ScratchpadStruct address through COLL_Scratch_GetHost.
+ */
+struct CollScratchHost
+{
+	struct Thread *thread;
+	CollThBuckCallback callback;
+	struct mesh_info *meshInfo;
+	struct mesh_info *meshInfo2;
+	struct BSP *bspHitbox;
+	struct QuadBlock *candidateQuadblock;
+	struct QuadBlock *hitQuadblock;
+	struct BSP *bspHitboxesHit[15];
+	struct LevVertex *hitLevelTriangle[3];
+	struct BspSearchVertex *hitBspSearchTriangle[3];
+	struct LevVertex *bspSearchVertLevelVertex[9];
+	struct QuadBlock *bspSearchTriangleQuadblock[15];
+};
+
 CTR_STATIC_ASSERT(sizeof(struct BoundingBox) == 0xC);
 CTR_STATIC_ASSERT(offsetof(struct BoundingBox, min) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct BoundingBox, max) == 0x6);
@@ -418,7 +435,7 @@ CTR_STATIC_ASSERT(COLL_TRIANGLE_CLIP_V1 == 0);
 CTR_STATIC_ASSERT(COLL_TRIANGLE_CLIP_FACE == 6);
 CTR_STATIC_ASSERT(sizeof(struct BspSearchVertex) == 0x14);
 CTR_STATIC_ASSERT(sizeof(struct BspSearchTriangle) == 0xC);
-CTR_STATIC_ASSERT(offsetof(struct BspSearchTriangle, quadblock) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct BspSearchTriangle, quadblockPtr32) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchTriangle, triangleID) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchTriangle, scrubDepth) == 0x8);
 CTR_STATIC_ASSERT(sizeof(struct BspSearchResult) == 0x1C);
@@ -435,6 +452,7 @@ CTR_STATIC_ASSERT(sizeof(struct CollLevelTriangle) == 0xC);
 CTR_STATIC_ASSERT(sizeof(struct CollBspSearchTriangle) == 0xC);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchVertex, pos) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchVertex, normalAxis) == 0x6);
+CTR_STATIC_ASSERT(offsetof(struct BspSearchVertex, levelVertexPtr32) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchVertex, plane) == 0xC);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, hitPos) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, normalAxis) == 0x6);
@@ -442,7 +460,7 @@ CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, plane) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, pushOut) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, reorderResult) == 0x16);
 CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, triangleID) == 0x17);
-CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, ptrQuadblock) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct BspSearchResult, quadblockPtr32) == 0x18);
 CTR_STATIC_ASSERT(sizeof(struct ScratchpadStruct) == 0x20C);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Input1.pos) == 0x00);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Input1.hitRadius) == 0x06);
@@ -456,9 +474,12 @@ CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.QuadBlockColl.quadFlag
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.QuadBlockColl.quadFlagsIgnored) == 0x28);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.ThBuckColl.centerDelta) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.ThBuckColl.pad16) == 0x16);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.ThBuckColl.thread) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.ThBuckColl.threadPtr32) == 0x18);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.ThBuckColl.bbox) == 0x1C);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.ThBuckColl.funcCallback) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, Union.ThBuckColl.callbackPtr32) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, meshInfoPtr32) == 0x2C);
+CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, meshInfo2Ptr32) == 0x44);
+CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, bspHitboxPtr32) == 0x48);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, numTrianglesTested) == 0x3C);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, resetOnly40) == 0x40);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, candidate) == 0x4C);
@@ -472,21 +493,21 @@ CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hit) + offsetof(struct BspSe
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hit) + offsetof(struct BspSearchResult, pushOut) == 0x78);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hit.reorderResult) == 0x7E);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hit.triangleID) == 0x7F);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hit.ptrQuadblock) == 0x80);
+CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hit.quadblockPtr32) == 0x80);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitFraction) == 0x84);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, bspHitboxesHit) == 0x88);
+CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, bspHitboxesHitPtr32) == 0x88);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, numBspHitboxesHit) == 0xC4);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitBarycentrics) == 0xC8);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitBarycentrics.v1) == 0xC8);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitBarycentrics.v2) == 0xCA);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitLevelTriangle) == 0xCC);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitLevelTriangle.v0) == 0xCC);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitLevelTriangle.v1) == 0xD0);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitLevelTriangle.v2) == 0xD4);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct ScratchpadStruct, hitLevelTriangle.vertexPtr32, 0) == 0xCC);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct ScratchpadStruct, hitLevelTriangle.vertexPtr32, 1) == 0xD0);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct ScratchpadStruct, hitLevelTriangle.vertexPtr32, 2) == 0xD4);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitBspSearchTriangle) == 0xD8);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitBspSearchTriangle.v0) == 0xD8);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitBspSearchTriangle.v1) == 0xDC);
-CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, hitBspSearchTriangle.v2) == 0xE0);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct ScratchpadStruct, hitBspSearchTriangle.vertexPtr32, 0) == 0xD8);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct ScratchpadStruct, hitBspSearchTriangle.vertexPtr32, 1) == 0xDC);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct ScratchpadStruct, hitBspSearchTriangle.vertexPtr32, 2) == 0xE0);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, candidateDelta) == 0xE4);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, padEA) == 0xEA);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadStruct, quadSecondTriIndexA) == 0xEC);

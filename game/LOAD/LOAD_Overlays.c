@@ -13,7 +13,8 @@ void LOAD_OvrLOD(u32 numPlyrCurrGame)
 	{
 #ifndef CTR_NATIVE
 		// LOD overlay 226-229
-		LOAD_AppendQueue(0, LT_SETADDR, BI_OVERLAYSECT2 + overlayIndex, &OVR_Region2, LOAD_Callback_Overlay_Generic);
+		sdata->load_inProgress = 1;
+		LOAD_AppendQueue(sdata->ptrBigfileCdPos_2, LT_SETADDR, BI_OVERLAYSECT2 + overlayIndex, &OVR_Region2, LOAD_Callback_Overlay_Generic);
 #endif
 
 		// save ID, and reload next overlay (sector read invalidation)
@@ -33,7 +34,8 @@ void LOAD_OvrEndRace(u32 overlayIndex)
 	{
 #ifndef CTR_NATIVE
 		// EndOfRace overlay 221-225
-		LOAD_AppendQueue(0, LT_SETADDR, BI_OVERLAYSECT1 + overlayIndex, &OVR_Region1, LOAD_Callback_Overlay_Generic);
+		sdata->load_inProgress = 1;
+		LOAD_AppendQueue(sdata->ptrBigfileCdPos_2, LT_SETADDR, BI_OVERLAYSECT1 + overlayIndex, &OVR_Region1, LOAD_Callback_Overlay_Generic);
 #endif
 
 		gGT->overlayIndex_EndOfRace = overlayIndex;
@@ -76,7 +78,8 @@ void LOAD_OvrThreads(u32 overlayIndex)
 #ifndef CTR_NATIVE
 		gGT->overlayIndex_Threads = OVERLAY_INDEX_NONE;
 		// Threads overlay 230-233
-		LOAD_AppendQueue(0, LT_SETADDR, BI_OVERLAYSECT3 + overlayIndex, &OVR_Region3, data.overlayCallbackFuncs[overlayIndex]);
+		sdata->load_inProgress = 1;
+		LOAD_AppendQueue(sdata->ptrBigfileCdPos_2, LT_SETADDR, BI_OVERLAYSECT3 + overlayIndex, &OVR_Region3, data.overlayCallbackFuncs[overlayIndex]);
 #else
 		// NOTE(aalhendi): Native overlays are already linked, so reset the
 		// overlay-owned data that retail would refresh by streaming into OVR_Region3.

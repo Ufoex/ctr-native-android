@@ -672,10 +672,10 @@ void AH_Map_Main(void)
 		sdata->HudAndDebugFlags = AH_MAP_HUD_AND_DEBUG_SPEEDOMETER;
 	}
 
-	if (gGT->level1->ptrSpawnType1->count != 0)
+	struct SpawnType1 *spawn = Level_GetSpawnType1(gGT->level1, "AH_Map spawn table");
+	if ((spawn != NULL) && (spawn->count != 0))
 	{
-		void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
-		map = pointers[ST1_MAP];
+		map = SpawnType1_GetPointer(spawn, ST1_MAP, sizeof(*map), _Alignof(struct UIMap), "AH_Map map metadata");
 	}
 
 	// if game is not paused

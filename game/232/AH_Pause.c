@@ -173,10 +173,11 @@ void AH_Pause_Draw(s32 pageID, s32 posX)
 	struct GameTracker *gGT = sdata->gGT;
 	struct PrimMem *primMem = &gGT->backBuffer->primMem;
 
-	struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[AH_PAUSE_ICON_GROUP_HUD]);
+	struct Icon *arrowIcon =
+	    IconGroup_GetIcon(gGT->iconGroup[AH_PAUSE_ICON_GROUP_HUD], AH_PAUSE_HUD_ICON_PAGE_ARROW, "pause page arrow");
 
 	// Draw arrow pointing Left
-	DecalHUD_Arrow2D(iconPtrArray[AH_PAUSE_HUD_ICON_PAGE_ARROW], (posX - titleHalfWidth) + AH_PAUSE_ARROW_LEFT_X_OFFSET, AH_PAUSE_ARROW_Y,
+	DecalHUD_Arrow2D(arrowIcon, (posX - titleHalfWidth) + AH_PAUSE_ARROW_LEFT_X_OFFSET, AH_PAUSE_ARROW_Y,
 
 	                 primMem, gGT->pushBuffer_UI.ptrOT,
 
@@ -185,7 +186,7 @@ void AH_Pause_Draw(s32 pageID, s32 posX)
 	                 0, AH_PAUSE_ARROW_SCALE, AH_PAUSE_ARROW_LEFT_ROT_Y);
 
 	// Draw arrow pointing Right
-	DecalHUD_Arrow2D(iconPtrArray[AH_PAUSE_HUD_ICON_PAGE_ARROW], (posX + titleHalfWidth) + AH_PAUSE_ARROW_RIGHT_X_OFFSET, AH_PAUSE_ARROW_Y,
+	DecalHUD_Arrow2D(arrowIcon, (posX + titleHalfWidth) + AH_PAUSE_ARROW_RIGHT_X_OFFSET, AH_PAUSE_ARROW_Y,
 
 	                 primMem, gGT->pushBuffer_UI.ptrOT,
 
@@ -324,9 +325,8 @@ void AH_Pause_Draw(s32 pageID, s32 posX)
 
 			u32 *starColor = data.ptrColor[bossStarColor];
 
-			struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[AH_PAUSE_ICON_GROUP_MISC]);
-
-			DecalHUD_DrawPolyGT4(iconPtrArray[AH_PAUSE_HUD_ICON_BOSS_STAR],
+			DecalHUD_DrawPolyGT4(
+			    IconGroup_GetIcon(gGT->iconGroup[AH_PAUSE_ICON_GROUP_MISC], AH_PAUSE_HUD_ICON_BOSS_STAR, "pause boss star"),
 
 			                     posX + iconX + AH_PAUSE_BOSS_STAR_X_OFFSET, bossRowY + AH_PAUSE_BOSS_STAR_Y_OFFSET,
 
@@ -533,7 +533,7 @@ void AH_Pause_Draw(s32 pageID, s32 posX)
 			inst->flags &= ~AH_PAUSE_INSTANCE_DYNAMIC_FLAGS;
 			inst->flags |= D232.advPauseInst[index].instFlags;
 
-			if (member->unlockFlags == 0)
+			if ((member->unlockFlags & AH_PAUSE_MEMBER_UNLOCKED) == 0)
 			{
 				inst->flags &= ~AH_PAUSE_INSTANCE_DYNAMIC_FLAGS;
 				inst->colorRGBA = 0;

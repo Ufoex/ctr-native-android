@@ -5,9 +5,15 @@
 static void RB_Baron_SetPathFrame(struct Instance *inst, struct SpawnType2 *spawn, int pointIndex, int offsetX, int offsetZ, int flipRotX)
 {
 	const struct SpawnPosRot *frame;
+	struct SpawnPosRot *frames;
 	SVec3 rot;
 
-	frame = &spawn->posRot[pointIndex];
+	frames = SpawnType2_GetPosRot(spawn, "RB_Baron path");
+	if ((frames == NULL) || (pointIndex < 0) || (pointIndex >= spawn->numCoords))
+	{
+		return;
+	}
+	frame = &frames[pointIndex];
 
 	rot = frame->rot;
 
@@ -55,7 +61,11 @@ void RB_Baron_ThTick(struct Thread *t)
 		return;
 	}
 
-	spawn = &level->ptrSpawnType2_PosRot[0];
+	spawn = Level_GetSpawnType2PosRot(level, "RB_Baron path table");
+	if (spawn == NULL)
+	{
+		return;
+	}
 	pointIndex = (baronObj->pointIndex + 1) % spawn->numCoords;
 	baronObj->pointIndex = pointIndex;
 	modelID = baronInst->model->id;
@@ -138,7 +148,11 @@ void RB_Baron_LInB(struct Instance *inst)
 
 	if (inst->name[strlen(inst->name) - 1] == '0')
 	{
-		pointIndex = sdata->gGT->level1->ptrSpawnType2->numCoords / 2;
+		struct SpawnType2 *spawn = Level_GetSpawnType2(sdata->gGT->level1, "RB_Baron birth path");
+		if (spawn != NULL)
+		{
+			pointIndex = spawn->numCoords / 2;
+		}
 	}
 
 	baronObj->pointIndex = pointIndex;

@@ -55,7 +55,8 @@ struct ParticleEmitter emSet_OrcaSplash[7] = {
             .initOffset = 5,
             .InitTypes.AxisInit =
                 {
-                    .baseValue = {.startVal = 0x3E8, .velocity = 0x28, .accel = 0x64},
+                    .baseValue = {.startVal = 0x3E8, .velocity = 0x28, .accel = 0},
+                    .rngSeed = {.startVal = 0x64},
                 },
         },
 
@@ -201,8 +202,8 @@ void RB_Orca_LInB(struct Instance *inst)
 {
 	struct Orca *orcaObj;
 	struct SpawnType2 *spawnType2;
+	struct SpawnType1 *spawnType1;
 	struct Thread *t;
-	void **pointers;
 	s16 *metaArray;
 	int orcaID;
 
@@ -246,10 +247,16 @@ void RB_Orca_LInB(struct Instance *inst)
 
 	if (sdata->gGT->level1->numSpawnType2 != 0)
 	{
-		spawnType2 = &sdata->gGT->level1->ptrSpawnType2[orcaID + 4];
+		struct SpawnType2 *spawnArray = Level_GetSpawnType2(sdata->gGT->level1, "RB_Orca position paths");
+		SVec3 *positions;
 
-		orcaObj->startPos = spawnType2->positions[0];
-		orcaObj->endPos = spawnType2->positions[1];
+		spawnType2 = (spawnArray == NULL) ? NULL : &spawnArray[orcaID + 4];
+		positions = SpawnType2_GetPositions(spawnType2, "RB_Orca positions");
+		if ((positions != NULL) && (spawnType2->numCoords >= 2))
+		{
+			orcaObj->startPos = positions[0];
+			orcaObj->endPos = positions[1];
+		}
 	}
 
 	orcaObj->pathDelta.x = orcaObj->startPos.x - orcaObj->endPos.x;
@@ -258,13 +265,17 @@ void RB_Orca_LInB(struct Instance *inst)
 
 	orcaObj->numFrames = INSTANCE_GetNumAnimFrames(inst, 0);
 
-	if (sdata->gGT->level1->ptrSpawnType1->count <= 0)
+	spawnType1 = Level_GetSpawnType1(sdata->gGT->level1, "RB_Orca spawn table");
+	if ((spawnType1 == NULL) || (spawnType1->count <= 0))
 	{
 		return;
 	}
 
-	pointers = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
-	metaArray = (s16 *)pointers[ST1_SPAWN];
+	metaArray = SpawnType1_GetPointer(spawnType1, ST1_SPAWN, sizeof(*metaArray), _Alignof(s16), "RB_Orca spawn metadata");
+	if (metaArray == NULL)
+	{
+		return;
+	}
 	orcaObj->cooldown = metaArray[orcaObj->orcaID];
 
 	if (orcaObj->cooldown != 0)

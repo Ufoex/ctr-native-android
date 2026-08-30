@@ -112,14 +112,8 @@ void BOTS_SetGlobalNavData(u16 index)
 void BOTS_InitNavPath(struct GameTracker *gGT, s16 index)
 {
 	(void)gGT;
-	struct NavHeader *nh = 0;
-	struct NavHeader **LevNavTable = sdata->gGT->level1->LevNavTable;
-
-	if (LevNavTable != 0)
-	{
-		// nullptr on Nitro Court
-		nh = LevNavTable[index];
-	}
+	// nullptr on Nitro Court
+	struct NavHeader *nh = Level_GetNavHeader(sdata->gGT->level1, (size_t)index, "BOTS navigation header");
 
 	// if path exists
 	if (nh != 0)
@@ -154,9 +148,6 @@ void BOTS_InitNavPath(struct GameTracker *gGT, s16 index)
 	// global last point
 	sdata->nav_ptrLastPoint = &sdata->NavPath_ptrNavFrameArray[index][sdata->nav_NumPointsOnPath];
 
-	// header last point
-	sdata->NavPath_ptrHeader[index]->last = sdata->nav_ptrLastPoint;
-
 	// global first point
 	sdata->nav_ptrFirstPoint = sdata->NavPath_ptrNavFrameArray[index];
 
@@ -187,17 +178,17 @@ internal void BOTS_Adv_CopySpawnOrder(s32 first, s32 second)
 
 internal s32 BOTS_GetTrackDistanceToFinish(struct GameTracker *gGT)
 {
-#if defined(CTR_NATIVE)
+	struct CheckpointNode *restartPoints = (gGT->level1 == NULL) ? NULL : Level_GetRestartPoints(gGT->level1, "BOTS restart points");
+
 	// NOTE(aalhendi): Menu-storage/wrong-warp can leave stale bot threads in
 	// levels without restart points. Retail blind-loads from low PSX memory;
 	// native uses zero so only stale AI spacing/rubberband math is affected.
-	if ((gGT->level1 == NULL) || (gGT->level1->ptr_restart_points == NULL))
+	if (restartPoints == NULL)
 	{
 		return 0;
 	}
-#endif
 
-	return CTR_MipsSll(gGT->level1->ptr_restart_points->distToFinish, 3);
+	return CTR_MipsSll(restartPoints->distToFinish, 3);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80012598-0x80013374.
@@ -531,7 +522,7 @@ void BOTS_SetRotation(struct Driver *bot, int useSpawnYaw)
 		bot->botData.estimateRotNav[0] = nf->rot[0];
 		rot = ratan2(CTR_MipsNegLo(deltaNavX), CTR_MipsNegLo(deltaNavZ));
 		bot->botData.estimateRotNav[1] = (u8)CTR_MipsSra(CTR_MipsAddLo(rot, BOTS_NAV_REVERSE_YAW_OFFSET), BOTS_ROT_BYTE_SHIFT);
-		bot->botData.estimateRotNav[2] = nf->rot[1];
+		bot->botData.estimateRotNav[2] = nf->rot[2];
 	}
 	else
 	{
@@ -556,7 +547,7 @@ void BOTS_LevInstColl(struct Thread *botThread)
 	struct Driver *driver = (struct Driver *)botThread->object;
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 
-	sps->ptr_mesh_info = sdata->gGT->level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(sdata->gGT->level1, "BOTS level-instance mesh"));
 	sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES;
 	sps->Input1.modelID = DYNAMIC_ROBOT_CAR;
 	sps->Union.QuadBlockColl.quadFlagsWanted = 0;
@@ -583,13 +574,13 @@ void BOTS_LevInstColl(struct Thread *botThread)
 
 	sps->Union.QuadBlockColl.searchFlags &= ~COLL_SEARCH_REUSE_NORMALS;
 
-	if ((sps->bspHitbox->flag & BSP_HITBOX_COLLIDABLE) == 0)
+	if ((COLL_Scratch_GetHost(sps)->bspHitbox->flag & BSP_HITBOX_COLLIDABLE) == 0)
 	{
 		return;
 	}
 
-	struct InstDef *instDef = sps->bspHitbox->data.hitbox.instDef;
-	struct Instance *inst = instDef->ptrInstance;
+	struct InstDef *instDef = BSP_GetInstDef(COLL_Scratch_GetHost(sps)->bspHitbox, "BOTS hitbox InstDef");
+	struct Instance *inst = InstDef_GetInstance(instDef);
 	if (inst == NULL)
 	{
 		return;
@@ -649,7 +640,7 @@ void BOTS_MaskGrab(struct Thread *botThread)
 	struct NavFrame *nextFrame = frame + 1;
 
 	// if the next nav point is a farther address than last point
-	if (sdata->NavPath_ptrHeader[bot->botData.botPath]->last <= nextFrame)
+	if (NavHeader_GetLast(sdata->NavPath_ptrHeader[bot->botData.botPath]) <= nextFrame)
 	{
 		// set next nav point to first nav point
 		nextFrame = sdata->NavPath_ptrNavFrameArray[bot->botData.botPath];
@@ -775,7 +766,7 @@ void BOTS_Killplane(struct Thread *botThread)
 				if (frame < sdata->NavPath_ptrNavFrameArray[i])
 				{
 					// go to last nav point
-					frame = &sdata->NavPath_ptrHeader[i]->last[-1];
+					frame = NavHeader_GetLast(sdata->NavPath_ptrHeader[i]) - 1;
 				}
 
 				backCount = frame->goBackCount;
@@ -810,7 +801,7 @@ void BOTS_Killplane(struct Thread *botThread)
 			if (frame < sdata->NavPath_ptrNavFrameArray[i])
 			{
 				// loop back to last navFrame
-				frame = &sdata->NavPath_ptrHeader[i]->last[-1];
+				frame = NavHeader_GetLast(sdata->NavPath_ptrHeader[i]) - 1;
 			}
 			backCount = frame->goBackCount;
 			currNav = bot->checkpoint.currentIndex;
@@ -969,7 +960,7 @@ UpdateTireColorTimer:
 
 		int pathID = botDriver->botData.botPath;
 
-		if (navFrameNext >= sdata->NavPath_ptrHeader[pathID]->last)
+		if (navFrameNext >= NavHeader_GetLast(sdata->NavPath_ptrHeader[pathID]))
 		{
 			navFrameNext = sdata->NavPath_ptrNavFrameArray[pathID];
 		}
@@ -1658,7 +1649,7 @@ UpdateTireColorTimer:
 
 		iVar15 = CTR_MipsSubLo(iVar15, iVar3);
 
-		if (navFrameNext >= sdata->NavPath_ptrHeader[index]->last)
+		if (navFrameNext >= NavHeader_GetLast(sdata->NavPath_ptrHeader[index]))
 		{
 			navFrameNext = sdata->NavPath_ptrNavFrameArray[index];
 		}
@@ -1762,7 +1753,7 @@ UpdateTireColorTimer:
 		botInstance->alphaScale = (s16)CTR_MipsSra(CTR_MipsAddLo(CTR_MipsMulLo((u16)botInstance->alphaScale, 100), transparency), 8);
 	}
 
-	if (((botDriver->actionsFlagSet & ACTION_FRONT_SKID) == 0) || ((navActionFlags & (ACTION_BACK_SKID | ACTION_FRONT_SKID)) == 0))
+	if (((botDriver->actionsFlagSet & ACTION_FRONT_SKID) == 0) || ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_MASK) == 0))
 	{
 		botDriver->turbo_MeterRoomLeft = 0;
 		botDriver->botData.aiPhysics.turboMeter = 0;
@@ -1846,7 +1837,7 @@ UpdateTireColorTimer:
 
 		navFrameNext = NAVFRAME_GETNEXTFRAME(navFrameCurr);
 
-		if (navFrameNext >= sdata->NavPath_ptrHeader[botPath]->last)
+		if (navFrameNext >= NavHeader_GetLast(sdata->NavPath_ptrHeader[botPath]))
 		{
 			navFrameNext = sdata->NavPath_ptrNavFrameArray[botPath];
 		}
@@ -1994,7 +1985,7 @@ UpdateTireColorTimer:
 		    .z = probeZ,
 		};
 
-		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+		COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(gGT->level1, "BOTS driving mesh"));
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
 		sps->Union.QuadBlockColl.quadFlagsIgnored = QUADBLOCK_FLAG_NO_COLLISION_RESPONSE;
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
@@ -2005,7 +1996,7 @@ UpdateTireColorTimer:
 		{
 			botDriver->quadBlockHeight = CTR_MipsSll(sps->Union.QuadBlockColl.hitPos.y, 8);
 
-			botDriver->botData.ai_quadblock_checkpointIndex = sps->hit.ptrQuadblock->checkpointIndex;
+			botDriver->botData.ai_quadblock_checkpointIndex = COLL_Scratch_GetHost(sps)->hitQuadblock->checkpointIndex;
 
 			VehPhysForce_RotAxisAngle(&botInstance->matrix, sps->hit.plane.normal.v, botDriver->botData.aiRot.y);
 
@@ -2014,7 +2005,7 @@ UpdateTireColorTimer:
 			botInstance->compressedNormalAndDriverIndex =
 			    INST_CompressNormalVectorAndDriverIndex(sps->hit.plane.normal.x, sps->hit.plane.normal.y, sps->hit.plane.normal.z, botDriver->driverID);
 
-			if ((sps->hit.ptrQuadblock->quadFlags & QUADBLOCK_FLAG_KILL_PLANE) != 0)
+			if ((COLL_Scratch_GetHost(sps)->hitQuadblock->quadFlags & QUADBLOCK_FLAG_KILL_PLANE) != 0)
 			{
 				BOTS_Killplane(botThread);
 			}
@@ -2765,7 +2756,7 @@ FinishHazardTimerUpdate:
 		    .z = probeZ,
 		};
 
-		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+		COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(gGT->level1, "BOTS player probe mesh"));
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
 		sps->Union.QuadBlockColl.quadFlagsIgnored = 0;
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
@@ -2774,7 +2765,7 @@ FinishHazardTimerUpdate:
 
 		if (sps->boolDidTouchQuadblock != 0)
 		{
-			botDriver->underDriver = sps->hit.ptrQuadblock;
+			botDriver->underDriver = COLL_Scratch_GetHost(sps)->hitQuadblock;
 		}
 	}
 }
@@ -2782,7 +2773,6 @@ FinishHazardTimerUpdate:
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80016b00-0x80016ec8
 u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver *driverAttacker, int reason)
 {
-	(void)reason;
 	driverVictim->pendingDamageType = 0;
 
 	if (driverVictim->kartState == KS_MASK_GRABBED)
@@ -2910,8 +2900,8 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 
 	if (driverAttacker != NULL && damageType != 0)
 	{
-		driverAttacker->numTimesAttacked++;
-		switch (damageType)
+		driverAttacker->numTimesAttacking++;
+		switch (reason)
 		{
 		case 1:
 			driverAttacker->numTimesBombsHitSomeone++;
@@ -2955,7 +2945,7 @@ void BOTS_CollideWithOtherAI(struct Driver *robot_1, struct Driver *robot_2)
 		navSegmentStartPos = &navFrameCurr->pos;
 
 		// if you go out of bounds
-		if (sdata->NavPath_ptrHeader[botPathIndex]->last <= navFrameNext)
+		if (NavHeader_GetLast(sdata->NavPath_ptrHeader[botPathIndex]) <= navFrameNext)
 		{
 			// loop back to first navFrame
 			navFrameNext = sdata->NavPath_ptrNavFrameArray[botPathIndex];
@@ -3103,7 +3093,7 @@ struct Driver *BOTS_Driver_Init(int driverID)
 	// path data found
 	struct Thread *t = PROC_BirthWithObject(
 	    // creation flags
-	    SIZE_RELATIVE_POOL_BUCKET(DRIVER_NTSC_RETAIL_SIZE, NONE, LARGE, ROBOT),
+	    SIZE_RELATIVE_POOL_BUCKET(DRIVER_RACE_OBJECT_SIZE, NONE, LARGE, ROBOT),
 
 	    BOTS_ThTick_Drive, // behavior
 	    0,                 //"robotcar",	// debug name
@@ -3111,7 +3101,7 @@ struct Driver *BOTS_Driver_Init(int driverID)
 	);
 
 	struct Driver *d = t->object;
-	memset(d, 0x0, DRIVER_NTSC_RETAIL_SIZE);
+	memset(d, 0x0, DRIVER_RACE_OBJECT_SIZE);
 	VehBirth_NonGhost(t, driverID);
 	sdata->gGT->drivers[driverID] = d;
 	t->modelIndex = DYNAMIC_ROBOT_CAR;

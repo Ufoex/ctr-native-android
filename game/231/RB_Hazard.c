@@ -173,11 +173,14 @@ void RB_Hazard_ThCollide_Generic(struct Thread *thread)
 	struct Instance *crateInst = mw->crateInst;
 	if (crateInst != 0)
 	{
-		struct Crate *crateObj = (struct Crate *)crateInst->thread->object;
-
-		if (crateObj != 0)
+		struct Thread *crateThread = crateInst->thread;
+		if (crateThread != NULL)
 		{
-			crateObj->boolPauseCooldown = 0;
+			struct Crate *crateObj = crateThread->object;
+			if (crateObj != NULL)
+			{
+				crateObj->boolPauseCooldown = 0;
+			}
 		}
 	}
 
@@ -247,9 +250,10 @@ u16 RB_Hazard_CollLevInst(struct ScratchpadStruct *sps, struct Thread *th)
 	struct InstDef *instdef;
 
 	// Check if the hitbox flag has the collision bit set and if InstDef is not NULL
-	if ((sps->bspHitbox->flag & 0x80) && (instdef = sps->bspHitbox->data.hitbox.instDef) != NULL)
+	struct BSP *bspHitbox = COLL_Scratch_GetHost(sps)->bspHitbox;
+	if ((bspHitbox->flag & 0x80) && (instdef = BSP_GetInstDef(bspHitbox, "RB_Hazard hitbox InstDef")) != NULL)
 	{
-		struct Instance *inst = instdef->ptrInstance;
+		struct Instance *inst = InstDef_GetInstance(instdef);
 		if (inst == NULL)
 		{
 			return 1;

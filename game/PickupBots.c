@@ -278,10 +278,15 @@ static void PickupBots_AdvanceBossMeta(struct Driver *boss)
 	struct GameTracker *gGT = sdata->gGT;
 	struct MetaDataBOSS *bossMeta = sdata->bossWeaponMeta;
 	struct MetaDataBOSS *nextMeta = &bossMeta[1];
+	struct CheckpointNode *restartPoints = Level_GetRestartPoints(gGT->level1, "PickupBots boss checkpoint nodes");
+	if (restartPoints == NULL)
+	{
+		return;
+	}
 
 	if (nextMeta->throwFlag == 0)
 	{
-		int threshold = gGT->level1->ptr_restart_points[bossMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
+		int threshold = restartPoints[bossMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
 
 		if (threshold < (int)boss->distanceToFinish_curr)
 		{
@@ -303,7 +308,7 @@ static void PickupBots_AdvanceBossMeta(struct Driver *boss)
 	}
 	else
 	{
-		int threshold = gGT->level1->ptr_restart_points[nextMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
+		int threshold = restartPoints[nextMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
 
 		if ((int)boss->distanceToFinish_curr < threshold)
 		{

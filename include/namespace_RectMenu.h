@@ -226,10 +226,24 @@ struct RectMenu
 CTR_STATIC_ASSERT(sizeof(struct MenuRow) == 6);
 CTR_STATIC_ASSERT(MENU_ROW_LNG_MASK == 0x7fff);
 CTR_STATIC_ASSERT(MENU_ROW_LOCKED == 0x8000);
+#if UINTPTR_MAX == UINT32_MAX
 #if BUILD != SepReview
 CTR_STATIC_ASSERT(sizeof(struct RectMenu) == 0x2C);
 #else
 CTR_STATIC_ASSERT(sizeof(struct RectMenu) == 0x34);
+#endif
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct RectMenu, rows) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct RectMenu, funcPtr) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct RectMenu, drawStyle) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct RectMenu, ptrNextBox_InHierarchy) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct RectMenu, ptrPrevBox_InHierarchy) == 0x38);
+#if BUILD != SepReview
+CTR_STATIC_ASSERT(sizeof(struct RectMenu) == 0x40);
+#else
+CTR_STATIC_ASSERT(sizeof(struct RectMenu) == 0x48);
+#endif
 #endif
 
 #endif

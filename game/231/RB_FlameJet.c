@@ -273,7 +273,7 @@ void RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 	}
 #endif
 
-	particle2 = Particle_Init(0, (struct IconGroup *)gGT->ptrSparkle, &emSet_fjHeat[0]);
+	particle2 = Particle_Init(0, gGT->ptrSparkle, &emSet_fjHeat[0]);
 
 	// heat particle
 	if (particle2 != 0)
@@ -448,11 +448,15 @@ void RB_FlameJet_LInB(struct Instance *inst)
 	fjBoxDesc.bbox.max.y = 0x80;
 	fjBoxDesc.bbox.max.z = 0x140;
 
-	if (sdata->gGT->level1->ptrSpawnType1->count > 0)
+	struct SpawnType1 *spawn = Level_GetSpawnType1(sdata->gGT->level1, "RB_FlameJet spawn table");
+	if ((spawn != NULL) && (spawn->count > 0))
 	{
 		// put on separate cycles
-		void **pointers = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
-		metaArray = (s16 *)pointers[ST1_SPAWN];
+		metaArray = SpawnType1_GetPointer(spawn, ST1_SPAWN, sizeof(*metaArray), _Alignof(s16), "RB_FlameJet spawn metadata");
+		if (metaArray == NULL)
+		{
+			return;
+		}
 
 		fjID = inst->name[strlen(inst->name) - 1] - '0';
 		fjObj->cooldown = metaArray[fjID];

@@ -2084,6 +2084,14 @@ void VehPhysProc_PowerSlide_Update(struct Thread *t, struct Driver *d)
 				    // fire level, bigger boost for attempt number (1,2, or 3)
 				    CTR_MipsSll(d->KartStates.Drifting.numBoostsSuccess, VEH_PHYS_PROC_DRIFT_FIRE_LEVEL_SHIFT));
 
+#if defined(CTR_INTERNAL)
+				if (d->driverID == 0)
+				{
+					Platform_Log("[CTR Gameplay] player powerslide boost: reserves=%d success=%d\n", incrementReserves,
+					             (int)d->KartStates.Drifting.numBoostsSuccess + 1);
+				}
+#endif
+
 				// increase the counter for number of times you've boosted in a row (0-3)
 				d->KartStates.Drifting.numBoostsSuccess = (s8)CTR_MipsAddLo((u8)d->KartStates.Drifting.numBoostsSuccess, 1);
 

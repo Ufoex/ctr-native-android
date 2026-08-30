@@ -271,7 +271,13 @@ struct ParticleEmitter
 };
 
 CTR_STATIC_ASSERT(sizeof(struct ParticleAxis) == 8);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct ParticleOscillator) == 0x18);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct ParticleOscillator, flags) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct ParticleOscillator) == 0x20);
+#endif
 CTR_STATIC_ASSERT(sizeof(struct ParticleOscillatorRandomRange) == 0x0c);
 CTR_STATIC_ASSERT(sizeof(struct ParticleOscillatorConfig) == 0x10);
 CTR_STATIC_ASSERT(PARTICLE_OSC_FLAG_MODE_MASK == 0x0007);
@@ -342,6 +348,7 @@ CTR_STATIC_ASSERT(offsetof(struct ParticleOscillatorConfig, offset) == 0xa);
 CTR_STATIC_ASSERT(offsetof(struct ParticleOscillatorConfig, min) == 0xc);
 CTR_STATIC_ASSERT(offsetof(struct ParticleOscillatorConfig, max) == 0xe);
 CTR_STATIC_ASSERT(offsetof(struct ParticleOscillatorConfig, randomRange) == 0x4);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct Particle) == 0x7c);
 CTR_STATIC_ASSERT(offsetof(struct Particle, flagsAxisWord) == 0x14);
 CTR_STATIC_ASSERT(offsetof(struct Particle, flagsAxis) == 0x14);
@@ -355,5 +362,23 @@ CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, initOffset) == 0x2);
 CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, InitTypes) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, data) == 0x14);
 CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, oscillator) == 0x14);
+#else
+CTR_STATIC_ASSERT(offsetof(struct Particle, framesLeftInLife) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct Particle, flagsAxisWord) == 0x24);
+CTR_STATIC_ASSERT(offsetof(struct Particle, flagsAxis) == 0x24);
+CTR_STATIC_ASSERT(offsetof(struct Particle, flagsOscillatorAxis) == 0x26);
+CTR_STATIC_ASSERT(offsetof(struct Particle, otIndexOffset) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct Particle, driverID) == 0x29);
+CTR_STATIC_ASSERT(offsetof(struct Particle, renderDepthLimit) == 0x2a);
+CTR_STATIC_ASSERT(offsetof(struct Particle, funcPtr) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct Particle, axis) == 0x40);
+CTR_STATIC_ASSERT(sizeof(struct Particle) == 0x98);
+CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, flags) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, initOffset) == 0x2);
+CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, InitTypes) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, data) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct ParticleEmitter, oscillator) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct ParticleEmitter) == 0x30);
+#endif
 
 #endif

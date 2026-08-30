@@ -255,7 +255,7 @@ struct CameraDC
 	// 0x28
 	// quadblock->0x44->0x8
 	// which instances are visible from quadblock
-	struct Instance **visInstSrc;
+	struct CtrAssetRef32 *visInstSrc;
 
 	// 0x2c
 	// VisMem->0x60[player]
@@ -427,6 +427,7 @@ CTR_STATIC_ASSERT(offsetof(struct CameraHeightSmoothing, startOffset) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct CameraHeightSmoothing, framesRemaining) == 0x2);
 CTR_STATIC_ASSERT(offsetof(struct CameraHeightSmoothing, currentOffset) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct CameraDC, damagePitchOffset) == 0x1a);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct CameraDC, quadBlockSearchHit) == 0x3c);
 CTR_STATIC_ASSERT(offsetof(struct CameraDC, pushBufferPosCorrection) == 0x4c);
 CTR_STATIC_ASSERT(offsetof(struct CameraDC, cameraPos) == 0x58);
@@ -457,6 +458,30 @@ CTR_STATIC_ASSERT(offsetof(struct CameraDC, heightSmoothing) == 0xc0);
 CTR_STATIC_ASSERT(sizeof(struct CameraDC) == 0xDC);
 #else
 CTR_STATIC_ASSERT(sizeof(struct CameraDC) == 0xC8);
+#endif
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, ptrQuadBlock) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, visLeafSrc) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, visFaceSrc) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, visInstSrc) == 0x38);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, visOVertSrc) == 0x40);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, visSCVertSrc) == 0x48);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, quadBlockSearchHit) == 0x58);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, driverToFollow) == 0x60);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, pushBuffer) == 0x68);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, cameraPos) == 0x7c);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, flags) == 0x94);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, trackPathNode) == 0xb0);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, currEOR) == 0xd0);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, eorModeData) == 0xe4);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, fireSpeedZoom) == 0xec);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, heightSmoothing) == 0xf4);
+#if BUILD >= UsaRetail
+CTR_STATIC_ASSERT(sizeof(struct CameraDC) == 0x110);
+#else
+CTR_STATIC_ASSERT(sizeof(struct CameraDC) == 0x100);
+#endif
 #endif
 
 #endif

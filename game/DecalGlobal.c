@@ -42,18 +42,18 @@ void DecalGlobal_Clear(struct GameTracker *gGT)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80022bdc-0x80022c88.
 void DecalGlobal_Store(struct GameTracker *gGT, struct LevTexLookup *LTL)
 {
-	struct Icon *currIcon;
-	struct IconGroup **currGroup;
+	struct Icon *icons;
 
 	if (LTL == 0)
 	{
 		return;
 	}
 
-	for (
-	    // array of Icon
-	    currIcon = &LTL->firstIcon[0]; currIcon < &LTL->firstIcon[LTL->numIcon]; currIcon++)
+	icons = LevTexLookup_GetIcons(LTL, "DecalGlobal icon array");
+	for (int index = 0; (icons != NULL) && (index < LTL->numIcon); index++)
 	{
+		struct Icon *currIcon = &icons[index];
+
 		// uint, in case of negatives
 		if ((u32)currIcon->global_IconArray_Index < 0x88)
 		{
@@ -61,39 +61,35 @@ void DecalGlobal_Store(struct GameTracker *gGT, struct LevTexLookup *LTL)
 		}
 	}
 
-	for (
-	    // array of POINTER to iconGroup
-	    currGroup = &LTL->firstIconGroupPtr[0]; currGroup < &LTL->firstIconGroupPtr[LTL->numIconGroup]; currGroup++)
+	for (int index = 0; index < LTL->numIconGroup; index++)
 	{
-		// use '[0]' to dereference pointer
-		if ((u32)currGroup[0]->groupID < 0x11)
+		struct IconGroup *group = LevTexLookup_GetIconGroup(LTL, (size_t)index, "DecalGlobal icon group");
+
+		if ((group != NULL) && ((u32)group->groupID < 0x11))
 		{
-			gGT->iconGroup[currGroup[0]->groupID] = currGroup[0];
+			gGT->iconGroup[group->groupID] = group;
 		}
 	}
 }
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80022c88-0x80022d2c.
-int *DecalGlobal_FindInLEV(struct Level *level, char *str)
+struct IconGroup *DecalGlobal_FindInLEV(struct Level *level, char *str)
 {
-	struct LevTexLookup *ltl = level->levTexLookup;
+	struct LevTexLookup *ltl = Level_GetTexLookup(level, "DecalGlobal LEV texture lookup");
 
 	if (ltl == NULL)
 	{
 		return NULL;
 	}
 
-	struct IconGroup **curr = ltl->firstIconGroupPtr;
-	struct IconGroup **end = &ltl->firstIconGroupPtr[ltl->numIconGroup];
-
-	for (; curr < end; curr++)
+	for (int index = 0; index < ltl->numIconGroup; index++)
 	{
-		struct IconGroup *group = *curr;
+		struct IconGroup *group = LevTexLookup_GetIconGroup(ltl, (size_t)index, "DecalGlobal LEV icon group");
 
-		if (DecalGlobal_NameEquals(group->name, str))
+		if ((group != NULL) && DecalGlobal_NameEquals(group->name, str))
 		{
-			return (int *)group;
+			return group;
 		}
 	}
 
@@ -102,15 +98,15 @@ int *DecalGlobal_FindInLEV(struct Level *level, char *str)
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80022d2c-0x80022db0.
-int *DecalGlobal_FindInMPK(u32 *icons, char *str)
+struct Icon *DecalGlobal_FindInMPK(struct Icon *icons, char *str)
 {
-	struct Icon *icon = (struct Icon *)icons;
+	struct Icon *icon = icons;
 
 	for (; icon->name[0] != '\0'; icon++)
 	{
 		if (DecalGlobal_NameEquals(icon->name, str))
 		{
-			return (int *)icon;
+			return icon;
 		}
 	}
 

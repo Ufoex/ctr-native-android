@@ -32,8 +32,17 @@ void RB_Minecart_CheckColl(struct Instance *minecartInst, struct Thread *minecar
 
 void RB_Minecart_NewPoint(struct Instance *minecartInst, struct Minecart *minecartObj, struct SpawnType2 *spawnType2)
 {
-	const SVec3 *start = &spawnType2->positions[minecartObj->posIndex - 1];
-	const SVec3 *end = &spawnType2->positions[minecartObj->posIndex];
+	const SVec3 *positions = SpawnType2_GetPositions(spawnType2, "RB_Minecart path");
+	const SVec3 *start;
+	const SVec3 *end;
+
+	if ((positions == NULL) || (minecartObj->posIndex <= 0) || (minecartObj->posIndex >= spawnType2->numCoords))
+	{
+		return;
+	}
+
+	start = &positions[minecartObj->posIndex - 1];
+	end = &positions[minecartObj->posIndex];
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -87,7 +96,11 @@ void RB_Minecart_ThTick(struct Thread *t)
 	}
 
 	// path coordinates for minecarts
-	spawnType2 = &level->ptrSpawnType2[0];
+	spawnType2 = Level_GetSpawnType2(level, "RB_Minecart path table");
+	if (spawnType2 == NULL)
+	{
+		return;
+	}
 	numCoords = spawnType2->numCoords;
 
 	// between two points
@@ -208,7 +221,11 @@ void RB_Minecart_LInB(struct Instance *inst)
 	}
 
 	// path coordinates for minecarts
-	spawnType2 = &sdata->gGT->level1->ptrSpawnType2[0];
+	spawnType2 = Level_GetSpawnType2(sdata->gGT->level1, "RB_Minecart birth path table");
+	if (spawnType2 == NULL)
+	{
+		return;
+	}
 
 	// from instance
 	minecartID = inst->name[strlen(inst->name) - 1] - '0';

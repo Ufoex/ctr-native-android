@@ -1,5 +1,9 @@
 #include <common.h>
 
+#if defined(CTR_NATIVE)
+global_variable size_t s_nativeLevelAssetSize;
+#endif
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800319e8-0x800319f4.
 void LOAD_Callback_Overlay_Generic(struct LoadQueueSlot *lqs)
 {
@@ -57,7 +61,13 @@ void LOAD_Callback_LEV(struct LoadQueueSlot *lqs)
 		sdata->load_inProgress = 0;
 	}
 
+#if defined(CTR_NATIVE)
+	LevelRuntime_Invalidate((struct Level *)lqs->ptrDestination);
+#endif
 	sdata->ptrLevelFile = (struct Level *)lqs->ptrDestination;
+#if defined(CTR_NATIVE)
+	s_nativeLevelAssetSize = (lqs->ptrDestination != NULL) && (lqs->size_UNUSED >= sizeof(u32)) ? (size_t)lqs->size_UNUSED - sizeof(u32) : 0;
+#endif
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031aa4-0x80031b00.
@@ -69,11 +79,20 @@ void LOAD_Callback_PatchMem(struct LoadQueueSlot *lqs)
 
 	// that's why the patch map is handled here
 	struct DramPointerMap *patchMap = lqs->ptrDestination;
-	int patchNum = patchMap->numBytes >> DRAM_POINTER_MAP_WORD_SHIFT;
 
 	sdata->load_inProgress = 0;
 
-	LOAD_RunPtrMap((char *)sdata->ptrLevelFile, DRAM_GETOFFSETS(patchMap), patchNum);
+#if defined(CTR_NATIVE)
+	if ((patchMap == NULL) || (lqs->size_UNUSED < sizeof(*patchMap)) || (patchMap->numBytes < 0) ||
+	    ((size_t)patchMap->numBytes > (size_t)lqs->size_UNUSED - sizeof(*patchMap)) ||
+	    !LOAD_RunPtrMap(sdata->ptrLevelFile, s_nativeLevelAssetSize, (const u32 *)DRAM_GETOFFSETS(patchMap), (size_t)patchMap->numBytes))
+	{
+		fprintf(stderr, "[CTR LOAD] rejected separate LEV pointer map\n");
+		sdata->ptrLevelFile = NULL;
+	}
+#else
+	LOAD_RunPtrMap(sdata->ptrLevelFile, UINT32_MAX, (const u32 *)DRAM_GETOFFSETS(patchMap), (size_t)patchMap->numBytes);
+#endif
 
 	MEMPACK_SwapPacks(0);
 	MEMPACK_ClearHighMem();
@@ -84,7 +103,7 @@ void LOAD_Callback_PatchMem(struct LoadQueueSlot *lqs)
 void LOAD_Callback_DriverModels(struct LoadQueueSlot *lqs)
 {
 	sdata->load_inProgress = 0;
-	sdata->ptrMPK = (int)lqs->ptrDestination;
+	sdata->ptrMPK = lqs->ptrDestination;
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031b14-0x80031b50.

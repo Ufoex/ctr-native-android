@@ -1,5 +1,13 @@
 #include <common.h>
 
+struct RBBlowupObject
+{
+	struct Instance *instances[2];
+	u32 retailPadding;
+};
+
+CTR_STATIC_ASSERT(sizeof(struct RBBlowupObject) == 2 * sizeof(void *) + sizeof(u32) + (sizeof(void *) > sizeof(u32) ? sizeof(u32) : 0));
+
 static struct InstDrawPerPlayer *RB_Blowup_GetIDPP(struct Instance *inst, int playerIndex)
 {
 	return (struct InstDrawPerPlayer *)((char *)inst + sizeof(struct Instance) + (playerIndex * sizeof(struct InstDrawPerPlayer)));
@@ -23,12 +31,12 @@ void RB_Blowup_ProcessBucket(struct Thread *thread)
 
 	for (; thread != NULL; thread = thread->siblingThread)
 	{
-		u32 *blowup = thread->object;
+		struct RBBlowupObject *blowup = thread->object;
 
 		for (int i = 0; i < gGT->numPlyrCurrGame; i++)
 		{
-			struct Instance *shockwaveInst = (struct Instance *)(uintptr_t)blowup[0];
-			struct Instance *explosionInst = (struct Instance *)(uintptr_t)blowup[1];
+			struct Instance *shockwaveInst = blowup->instances[0];
+			struct Instance *explosionInst = blowup->instances[1];
 
 			if (shockwaveInst == NULL || explosionInst == NULL)
 			{
@@ -40,12 +48,11 @@ void RB_Blowup_ProcessBucket(struct Thread *thread)
 	}
 }
 
-static void RB_Blowup_UpdateSlot(int *slot)
+static void RB_Blowup_UpdateSlot(struct Instance **slot)
 {
-	struct Instance *inst;
+	struct Instance *inst = *slot;
 	int nextFrame;
 
-	inst = (struct Instance *)*slot;
 	if (inst == NULL)
 	{
 		return;
@@ -59,19 +66,18 @@ static void RB_Blowup_UpdateSlot(int *slot)
 	}
 
 	INSTANCE_Death(inst);
-	*slot = 0;
+	*slot = NULL;
 }
 
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 231 0x800b17f0-0x800b18f8.
 void RB_Blowup_ThTick(struct Thread *t)
 {
-	int *blowup;
-	blowup = t->object;
+	struct RBBlowupObject *blowup = t->object;
 
-	RB_Blowup_UpdateSlot(&blowup[1]);
-	RB_Blowup_UpdateSlot(&blowup[0]);
+	RB_Blowup_UpdateSlot(&blowup->instances[1]);
+	RB_Blowup_UpdateSlot(&blowup->instances[0]);
 
-	if ((blowup[1] == 0) && (blowup[0] == 0))
+	if ((blowup->instances[1] == NULL) && (blowup->instances[0] == NULL))
 	{
 		t->flags |= THREAD_FLAG_DEAD;
 	}
@@ -79,7 +85,8 @@ void RB_Blowup_ThTick(struct Thread *t)
 	ThTick_FastRET(t);
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b18f8-0x800b1bd8.
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b18f8-0x800b1bd8;
+// CTR_NATIVE only adds allocation-failure handling.
 void RB_Blowup_Init(struct Instance *weaponInst)
 {
 	struct Thread *explosionTh;
@@ -88,10 +95,20 @@ void RB_Blowup_Init(struct Instance *weaponInst)
 	struct ModelHeader *headers;
 	struct GameTracker *gGT = sdata->gGT;
 	u32 color;
-	int *blowup;
+	struct RBBlowupObject *blowup;
 
 	// initialize thread for blowup
-	explosionInst = INSTANCE_BirthWithThread(STATIC_CRATE_EXPLOSION, 0, SMALL, BLOWUP, RB_Blowup_ThTick, 0xc, 0);
+	explosionInst =
+	    INSTANCE_BirthWithThread(STATIC_CRATE_EXPLOSION, 0, SMALL, BLOWUP, RB_Blowup_ThTick, sizeof(struct RBBlowupObject), 0);
+
+#if defined(CTR_NATIVE)
+	// NOTE(aalhendi): Retail assumes the thread and instance pools have capacity. Native
+	// preserves the explosion damage when either optional visual cannot spawn.
+	if (explosionInst == NULL)
+	{
+		goto ApplyDamage;
+	}
+#endif
 
 	explosionInst->flags |= (VISIBLE_DURING_GAMEPLAY | DRAW_BILLBOARD);
 
@@ -99,7 +116,7 @@ void RB_Blowup_Init(struct Instance *weaponInst)
 	blowup = explosionTh->object;
 
 	// set explosion instance
-	blowup[1] = (s32)(uintptr_t)explosionInst;
+	blowup->instances[1] = explosionInst;
 
 	// copy position and rotation from weapon to explosion
 	CTR_MatrixCopyRot(&explosionInst->matrix, &weaponInst->matrix);
@@ -134,7 +151,14 @@ void RB_Blowup_Init(struct Instance *weaponInst)
 	shockwaveInst = INSTANCE_Birth3D(gGT->modelPtr[modelID], 0, explosionTh);
 
 	// set shockwave instance
-	blowup[0] = (s32)(uintptr_t)shockwaveInst;
+	blowup->instances[0] = shockwaveInst;
+
+#if defined(CTR_NATIVE)
+	if (shockwaveInst == NULL)
+	{
+		goto ApplyDamage;
+	}
+#endif
 
 	shockwaveInst->flags |= PIXEL_LOD;
 
@@ -143,14 +167,20 @@ void RB_Blowup_Init(struct Instance *weaponInst)
 	shockwaveInst->matrix.t[1] = weaponInst->matrix.t[1];
 	shockwaveInst->matrix.t[2] = weaponInst->matrix.t[2];
 
-	headers = shockwaveInst->model->headers;
+	headers = Model_GetHeaders(shockwaveInst->model, "blowup shockwave headers");
 
 	// set flag to always point to camera
-	headers[0].flags |= 2;
-	headers[1].flags |= 2;
+	if (headers != NULL)
+	{
+		headers[0].flags |= 2;
+		headers[1].flags |= 2;
+	}
 
 	// ======== End Of Instance ==========
 
+#if defined(CTR_NATIVE)
+ApplyDamage:;
+#endif
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 
 	// put weapon position on scratchpad
@@ -175,8 +205,8 @@ void RB_Blowup_Init(struct Instance *weaponInst)
 
 	sps->Input1.modelID = weaponInst->model->id;
 
-	sps->Union.ThBuckColl.thread = weaponInst->thread;
-	sps->Union.ThBuckColl.funcCallback = RB_Burst_CollThBucket;
+	COLL_Scratch_SetThread(sps, weaponInst->thread);
+	COLL_Scratch_SetCallback(sps, RB_Burst_CollThBucket);
 
 	PROC_StartSearch_Self(sps);
 
@@ -194,6 +224,6 @@ void RB_Blowup_Init(struct Instance *weaponInst)
 	// check collision with player threads
 	PROC_CollideHitboxWithBucket(gGT->threadBuckets[PLAYER].thread, sps, 0);
 
-	sps->Union.ThBuckColl.funcCallback = RB_Burst_CollLevInst;
+	COLL_Scratch_SetCallback(sps, RB_Burst_CollLevInst);
 	return;
 }

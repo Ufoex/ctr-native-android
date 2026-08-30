@@ -766,9 +766,10 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 					// pointer to color data of star
 					u32 *starColor = data.ptrColor[D230.timeTrialStars.colorIndex[starIndex]];
 
-					struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[MM_TRACK_SELECT_TT_STAR_ICON_GROUP]);
-
-					DecalHUD_DrawPolyGT4(iconPtrArray[MM_TRACK_SELECT_TT_STAR_ICON], rowX + MM_TRACK_SELECT_ROW_W + MM_TRACK_SELECT_STAR_X_OFFSET,
+					DecalHUD_DrawPolyGT4(
+					    IconGroup_GetIcon(gGT->iconGroup[MM_TRACK_SELECT_TT_STAR_ICON_GROUP], MM_TRACK_SELECT_TT_STAR_ICON,
+							      "track-select star icon"),
+					    rowX + MM_TRACK_SELECT_ROW_W + MM_TRACK_SELECT_STAR_X_OFFSET,
 					                     (int)rowY + starIndex * MM_TRACK_SELECT_STAR_Y_STEP + MM_TRACK_SELECT_STAR_Y_OFFSET,
 
 					                     // pointer to PrimMem struct

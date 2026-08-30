@@ -171,7 +171,9 @@ static void VehStuckProc_MaskGrab_SearchBsp(struct Driver *d, struct ScratchpadS
 
 	sps->Union.QuadBlockColl.hitPos = sps->Input1.pos;
 
-	COLL_SearchBSP_CallbackPARAM(sps->ptr_mesh_info->bspRoot, &sps->bbox, COLL_FIXED_BSPLEAF_TestQuadblocks, sps);
+	struct mesh_info *mesh = COLL_Scratch_GetHost(sps)->meshInfo;
+	COLL_SearchBSP_CallbackPARAM(MeshInfo_GetBspRoot(mesh, "VehStuckProc recovery BSP"), &sps->bbox,
+	                             COLL_FIXED_BSPLEAF_TestQuadblocks, sps);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006677c-0x80066cb0.
@@ -179,11 +181,16 @@ void VehStuckProc_MaskGrab_FindDestPos(struct Driver *d, struct QuadBlock *quad)
 {
 	struct GameTracker *gGT = sdata->gGT;
 	struct Level *level = gGT->level1;
-	struct mesh_info *mesh = level->ptr_mesh_info;
+	struct mesh_info *mesh = Level_GetMeshInfo(level, "VehStuckProc recovery mesh");
+	struct CheckpointNode *restartPoints = Level_GetRestartPoints(level, "VehStuckProc recovery checkpoint nodes");
 
-	if ((level->cnt_restart_points < 1) || (level->ptr_restart_points == NULL) || (quad->checkpointIndex == 0xff))
+	if ((level->cnt_restart_points < 1) || (restartPoints == NULL) || (quad->checkpointIndex == 0xff))
 	{
-		struct LevVertex *verts = mesh->ptrVertexArray;
+		struct LevVertex *verts = MeshInfo_GetVertices(mesh, "VehStuckProc recovery vertices");
+		if (verts == NULL)
+		{
+			return;
+		}
 		struct LevVertex *v0 = &verts[quad->index[0]];
 		struct LevVertex *v3 = &verts[quad->index[3]];
 
@@ -195,14 +202,14 @@ void VehStuckProc_MaskGrab_FindDestPos(struct Driver *d, struct QuadBlock *quad)
 	{
 		struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 		struct Thread *driverThread = d->instSelf->thread;
-		struct CheckpointNode *respawn = &level->ptr_restart_points[quad->checkpointIndex];
+		struct CheckpointNode *respawn = &restartPoints[quad->checkpointIndex];
 		struct CheckpointNode *nextRespawn;
 
 		sps->Input1.hitRadius = driverThread->driverHitRadius;
 		sps->Input1.hitRadiusSquared = driverThread->driverHitRadiusSquared;
 		sps->Union.QuadBlockColl.hitRadius = driverThread->driverHitRadius;
 		sps->Union.QuadBlockColl.hitRadiusSquared = driverThread->driverHitRadiusSquared;
-		sps->ptr_mesh_info = mesh;
+		COLL_Scratch_SetMeshInfo(sps, mesh);
 		sps->Union.QuadBlockColl.quadFlagsIgnored = QUADBLOCK_FLAG_NO_CAMERA_RESPAWN_PROBE | QUADBLOCK_FLAG_NO_COLLISION_RESPONSE;
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
 		d->distanceDrivenBackwards = 0;
@@ -211,7 +218,7 @@ void VehStuckProc_MaskGrab_FindDestPos(struct Driver *d, struct QuadBlock *quad)
 		{
 			do
 			{
-				nextRespawn = &level->ptr_restart_points[respawn->nextIndex_forward];
+				nextRespawn = &restartPoints[respawn->nextIndex_forward];
 
 				d->posCurr.x = CTR_MipsSll(respawn->pos.x, FRACTIONAL_BITS_8);
 				d->posCurr.y = CTR_MipsSll(CTR_MipsAddLo(respawn->pos.y, VEH_STUCK_RESPAWN_Y_OFFSET), FRACTIONAL_BITS_8);
@@ -839,7 +846,7 @@ DriverFunc PlayerEatenFuncTable[DRIVER_FUNC_COUNT] = {
     NULL,
     NULL,
     NULL,
-    VehPhysForce_TranslateMatrix,
+    NULL,
     VehStuckProc_PlantEaten_Animate,
     NULL,
 };
@@ -1224,7 +1231,7 @@ void VehStuckProc_RevEngine_Init(struct Thread *t, struct Driver *d)
 	d->KartStates.RevEngine.chargeState = REV_ENGINE_CHARGE_IDLE;
 	d->KartStates.RevEngine.lockoutFlags = 0;
 
-	d->KartStates.RevEngine.boostMeter = CTR_MipsAddLo(d->const_AccelSpeed_ClassStat, d->const_AccelSpeed_ClassStat / 3);
+	d->KartStates.RevEngine.boostMeter = CTR_MipsAddLo(d->const_AccelSpeed_ClassStat, d->const_SacredFireSpeed / 3);
 }
 
 DriverFunc PlayerRevEngineFuncTable[DRIVER_FUNC_COUNT] = {

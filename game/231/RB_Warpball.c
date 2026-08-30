@@ -79,13 +79,19 @@ void RB_Warpball_Death(struct Thread *t)
 struct CheckpointNode *RB_Warpball_NewPathNode(struct CheckpointNode *cn, struct Driver *d)
 {
 	struct GameTracker *gGT = sdata->gGT;
+	struct CheckpointNode *nodes = Level_GetRestartPoints(gGT->level1, "RB_Warpball path nodes");
 	u8 pathIndex;
 	u8 targetIndex;
 	int foundLeftPath;
 
+	if (nodes == NULL)
+	{
+		return NULL;
+	}
+
 	if (d == NULL)
 	{
-		return &gGT->level1->ptr_restart_points[cn->nextIndex_forward];
+		return &nodes[cn->nextIndex_forward];
 	}
 
 	foundLeftPath = 0;
@@ -94,7 +100,7 @@ struct CheckpointNode *RB_Warpball_NewPathNode(struct CheckpointNode *cn, struct
 
 	if (targetIndex == pathIndex)
 	{
-		return &gGT->level1->ptr_restart_points[pathIndex];
+		return &nodes[pathIndex];
 	}
 
 	if (pathIndex != 0xff)
@@ -112,7 +118,7 @@ struct CheckpointNode *RB_Warpball_NewPathNode(struct CheckpointNode *cn, struct
 				pathIndex = currNode->nextIndex_left;
 			}
 
-			currNode = &gGT->level1->ptr_restart_points[pathIndex];
+			currNode = &nodes[pathIndex];
 
 			if (targetIndex == currNode->nextIndex_forward)
 			{
@@ -124,10 +130,10 @@ struct CheckpointNode *RB_Warpball_NewPathNode(struct CheckpointNode *cn, struct
 
 	if (foundLeftPath)
 	{
-		return &gGT->level1->ptr_restart_points[cn->nextIndex_left];
+		return &nodes[cn->nextIndex_left];
 	}
 
-	return &gGT->level1->ptr_restart_points[cn->nextIndex_forward];
+	return &nodes[cn->nextIndex_forward];
 }
 
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 231 0x800ae778-0x800ae7dc.
@@ -159,7 +165,11 @@ struct Driver *RB_Warpball_GetDriverTarget(struct TrackerWeapon *tw, struct Inst
 		return bestDriver;
 	}
 
-	struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
+	struct CheckpointNode *nodes = Level_GetRestartPoints(gGT->level1, "RB_Warpball target checkpoint nodes");
+	if (nodes == NULL)
+	{
+		return bestDriver;
+	}
 	struct CheckpointNode *node1 = &nodes[tw->ptrNodeCurr->nextIndex_forward];
 	struct CheckpointNode *node2 = &nodes[node1->nextIndex_forward];
 	int trackDistance = nodes[0].distToFinish << 3;
@@ -218,7 +228,11 @@ void RB_Warpball_SetTargetDriver(struct TrackerWeapon *tw)
 		return;
 	}
 
-	struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
+	struct CheckpointNode *nodes = Level_GetRestartPoints(gGT->level1, "RB_Warpball target path nodes");
+	if (nodes == NULL)
+	{
+		return;
+	}
 	struct CheckpointNode *targetNode = &nodes[target->checkpoint.currentIndex];
 	struct CheckpointNode *prevNode = targetNode;
 	int targetDistance = target->distanceToFinish_curr;
@@ -295,7 +309,11 @@ void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 checkpointIndex, struc
 		return;
 	}
 
-	struct CheckpointNode *first = &sdata->gGT->level1->ptr_restart_points[0];
+	struct CheckpointNode *first = Level_GetRestartPoints(sdata->gGT->level1, "RB_Warpball seek nodes");
+	if (first == NULL)
+	{
+		return;
+	}
 
 	// pointer to path node
 	struct CheckpointNode *cn = &first[checkpointIndex];
@@ -371,7 +389,11 @@ void RB_Warpball_TurnAround(struct Thread *t)
 		{
 			tw->ptrNodeNext = tw->ptrNodeCurr;
 
-			struct CheckpointNode *first = &sdata->gGT->level1->ptr_restart_points[0];
+			struct CheckpointNode *first = Level_GetRestartPoints(sdata->gGT->level1, "RB_Warpball turnaround nodes");
+			if (first == NULL)
+			{
+				return;
+			}
 
 			// set new end to 10 path indices ahead of current
 			tw->ptrNodeCurr = &first[tw->ptrNodeCurr->nextIndex_backward];
@@ -408,9 +430,9 @@ static int RB_Warpball_NodeDeltaLength(struct CheckpointNode *curr, struct Check
 
 static void RB_Warpball_SetQuadblockIndex(struct TrackerWeapon *tw, struct ScratchpadStruct *sps)
 {
-	if (sps->hit.ptrQuadblock->checkpointIndex != 0xff)
+	if (COLL_Scratch_GetHost(sps)->hitQuadblock->checkpointIndex != 0xff)
 	{
-		tw->nodeNextIndex = sps->hit.ptrQuadblock->checkpointIndex;
+		tw->nodeNextIndex = COLL_Scratch_GetHost(sps)->hitQuadblock->checkpointIndex;
 	}
 }
 
@@ -435,6 +457,11 @@ void RB_Warpball_ThTick(struct Thread *t)
 	gGT = sdata->gGT;
 	inst = t->inst;
 	tw = t->object;
+	struct CheckpointNode *nodes = Level_GetRestartPoints(gGT->level1, "RB_Warpball tick nodes");
+	if (nodes == NULL)
+	{
+		return;
+	}
 
 	CTR_WriteU16LE(&tw->savedPosXY, (u16)inst->matrix.t[0]);
 	CTR_WriteU16LE((u8 *)&tw->savedPosXY + 2, (u16)inst->matrix.t[1]);
@@ -453,8 +480,6 @@ void RB_Warpball_ThTick(struct Thread *t)
 	{
 		if ((tw->driverTarget->kartState == KS_MASK_GRABBED) && ((tw->flags & TRACKER_FLAG_WARPBALL_TARGET_PATH) != 0))
 		{
-			struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
-
 			tw->flags = (tw->flags & ~TRACKER_FLAG_WARPBALL_TARGET_PATH) | TRACKER_FLAG_WARPBALL_FALLBACK_PATH | TRACKER_FLAG_WARPBALL_MASK_REPATH;
 			tw->ptrNodeCurr = &nodes[tw->nodeNextIndex];
 			tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, tw->driverTarget);
@@ -639,7 +664,7 @@ void RB_Warpball_ThTick(struct Thread *t)
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES | COLL_SEARCH_HIGH_LOD | COLL_SEARCH_FORCE_INSTANCE_HIT;
 	}
 
-	sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(gGT->level1, "RB_Warpball collision mesh"));
 	COLL_SearchBSP_CallbackQUADBLK(&posTop, &posBottom, sps, 0);
 	RB_MakeInstanceReflective(sps, inst);
 
@@ -667,7 +692,7 @@ void RB_Warpball_ThTick(struct Thread *t)
 		if (((tw->flags & TRACKER_FLAG_WARPBALL_PATH_MODE) != 0) && (inst->matrix.t[1] < sps->hit.hitPos.y))
 		{
 			inst->matrix.t[1] = sps->hit.hitPos.y;
-			inst->depthBiasNormal = sps->hit.ptrQuadblock->draw_order_low - 1;
+			inst->depthBiasNormal = COLL_Scratch_GetHost(sps)->hitQuadblock->draw_order_low - 1;
 		}
 	}
 	else
@@ -763,8 +788,6 @@ void RB_Warpball_ThTick(struct Thread *t)
 				{
 					if (tw->nodeCurrIndex != 0xff)
 					{
-						struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
-
 						tw->ptrNodeCurr = &nodes[tw->nodeCurrIndex];
 						tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, tw->driverTarget);
 					}

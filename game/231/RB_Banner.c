@@ -31,7 +31,8 @@ CTR_STATIC_ASSERT(offsetof(union RBBannerScratchVertex, yResidue) == 0x4);
 
 static inline u8 *RB_Banner_FirstVertex(struct ModelHeader *mh)
 {
-	return (u8 *)mh->ptrFrameData + mh->ptrFrameData->vertexOffset;
+	struct ModelFrame *frame = ModelHeader_GetFrameData(mh, "banner frame data");
+	return (frame == NULL) ? NULL : (u8 *)frame + frame->vertexOffset;
 }
 
 static inline union RBBannerScratchVertex *RB_Banner_VertexSlot(u32 scratchOffset)
@@ -84,13 +85,22 @@ int RB_Banner_Animate_Init(struct ModelHeader *mh)
 	u8 *vertex;
 	int count = 0;
 
-	if ((s16)(*(u16 *)(void *)mh->ptrCommandList) < 0x40)
+	if (!CtrAssetRef_ResolveRequired(mh->ptrCommandList, sizeof(*cmd), _Alignof(u32), (void **)&cmd, "RB_Banner command list"))
+	{
+		return 0;
+	}
+
+	if ((s16)(*(u16 *)(void *)cmd) < 0x40)
 	{
 		return 0;
 	}
 
 	vertex = RB_Banner_FirstVertex(mh);
-	cmd = (u32 *)((u8 *)mh->ptrCommandList + 4);
+	if (vertex == NULL)
+	{
+		return 0;
+	}
+	cmd++;
 
 	while (*cmd != 0xffffffffU)
 	{
@@ -150,6 +160,10 @@ int RB_Banner_Animate_Init(struct ModelHeader *mh)
 	if (sdata->gGT->numPlyrCurrGame >= 4)
 	{
 		vertex = RB_Banner_FirstVertex(mh);
+		if (vertex == NULL)
+		{
+			return 0;
+		}
 		for (int i = 0; i < count; i++, vertex += 3)
 		{
 			vertex[1] = 0x80;
@@ -162,10 +176,15 @@ int RB_Banner_Animate_Init(struct ModelHeader *mh)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b56c4-0x800b57b4.
 void RB_Banner_Animate_Play(struct ModelHeader *mh, s16 numVertices)
 {
-	u32 *colors = mh->ptrColors;
-	u32 firstColor = colors[0];
+	u32 *colors = ModelHeader_GetColors(mh, "banner colors");
 	u8 *vertex;
 
+	if (colors == NULL)
+	{
+		return;
+	}
+
+	u32 firstColor = colors[0];
 	for (int i = 0; i < 0x3f; i++)
 	{
 		colors[i] = colors[i + 1];
@@ -177,11 +196,15 @@ void RB_Banner_Animate_Play(struct ModelHeader *mh, s16 numVertices)
 		return;
 	}
 
-	vertex = (u8 *)mh->ptrFrameData + mh->ptrFrameData->vertexOffset;
+	vertex = RB_Banner_FirstVertex(mh);
+	if (vertex == NULL)
+	{
+		return;
+	}
 	for (int i = 0; i < numVertices; i++, vertex += 3)
 	{
 		u8 x = vertex[0];
-		u8 color = ((u8 *)mh->ptrColors)[(((x >> 2) + 10) & 0x3f) * 4];
+		u8 color = ((u8 *)colors)[(((x >> 2) + 10) & 0x3f) * 4];
 		int wave = (int)color - 0x80;
 
 		if (x < 0x40)
@@ -204,7 +227,11 @@ void RB_Banner_ThTick(struct Thread *t)
 
 	if (banner->numVertices != 0)
 	{
-		RB_Banner_Animate_Play(t->inst->model->headers, banner->numVertices);
+		struct ModelHeader *headers = Model_GetHeaders(t->inst->model, "banner tick headers");
+		if (headers != NULL)
+		{
+			RB_Banner_Animate_Play(headers, banner->numVertices);
+		}
 	}
 }
 
@@ -247,15 +274,27 @@ void RB_Banner_LInB(struct Instance *inst)
 	}
 
 	inst->model = model;
-	banner->numVertices = RB_Banner_Animate_Init(model->headers);
+	struct ModelHeader *headers = Model_GetHeaders(model, "banner initialization headers");
+	if (headers == NULL)
+	{
+		return;
+	}
+
+	banner->numVertices = RB_Banner_Animate_Init(headers);
 	if (banner->numVertices == 0)
+	{
+		return;
+	}
+
+	u32 *colors = ModelHeader_GetColors(headers, "banner initialization colors");
+	if (colors == NULL)
 	{
 		return;
 	}
 
 	for (int i = 0; i < 0x40; i++)
 	{
-		u8 *color = (u8 *)&model->headers->ptrColors[i];
+		u8 *color = (u8 *)&colors[i];
 		int value = (MATH_Sin((u32)i << 7) >> 6) + 0x80;
 
 		if (gGT->numPlyrCurrGame >= 4)

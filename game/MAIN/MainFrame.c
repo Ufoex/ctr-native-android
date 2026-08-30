@@ -56,7 +56,7 @@ void MainFrame_ResetDB(struct GameTracker *gGT)
 	uint32_t *puVar3;
 	int iVar4;
 	struct DB *db;
-	int otSwapchainDB;
+	uint32_t *otSwapchainDB;
 
 	// check if new adv hub should be loaded,
 	// this was a random place for ND to put it
@@ -67,7 +67,7 @@ void MainFrame_ResetDB(struct GameTracker *gGT)
 	gGT->backBuffer = &gGT->db[gGT->swapchainIndex];
 	gGT->frameTimer_MainFrame_ResetDB++;
 
-	otSwapchainDB = (int)gGT->otSwapchainDB[gGT->swapchainIndex];
+	otSwapchainDB = gGT->otSwapchainDB[gGT->swapchainIndex];
 
 	db = gGT->backBuffer;
 	db->blurCameraMask = 0;
@@ -82,27 +82,28 @@ void MainFrame_ResetDB(struct GameTracker *gGT)
 	CTR_EmptyFunc_MainFrame_ResetDB();
 	DecalGlobal_EmptyFunc_MainFrame_ResetDB();
 
-	ClearOTagR((u32 *)otSwapchainDB, sdata->gGT->numPlyrCurrGame << 10 | 6);
+	ClearOTagR(otSwapchainDB, sdata->gGT->numPlyrCurrGame << 10 | 6);
 
 	for (iVar4 = 0; iVar4 < sdata->gGT->numPlyrCurrGame; iVar4++)
 	{
-		gGT->pushBuffer[iVar4].ptrOT = (uint32_t *)((int)otSwapchainDB + (sdata->gGT->numPlyrCurrGame - iVar4 - 1) * 0x1000 + 0x18);
+		gGT->pushBuffer[iVar4].ptrOT =
+		    (uint32_t *)((u8 *)otSwapchainDB + (sdata->gGT->numPlyrCurrGame - iVar4 - 1) * 0x1000 + 0x18);
 	}
 
 	for (; iVar4 < 4; iVar4++)
 	{
 		// but why?
-		gGT->pushBuffer[iVar4].ptrOT = (uint32_t *)((int)otSwapchainDB + 3 * 0x1000 + 0x18);
+		gGT->pushBuffer[iVar4].ptrOT = (uint32_t *)((u8 *)otSwapchainDB + 3 * 0x1000 + 0x18);
 	}
 
-	puVar3 = (uint32_t *)((int)otSwapchainDB + 4);
+	puVar3 = (uint32_t *)((u8 *)otSwapchainDB + 4);
 	gGT->pushBuffer_UI.ptrOT = puVar3;
 	db->otMem.uiOT = puVar3;
 
 #if defined(CTR_NATIVE)
 	if (sdata->ptrPushBufferUI != 0)
 	{
-		struct PushBuffer *wumpaPushBuffer = (struct PushBuffer *)(uintptr_t)sdata->ptrPushBufferUI;
+		struct PushBuffer *wumpaPushBuffer = sdata->ptrPushBufferUI;
 
 		// NOTE(aalhendi): Retail stores PS1 RAM OT addresses here. Native stores
 		// host pointers, so reset the fake UI pushbuffer to the current backbuffer
@@ -130,7 +131,6 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 	u32 uVar5;
 	struct Driver *psVar8;
 	struct Driver *psVar9;
-	struct Driver *psVar10;
 	struct PushBuffer *pushBuffer;
 	int iVar11;
 	struct Thread *psVar12;
@@ -256,8 +256,8 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 			gGT->elapsedEventTime = 0;
 		}
 
-		CTR_CycleTex_AllModels(-1, (struct Model **)sdata->PLYROBJECTLIST, gGT->timer);
-		CTR_CycleTex_AllModels(gGT->level1->numModels, gGT->level1->ptrModelsPtrArray, gGT->timer);
+		CTR_CycleTex_AllModels(UINT32_MAX, sdata->PLYROBJECTLIST, gGT->timer);
+		CTR_CycleTex_AllModels(gGT->level1->numModels, Level_GetModelRefs(gGT->level1, "MainFrame model references"), gGT->timer);
 
 		psVar8 = 0;
 		psVar9 = 0;
@@ -265,32 +265,29 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 #if defined(CTR_NATIVE)
 		for (psVar12 = gGT->threadBuckets[0].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)
 		{
-			psVar9 = (struct Driver *)psVar12->object;
-			psVar10 = psVar9;
-			if (psVar9->driverID == 0)
+			struct Driver *currentDriver = psVar12->object;
+
+			if (currentDriver->driverID == 0)
 			{
-			LAB_80035098:
-				psVar8 = psVar9;
-				psVar9 = psVar10;
+				psVar8 = currentDriver;
+				continue;
 			}
-			else
+
+			if (currentDriver->driverID == 1)
 			{
-				if (psVar9->driverID == 1)
-				{
-					psVar9 = psVar9;
-				}
-				psVar10 = psVar8;
-#ifdef CTR_NATIVE
-				// NOTE(aalhendi): Retail may read PSX low memory before driver 0 appears.
-				if (psVar8 == NULL)
-				{
-					continue;
-				}
-#endif
-				if (psVar9->numTimesAttacking < psVar8->numTimesAttacking)
-				{
-					goto LAB_80035098;
-				}
+				psVar9 = currentDriver;
+			}
+
+			// NOTE(aalhendi): Retail may read PSX low memory before driver 0 appears.
+			if (psVar8 == NULL)
+			{
+				continue;
+			}
+
+			if (currentDriver->numTimesAttacking < psVar8->numTimesAttacking)
+			{
+				psVar9 = psVar8;
+				psVar8 = currentDriver;
 			}
 		}
 #endif
@@ -304,6 +301,10 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		Ctrds_BeginFrameGating();
 #endif
 
+		// NOTE(ctrds): ctrpad narrows this to `iVar4 < PAUSE`, dropping the
+		// PAUSE bucket. That is a behavioural change of theirs, unrelated to
+		// the 64-bit work being taken here, and it would alter the 32-bit
+		// build that is serving as this conversion's reference.
 		for (iVar4 = 0; iVar4 < NUM_BUCKETS; iVar4++)
 		{
 			if ((((gGT->gameMode1 & DEBUG_MENU) == 0) || ((gGT->threadBuckets[iVar4].boolCantPause & 1) != 0)) &&
@@ -624,7 +625,7 @@ b32 MainFrame_HaveAllPads(s16 numPlyrNextGame)
 
 static void MainFrame_ReplacePackedVisList(int *dst, void *src, int byteCount)
 {
-	u32 srcWord = (u32)src;
+	uintptr_t srcWord = (uintptr_t)src;
 
 	if ((srcWord & 1) == 0)
 	{
@@ -632,12 +633,12 @@ static void MainFrame_ReplacePackedVisList(int *dst, void *src, int byteCount)
 		return;
 	}
 
-	CTR_unknownMaybeThunk1(dst, (void *)(srcWord & ~(u32)3));
+	CTR_unknownMaybeThunk1(dst, (void *)(srcWord & ~(uintptr_t)3));
 }
 
 static void MainFrame_OrPackedVisList(int *dst, void *src, int byteCount)
 {
-	u32 srcWord = (u32)src;
+	uintptr_t srcWord = (uintptr_t)src;
 
 	if ((srcWord & 1) == 0)
 	{
@@ -645,12 +646,17 @@ static void MainFrame_OrPackedVisList(int *dst, void *src, int byteCount)
 		return;
 	}
 
-	CTR_unknownMaybeThunk2(dst, (void *)(srcWord & ~(u32)3));
+	CTR_unknownMaybeThunk2(dst, (void *)(srcWord & ~(uintptr_t)3));
 }
 
 static int MainFrame_VisMemHasQuad(const int *visFaceList, const struct QuadBlock *quad, const struct mesh_info *mesh)
 {
-	int quadIndex = (int)(quad - mesh->ptrQuadBlockArray);
+	struct QuadBlock *quadBlocks = MeshInfo_GetQuadBlocks(mesh, "MainFrame visible quad blocks");
+	if ((visFaceList == NULL) || (quadBlocks == NULL))
+	{
+		return 0;
+	}
+	int quadIndex = (int)(quad - quadBlocks);
 
 	return (visFaceList[quadIndex >> 5] & (1 << (quadIndex & 0x1f))) != 0;
 }
@@ -659,29 +665,33 @@ static int MainFrame_VisMemHasQuad(const int *visFaceList, const struct QuadBloc
 static void MainFrame_VisMemAddDriverPVS(struct GameTracker *gGT, int playerIndex)
 {
 	struct Driver *driver = gGT->drivers[playerIndex];
-	struct mesh_info *mesh = gGT->level1->ptr_mesh_info;
+	struct mesh_info *mesh = Level_GetMeshInfo(gGT->level1, "MainFrame driver PVS mesh");
 	struct QuadBlock *quad = driver->underDriver;
 	struct PVS *pvs;
+	int *leafSource;
+	int *faceSource;
 
-	if (quad == NULL)
+	if ((quad == NULL) || (mesh == NULL))
 	{
 		return;
 	}
 
-	pvs = quad->pvs;
+	pvs = QuadBlock_GetPVS(quad, "MainFrame driver PVS");
 	if (pvs == NULL)
 	{
 		return;
 	}
 
-	if (pvs->visLeafSrc != NULL)
+	leafSource = PVS_GetLeafSrc(pvs, ((size_t)mesh->numBspNodes + 31u) >> 5u, "MainFrame driver leaf visibility");
+	if (leafSource != NULL)
 	{
-		MainFrame_OrPackedVisList(gGT->visMem1->visLeafList[playerIndex], pvs->visLeafSrc, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
+		MainFrame_OrPackedVisList(gGT->visMem1->visLeafList[playerIndex], leafSource, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
 	}
 
-	if (pvs->visFaceSrc != NULL)
+	faceSource = PVS_GetFaceSrc(pvs, ((size_t)mesh->numQuadBlock + 31u) >> 5u, "MainFrame driver face visibility");
+	if (faceSource != NULL)
 	{
-		MainFrame_OrPackedVisList(gGT->visMem1->visFaceList[playerIndex], pvs->visFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
+		MainFrame_OrPackedVisList(gGT->visMem1->visFaceList[playerIndex], faceSource, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
 	}
 }
 
@@ -708,7 +718,11 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 		return;
 	}
 
-	mesh = level->ptr_mesh_info;
+	mesh = Level_GetMeshInfo(level, "MainFrame visibility mesh");
+	if (mesh == NULL)
+	{
+		return;
+	}
 
 	for (playerIndex = 0; playerIndex < gGT->numPlyrCurrGame; playerIndex++)
 	{
@@ -716,20 +730,26 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 		struct Driver *driver = gGT->drivers[playerIndex];
 		struct QuadBlock *driverQuad = driver->underDriver;
 		struct PVS *driverPVS = NULL;
+		int *driverLeafSrc = NULL;
+		int *driverFaceSrc = NULL;
+		struct CtrAssetRef32 *driverInstSrc = NULL;
 
 		if (driverQuad != NULL)
 		{
-			driverPVS = driverQuad->pvs;
+			driverPVS = QuadBlock_GetPVS(driverQuad, "MainFrame driver PVS");
+			driverLeafSrc = PVS_GetLeafSrc(driverPVS, ((size_t)mesh->numBspNodes + 31u) >> 5u, "MainFrame driver leaf visibility");
+			driverFaceSrc = PVS_GetFaceSrc(driverPVS, ((size_t)mesh->numQuadBlock + 31u) >> 5u, "MainFrame driver face visibility");
+			driverInstSrc = PVS_GetInstanceRefs(driverPVS, "MainFrame driver instance visibility");
 		}
 
 		camDC->flags &= ~0x4000;
 
 		if (camDC->visLeafSrc == NULL)
 		{
-			if ((driverPVS != NULL) && (driverPVS->visLeafSrc != NULL))
+			if (driverLeafSrc != NULL)
 			{
-				visMem->visLeafSrc[playerIndex] = driverPVS->visLeafSrc;
-				MainFrame_ReplacePackedVisList(visMem->visLeafList[playerIndex], driverPVS->visLeafSrc, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
+				visMem->visLeafSrc[playerIndex] = driverLeafSrc;
+				MainFrame_ReplacePackedVisList(visMem->visLeafList[playerIndex], driverLeafSrc, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
 			}
 		}
 		else if (visMem->visLeafSrc[playerIndex] != camDC->visLeafSrc)
@@ -740,10 +760,10 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 
 		if (camDC->visFaceSrc == NULL)
 		{
-			if ((driverPVS != NULL) && (driverPVS->visFaceSrc != NULL))
+			if (driverFaceSrc != NULL)
 			{
-				visMem->visFaceSrc[playerIndex] = driverPVS->visFaceSrc;
-				MainFrame_ReplacePackedVisList(visMem->visFaceList[playerIndex], driverPVS->visFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
+				visMem->visFaceSrc[playerIndex] = driverFaceSrc;
+				MainFrame_ReplacePackedVisList(visMem->visFaceList[playerIndex], driverFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
 			}
 		}
 		else if (visMem->visFaceSrc[playerIndex] != camDC->visFaceSrc)
@@ -751,7 +771,7 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 			visMem->visFaceSrc[playerIndex] = camDC->visFaceSrc;
 			MainFrame_ReplacePackedVisList(visMem->visFaceList[playerIndex], camDC->visFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
 
-			if ((driverPVS == NULL) || (driverPVS->visLeafSrc == NULL) || (driverPVS->visFaceSrc == NULL) || (driverPVS->visInstSrc == NULL) ||
+			if ((driverPVS == NULL) || (driverLeafSrc == NULL) || (driverFaceSrc == NULL) || (driverInstSrc == NULL) ||
 			    MainFrame_VisMemHasQuad(visMem->visFaceList[playerIndex], driverQuad, mesh))
 			{
 				camDC->flags &= ~0x2000;
@@ -773,9 +793,9 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 			MainFrame_VisMemAddDriverPVS(gGT, playerIndex);
 		}
 
-		if ((camDC->cameraMode == 0) && ((camDC->flags & 0x2000) != 0) && (driverPVS != NULL) && (driverPVS->visInstSrc != NULL))
+		if ((camDC->cameraMode == 0) && ((camDC->flags & 0x2000) != 0) && (driverInstSrc != NULL))
 		{
-			camDC->visInstSrc = driverPVS->visInstSrc;
+			camDC->visInstSrc = driverInstSrc;
 		}
 
 		if ((level->configFlags & 4) == 0)
@@ -783,19 +803,16 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 			if (visMem->visOVertSrc[playerIndex] != camDC->visOVertSrc)
 			{
 				visMem->visOVertSrc[playerIndex] = camDC->visOVertSrc;
-
-				if (camDC->visOVertSrc != NULL)
-				{
-					MainFrame_ReplacePackedVisList(visMem->visOVertList[playerIndex], camDC->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
-				}
-				else
-				{
-					memcpy(visMem->visOVertList[playerIndex], level->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
-				}
+				MainFrame_ReplacePackedVisList(visMem->visOVertList[playerIndex], camDC->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
 			}
 			else if (visMem->visOVertSrc[playerIndex] == NULL)
 			{
-				memcpy(visMem->visOVertList[playerIndex], level->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
+				int *defaultSource = Level_GetVisOVertSrc(level, "MainFrame default ocean visibility");
+				if (defaultSource != NULL)
+				{
+					memcpy(visMem->visOVertList[playerIndex], (void *)((uintptr_t)defaultSource & ~(uintptr_t)3),
+					       ((level->numWaterVertices + 0x1f) >> 5) << 2);
+				}
 			}
 		}
 		else
@@ -803,19 +820,16 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 			if (visMem->visSCVertSrc[playerIndex] != camDC->visSCVertSrc)
 			{
 				visMem->visSCVertSrc[playerIndex] = camDC->visSCVertSrc;
-
-				if (camDC->visSCVertSrc != NULL)
-				{
-					MainFrame_ReplacePackedVisList(visMem->visSCVertList[playerIndex], camDC->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
-				}
-				else
-				{
-					memcpy(visMem->visSCVertList[playerIndex], level->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
-				}
+				MainFrame_ReplacePackedVisList(visMem->visSCVertList[playerIndex], camDC->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
 			}
 			else if (visMem->visSCVertSrc[playerIndex] == NULL)
 			{
-				memcpy(visMem->visSCVertList[playerIndex], level->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
+				int *defaultSource = Level_GetVisSCVertSrc(level, "MainFrame default scenery visibility");
+				if (defaultSource != NULL)
+				{
+					memcpy(visMem->visSCVertList[playerIndex], (void *)((uintptr_t)defaultSource & ~(uintptr_t)3),
+					       ((level->numSCVert + 0x1f) >> 5) << 2);
+				}
 			}
 		}
 	}

@@ -131,7 +131,7 @@ struct AnimTex
 	// 0x0
 	// pointer to IconGroup4 struct to be animated
 	// cycles through the entirety of ptrarray
-	int *ptrActiveTex;
+	struct CtrAssetRef32 ptrActiveTex;
 
 	// 0x4
 	s16 numFrames;
@@ -148,19 +148,19 @@ struct AnimTex
 	// 0xC
 	// size = numFrames
 	// After this array is the next AnimTex
-	// struct IconGroup4* ptrarray[0];
+	// struct CtrAssetRef32 ptrarray[0];
 };
 
-#define ANIMTEX_GETARRAY(x) (struct IconGroup4 **)((u32)x + sizeof(struct AnimTex))
+#define ANIMTEX_GETARRAY(x) ((struct CtrAssetRef32 *)((u8 *)(x) + sizeof(struct AnimTex)))
 
 struct PVS
 {
-	int *visLeafSrc;
-	int *visFaceSrc;
-	struct Instance **visInstSrc;
+	struct CtrAssetRef32 visLeafSrc;
+	struct CtrAssetRef32 visFaceSrc;
+	struct CtrAssetRef32 visInstSrc;
 
 	// either OVert or SCVert
-	int *visExtraSrc;
+	struct CtrAssetRef32 visExtraSrc;
 };
 
 typedef s16 BspChildId;
@@ -233,15 +233,15 @@ struct QuadBlock
 	// used for the textures of all 4 quads in a medium-level quadblock
 	// usually points to IconGroup4, but can also point to AnimTex structs
 	// member 0 is 0,0 in xy, 1 is 1,0, 2 is 0,1, 3 is 1,1
-	void *ptr_texture_mid[4];
+	struct CtrAssetRef32 ptr_texture_mid[4];
 
 	// 0x2c
 	struct BoundingBox bbox;
 
 	// 0x38
 	u8 terrain_type;
-	char weather_intensity;
-	char weather_vanishRate;
+	u8 weather_intensity;
+	u8 weather_vanishRate;
 	s8 mulNormVecY; // -127 for AntiGrav Sewer
 
 	// 0x3C
@@ -257,10 +257,10 @@ struct QuadBlock
 	// 0x40
 	// used for the texture of a quad in low level of detail
 	// the same as ptr_texture_mid, just not as an array
-	void *ptr_texture_low;
+	struct CtrAssetRef32 ptr_texture_low;
 
 	// 0x44
-	struct PVS *pvs;
+	struct CtrAssetRef32 pvs;
 
 	// 0x48
 	// explained in FUN_8001f2dc
@@ -339,13 +339,13 @@ struct BSP
 			// the code keeps looping through the
 			// array until it finds a 4-byte 0x00000000
 			// to determine end of list
-			struct BSP *bspHitboxArray;
+			struct CtrAssetRef32 bspHitboxArray;
 
 			// 0x18
 			int numQuads;
 
 			// 0x1C
-			struct QuadBlock *ptrQuadBlockArray;
+			struct CtrAssetRef32 ptrQuadBlockArray;
 		} leaf;
 
 		// 0x10
@@ -365,7 +365,7 @@ struct BSP
 
 			// 0x1C
 			// These are always InstDef, not converted to Instance
-			struct InstDef *instDef;
+			struct CtrAssetRef32 instDef;
 		} hitbox;
 
 	} data;
@@ -450,7 +450,13 @@ struct VisMemBspListNode
 	struct BSP *bsp;
 };
 
-CTR_STATIC_ASSERT(sizeof(struct VisMemBspListNode) == 8);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct VisMemBspListNode) == 0x8);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct VisMemBspListNode, bsp) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct VisMemBspListNode) == 0x10);
+#endif
 
 struct LevVertex
 {
@@ -473,7 +479,7 @@ struct LevVertex
 // scenery vertex
 struct SCVert
 {
-	struct LevVertex *v;
+	struct CtrAssetRef32 v;
 	int offset_pos_xy;
 	int offset_pos_zw;
 	int offset_color_rgba;
@@ -493,8 +499,8 @@ struct OVert
 
 struct WaterVert
 {
-	struct LevVertex *v;
-	struct OVert *w;
+	struct CtrAssetRef32 v;
+	struct CtrAssetRef32 w;
 };
 
 // used for rain and snow particles
@@ -533,6 +539,26 @@ struct RainBuffer
 	int offsetOT;
 
 	// 0x30 -- size of struct
+};
+
+/*
+ * The fixed-width visibility-memory table embedded in a relocated LEV.
+ *
+ * On i686 this has the same byte layout as the historical native VisMem.
+ * LP64 resolves it into the native-width VisMem view below; widening this
+ * serialized table in place would overwrite adjacent retail data.
+ */
+struct LevelVisMemAsset
+{
+	struct CtrAssetRef32 visLeafList[4];
+	struct CtrAssetRef32 visFaceList[4];
+	struct CtrAssetRef32 visOVertList[4];
+	struct CtrAssetRef32 visSCVertList[4];
+	struct CtrAssetRef32 visLeafSrc[4];
+	struct CtrAssetRef32 visFaceSrc[4];
+	struct CtrAssetRef32 visOVertSrc[4];
+	struct CtrAssetRef32 visSCVertSrc[4];
+	struct CtrAssetRef32 bspList[4];
 };
 
 struct VisMem
@@ -595,16 +621,16 @@ struct mesh_info
 	int unk1;
 
 	// 0xC
-	struct QuadBlock *ptrQuadBlockArray;
+	struct CtrAssetRef32 ptrQuadBlockArray;
 
 	// 0x10
-	struct LevVertex *ptrVertexArray;
+	struct CtrAssetRef32 ptrVertexArray;
 
 	// 0x14
 	int unk2;
 
 	// 0x18
-	struct BSP *bspRoot;
+	struct CtrAssetRef32 bspRoot;
 
 	// 0x1C
 	int numBspNodes;
@@ -629,7 +655,7 @@ struct SpawnType1
 
 	// void* pointers[0];
 };
-#define ST1_GETPOINTERS(x) (void **)((u32)x + sizeof(struct SpawnType1))
+#define ST1_GETPOINTERS(x) ((struct CtrAssetRef32 *)((u8 *)(x) + sizeof(struct SpawnType1)))
 
 struct SpawnPosRot
 {
@@ -642,9 +668,9 @@ struct SpawnType2
 	int numCoords;
 	union
 	{
-		s16 *posCoords;
-		SVec3 *positions;
-		struct SpawnPosRot *posRot;
+		struct CtrAssetRef32 posCoords;
+		struct CtrAssetRef32 positions;
+		struct CtrAssetRef32 posRot;
 	};
 };
 
@@ -695,10 +721,10 @@ struct ShortVertex
 struct Skybox
 {
 	int numVertex;
-	struct ShortVertex *ptrVertex;
+	struct CtrAssetRef32 ptrVertex;
 
 	s16 numFaces[NUM_SKYBOX_SEGMENTS];
-	struct SkyboxFace *ptrFaces[NUM_SKYBOX_SEGMENTS];
+	struct CtrAssetRef32 ptrFaces[NUM_SKYBOX_SEGMENTS];
 
 	// struct SkyboxFace allFaces[0];
 };
@@ -707,24 +733,24 @@ struct Skybox
 struct LevTexLookup
 {
 	int numIcon;
-	struct Icon *firstIcon;
+	struct CtrAssetRef32 firstIcon;
 	int numIconGroup;
-	struct IconGroup **firstIconGroupPtr;
+	struct CtrAssetRef32 firstIconGroupPtr;
 };
 
 struct Level
 {
 	// 0x0
 	// pointer to mesh info
-	struct mesh_info *ptr_mesh_info;
+	struct CtrAssetRef32 ptr_mesh_info;
 
 	// 0x4
 	// pointer to skybox (struct not yet known)
-	struct Skybox *ptr_skybox;
+	struct CtrAssetRef32 ptr_skybox;
 
 	// 0x8
 	// pointer to array of animated texture structs
-	struct AnimTex *ptr_anim_tex;
+	struct CtrAssetRef32 ptr_anim_tex;
 
 	// 0xc
 	// number of model instances in the level
@@ -734,7 +760,7 @@ struct Level
 	// 0x10
 	// points to the 1st entry of the array of InstDefs
 	// (whatever they are)
-	struct InstDef *ptrInstDefs;
+	struct CtrAssetRef32 ptrInstDefs;
 
 	// 0x14
 	// number of actual models
@@ -742,32 +768,32 @@ struct Level
 
 	// 0x18
 	// pointer to the array of pointers to models
-	struct Model **ptrModelsPtrArray;
+	struct CtrAssetRef32 ptrModelsPtrArray;
 
 	// 0x1c
 	// unknown, extra bsp region
-	void *unk3;
+	struct CtrAssetRef32 unk3;
 
 	// 0x20
 	// unknown, extra bsp region
-	void *unk4;
+	struct CtrAssetRef32 unk4;
 
 	// 0x24
 	// pointer to the array of pointers to model instances (?)
 	// converts back and forth, Instance to InstDef
-	struct InstDef **ptrInstDefPtrArray;
+	struct CtrAssetRef32 ptrInstDefPtrArray;
 
 	// 0x28
 	// default packed OVert visibility bitset
-	int *visOVertSrc;
+	struct CtrAssetRef32 visOVertSrc;
 
 	// 0x2c
 	// assumed to be reserved
-	void *null1;
+	struct CtrAssetRef32 null1;
 
 	// 0x30
 	// assumed to be reserved
-	void *null2;
+	struct CtrAssetRef32 null2;
 
 	// 0x34
 	// number of vertices treated as water
@@ -775,19 +801,19 @@ struct Level
 
 	// 0x38
 	// pointer to array of water entries
-	struct WaterVert *ptr_water;
+	struct CtrAssetRef32 ptr_water;
 
 	// 0x3c
 	// leads to the icon pack header
-	struct LevTexLookup *levTexLookup;
+	struct CtrAssetRef32 levTexLookup;
 
 	// 0x40
 	// leads to the icon pack data
-	struct Icon *ptr_named_tex_array;
+	struct CtrAssetRef32 ptr_named_tex_array;
 
 	// 0x44
 	// pointer to environment map texture layout, used by water rendering
-	struct TextureLayout *ptr_tex_waterEnvMap;
+	struct CtrAssetRef32 ptr_tex_waterEnvMap;
 
 	// 0x48
 	// used for additional skybox gradients (e.g. papu's pyramid)
@@ -809,12 +835,12 @@ struct Level
 
 	// 0xCC -- next
 	// unknown, extra bsp regions
-	void *unk_Lev_CC;
-	void *unk_Lev_D0;
+	struct CtrAssetRef32 unk_Lev_CC;
+	struct CtrAssetRef32 unk_Lev_D0;
 
 	// 0xD4
 	// assumed to be a pointer to low textures array, there is no number of entries though
-	void *ptrLowTexArray;
+	struct CtrAssetRef32 ptrLowTexArray;
 
 	// 0xD8
 	// Used in Coco Park, encoded as Blue
@@ -829,15 +855,15 @@ struct Level
 
 	// 0xE0
 	// pointer to string, date, assumed bsp compilation start
-	char *build_start;
+	struct CtrAssetRef32 build_start;
 
 	// 0xE4
 	// pointer to string, date, assumed bsp compilation end
-	char *build_end;
+	struct CtrAssetRef32 build_end;
 
 	// 0xE8
 	// pointer to string, assumed build type
-	char *build_type;
+	struct CtrAssetRef32 build_type;
 
 	// 0xEC
 	char unk_EC[0x18];
@@ -847,7 +873,7 @@ struct Level
 	struct RainBuffer rainBuffer;
 
 	// 0x134
-	struct SpawnType1 *ptrSpawnType1;
+	struct CtrAssetRef32 ptrSpawnType1;
 
 	// spawn_arrays2 is for things
 	// like Seal, Minecart, etc,
@@ -857,7 +883,7 @@ struct Level
 	int numSpawnType2;
 
 	// 0x13C
-	struct SpawnType2 *ptrSpawnType2;
+	struct CtrAssetRef32 ptrSpawnType2;
 
 	// spawn_arrays is for things
 	// N Gin Labs barrel, Snowball,
@@ -867,7 +893,7 @@ struct Level
 	int numSpawnType2_PosRot;
 
 	// 0x144
-	struct SpawnType2 *ptrSpawnType2_PosRot;
+	struct CtrAssetRef32 ptrSpawnType2_PosRot;
 
 	// restart_points is for respawning
 	// driver on track after falling off
@@ -876,7 +902,7 @@ struct Level
 	int cnt_restart_points;
 
 	// 0x14C
-	struct CheckpointNode *ptr_restart_points;
+	struct CtrAssetRef32 ptr_restart_points;
 
 	// 0x150
 	char unk_150[0x10];
@@ -898,13 +924,13 @@ struct Level
 
 	// 0x170
 	// default packed SCVert visibility bitset
-	int *visSCVertSrc;
+	struct CtrAssetRef32 visSCVertSrc;
 
 	// 0x174
 	int numSCVert;
 
 	// 0x178
-	struct SCVert *ptrSCVert;
+	struct CtrAssetRef32 ptrSCVert;
 
 	// 0x17c - 0x182
 	struct Stars stars;
@@ -917,7 +943,7 @@ struct Level
 	s16 splitLines[2];
 
 	// 0x188
-	struct NavHeader **LevNavTable;
+	struct CtrAssetRef32 LevNavTable;
 
 	// 0x18C
 	union
@@ -933,7 +959,7 @@ struct Level
 	};
 
 	// 0x190
-	struct VisMem *visMem;
+	struct CtrAssetRef32 visMem;
 
 	char footer[0x60];
 };
@@ -947,6 +973,14 @@ CTR_STATIC_ASSERT(offsetof(struct SpawnType2, numCoords) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct SpawnType2, posCoords) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct SpawnType2, positions) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct SpawnType2, posRot) == 0x4);
+CTR_STATIC_ASSERT(sizeof(struct LevelVisMemAsset) == 0x90);
+CTR_STATIC_ASSERT(offsetof(struct LevelVisMemAsset, visSCVertList) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct LevelVisMemAsset, visLeafSrc) == 0x40);
+CTR_STATIC_ASSERT(offsetof(struct LevelVisMemAsset, visFaceSrc) == 0x50);
+CTR_STATIC_ASSERT(offsetof(struct LevelVisMemAsset, visOVertSrc) == 0x60);
+CTR_STATIC_ASSERT(offsetof(struct LevelVisMemAsset, visSCVertSrc) == 0x70);
+CTR_STATIC_ASSERT(offsetof(struct LevelVisMemAsset, bspList) == 0x80);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct VisMem) == 0x90);
 CTR_STATIC_ASSERT(offsetof(struct VisMem, visSCVertList) == 0x30);
 CTR_STATIC_ASSERT(offsetof(struct VisMem, visLeafSrc) == 0x40);
@@ -954,10 +988,25 @@ CTR_STATIC_ASSERT(offsetof(struct VisMem, visFaceSrc) == 0x50);
 CTR_STATIC_ASSERT(offsetof(struct VisMem, visOVertSrc) == 0x60);
 CTR_STATIC_ASSERT(offsetof(struct VisMem, visSCVertSrc) == 0x70);
 CTR_STATIC_ASSERT(offsetof(struct VisMem, bspList) == 0x80);
+#else
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visSCVertList) == 0x60);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visLeafSrc) == 0x80);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visFaceSrc) == 0xa0);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visOVertSrc) == 0xc0);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visSCVertSrc) == 0xe0);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, bspList) == 0x100);
+CTR_STATIC_ASSERT(sizeof(struct VisMem) == 0x120);
+#endif
 CTR_STATIC_ASSERT(sizeof(struct SCVert) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct Level, jumpVerticalSpeedCap) == 0x18C);
 CTR_STATIC_ASSERT(offsetof(struct Level, visOVertSrc) == 0x28);
 CTR_STATIC_ASSERT(offsetof(struct Level, visSCVertSrc) == 0x170);
 CTR_STATIC_ASSERT(offsetof(struct Level, ptrSCVert) == 0x178);
+CTR_STATIC_ASSERT(sizeof(struct PVS) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct WaterVert) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct mesh_info) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct Skybox) == 0x38);
+CTR_STATIC_ASSERT(sizeof(struct LevTexLookup) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct Level) == 0x1f4);
 
 #endif

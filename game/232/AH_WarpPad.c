@@ -101,10 +101,19 @@ s16 *AH_WarpPad_GetSpawnPosRot(s16 *posData)
 	return &instDef->rot.x;
 }
 
+CTR_STATIC_ASSERT(offsetof(struct WarpPad, inst) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct WarpPad) == 0x78);
 CTR_STATIC_ASSERT(offsetof(struct WarpPad, lightDirGem) == 0x50);
 CTR_STATIC_ASSERT(offsetof(struct WarpPad, digit10s) == 0x68);
 CTR_STATIC_ASSERT(offsetof(struct WarpPad, levelID) == 0x6c);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct WarpPad) == 0xa0);
+CTR_STATIC_ASSERT(offsetof(struct WarpPad, lightDirGem) == 0x78);
+CTR_STATIC_ASSERT(offsetof(struct WarpPad, digit10s) == 0x90);
+CTR_STATIC_ASSERT(offsetof(struct WarpPad, levelID) == 0x94);
+#endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800abbdc-0x800abd80.
 void AH_WarpPad_AllWarppadNum()
@@ -121,15 +130,21 @@ void AH_WarpPad_AllWarppadNum()
 		if ((wp->inst[2] != 0) && (wp->digit1s != 0) && (wp->digit1s != 9))
 		{
 			struct Instance *inst = wp->inst[2];
-			struct ModelHeader *mh = &inst->model->headers[0];
-			AH_WarpPad_SetNumModelData(inst, &mh[wp->digit1s - 1]);
+			struct ModelHeader *mh = Model_GetHeaders(inst->model, "warp-pad ones headers");
+			if (mh != NULL)
+			{
+				AH_WarpPad_SetNumModelData(inst, &mh[wp->digit1s - 1]);
+			}
 		}
 
 		if ((wp->inst[3] != 0) && (wp->digit10s != 0))
 		{
 			struct Instance *inst = wp->inst[3];
-			struct ModelHeader *mh = &inst->model->headers[0];
-			AH_WarpPad_SetNumModelData(inst, mh);
+			struct ModelHeader *mh = Model_GetHeaders(inst->model, "warp-pad tens headers");
+			if (mh != NULL)
+			{
+				AH_WarpPad_SetNumModelData(inst, mh);
+			}
 		}
 	}
 }
@@ -137,11 +152,13 @@ void AH_WarpPad_AllWarppadNum()
 void AH_WarpPad_SetNumModelData(struct Instance *inst, struct ModelHeader *mh)
 {
 	struct InstDrawPerPlayer *idpp = INST_GETIDPP(inst);
+	u32 *commandList = NULL;
+	CtrAssetRef_ResolveOptional(mh->ptrCommandList, sizeof(*commandList), _Alignof(u32), (void **)&commandList, "warp-pad command list");
 
-	idpp[0].ptrCommandList = mh->ptrCommandList;
-	idpp[0].ptrColorLayout = (u32)mh->ptrColors;
-	idpp[0].ptrTexLayout = mh->ptrTexLayout;
-	idpp[0].ptrCurrFrame = mh->ptrFrameData;
+	idpp[0].ptrCommandList = commandList;
+	idpp[0].ptrColorLayout = ModelHeader_GetColors(mh, "warp-pad colors");
+	idpp[0].ptrTexLayout = ModelHeader_GetTextureLayoutRefs(mh, 1, "warp-pad texture table");
+	idpp[0].ptrCurrFrame = ModelHeader_GetFrameData(mh, "warp-pad frame data");
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800abd80-0x800abdfc.
@@ -225,7 +242,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	struct GameTracker *gGT = sdata->gGT;
 	struct WarpPad *warppadObj = t->object;
 	struct Instance *warppadInst = t->inst;
-	struct Instance **visInstSrc = gGT->cameraDC[0].visInstSrc;
+	struct CtrAssetRef32 *visInstSrc = gGT->cameraDC[0].visInstSrc;
 	struct Instance **instArr = &warppadObj->inst[0];
 	MATRIX *warppadMatrix = &warppadInst->matrix;
 
@@ -256,9 +273,9 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	if (visInstSrc != NULL)
 #endif
 	{
-		while (visInstSrc[0] != 0)
+		while (visInstSrc[0].bits != 0)
 		{
-			if (visInstSrc[0] == warppadInst)
+			if (InstDefRef_GetInstance(visInstSrc[0], "AH_WarpPad visible level instance") == warppadInst)
 			{
 				boolOpen = true;
 				break;
@@ -1480,7 +1497,11 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	CTR_SET_VEC3(newInst->scale.v, AH_WP_STANDARD_ITEM_SCALE, AH_WP_STANDARD_ITEM_SCALE, AH_WP_STANDARD_ITEM_SCALE);
 
 	// always face camera
-	newInst->model->headers[0].flags |= 1;
+	struct ModelHeader *newHeaders = Model_GetHeaders(newInst->model, "warp-pad X headers");
+	if (newHeaders != NULL)
+	{
+		newHeaders[0].flags |= 1;
+	}
 
 	warppadObj->inst[WPIS_CLOSED_X] = newInst;
 
@@ -1499,9 +1520,13 @@ void AH_WarpPad_LInB(struct Instance *inst)
 		CTR_SET_VEC3(newInst->scale.v, AH_WP_STANDARD_ITEM_SCALE, AH_WP_STANDARD_ITEM_SCALE, AH_WP_STANDARD_ITEM_SCALE);
 
 		// always face camera
+		newHeaders = Model_GetHeaders(newInst->model, "warp-pad tens model headers");
 		for (i = 0; i < newInst->model->numHeaders; i++)
 		{
-			newInst->model->headers[i].flags |= 1;
+			if (newHeaders != NULL)
+			{
+				newHeaders[i].flags |= 1;
+			}
 		}
 
 		warppadObj->inst[WPIS_CLOSED_10S] = newInst;
@@ -1531,9 +1556,13 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	CTR_SET_VEC3(newInst->scale.v, AH_WP_STANDARD_ITEM_SCALE, AH_WP_STANDARD_ITEM_SCALE, AH_WP_STANDARD_ITEM_SCALE);
 
 	// always face camera
+	newHeaders = Model_GetHeaders(newInst->model, "warp-pad ones model headers");
 	for (i = 0; i < newInst->model->numHeaders; i++)
 	{
-		newInst->model->headers[i].flags |= 1;
+		if (newHeaders != NULL)
+		{
+			newHeaders[i].flags |= 1;
+		}
 	}
 
 	warppadObj->inst[WPIS_CLOSED_1S] = newInst;

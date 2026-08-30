@@ -15,7 +15,15 @@ struct DecalMPEntry
 	struct PushBuffer pb;
 };
 
+CTR_STATIC_ASSERT(offsetof(struct DecalMPEntry, inst) == 0x8);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(offsetof(struct DecalMPEntry, pb) == 0x18);
 CTR_STATIC_ASSERT(sizeof(struct DecalMPEntry) == 0x128);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct DecalMPEntry, pb) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct DecalMPEntry) == 0x140);
+#endif
 
 static inline struct DecalMPEntry *DecalMP_GetEntry(struct GameTracker *gGT, int index)
 {
@@ -51,8 +59,7 @@ void DecalMP_01(struct GameTracker *gGT)
 			}
 
 			struct Instance *inst = driver->instSelf;
-			struct InstDrawPerPlayer *idpp = DecalMP_GetIdpp(inst, cameraID);
-			idpp->instFlags |= 0x300;
+			inst->flags |= PUSHBUFFER_EXISTS | PIXEL_LOD;
 
 			if (driverID == cameraID)
 			{
@@ -78,6 +85,7 @@ void DecalMP_01(struct GameTracker *gGT)
 			entry->pb.ptrOT = pb->ptrOT;
 			entry->pb.cameraID = pb->cameraID;
 
+			struct InstDrawPerPlayer *idpp = DecalMP_GetIdpp(inst, cameraID);
 			idpp->pushBuffer = &entry->pb;
 			entry->inst = inst;
 		}
@@ -191,10 +199,10 @@ void DecalMP_03(struct GameTracker *gGT)
 		POLY_FT4 *poly = gGT->backBuffer->primMem.cursor;
 		poly->code = 0x2d;
 
-		s16 x = entry->pb.rect.x;
-		s16 y = entry->pb.rect.y;
-		s16 w = entry->pb.rect.w;
-		s16 h = entry->pb.rect.h;
+		s16 x = (s16)entry->pb.renderBucketScreenPos;
+		s16 y = (s16)(entry->pb.renderBucketScreenPos >> 16);
+		s16 w = (s16)entry->pb.renderBucketScreenSize;
+		s16 h = (s16)(entry->pb.renderBucketScreenSize >> 16);
 
 		CtrGpu_WritePackedXY(&poly->x0, (u16)x | ((u32)(u16)y << 16));
 		CtrGpu_WritePackedXY(&poly->x1, (u16)(x + w) | ((u32)(u16)y << 16));

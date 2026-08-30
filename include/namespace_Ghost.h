@@ -79,7 +79,14 @@ struct GhostPacket
 	// 0x10 -- size of packet
 };
 
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(offsetof(struct GhostPacket, bufferPacket) == 0xc);
 CTR_STATIC_ASSERT(sizeof(struct GhostPacket) == 0x10);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct GhostPacket, bufferPacket) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct GhostPacket) == 0x18);
+#endif
 
 struct GhostTape
 {
@@ -167,6 +174,6 @@ struct GhostHeader
 	// char recordBuffer[0]; // yes, zero bytes
 };
 
-#define GHOSTHEADER_GETRECORDBUFFER(x) (char *)((u32)x + sizeof(struct GhostHeader))
+#define GHOSTHEADER_GETRECORDBUFFER(x) ((char *)((u8 *)(x) + sizeof(struct GhostHeader)))
 
 #endif

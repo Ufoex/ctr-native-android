@@ -56,6 +56,7 @@ void RB_GenericMine_LInB(struct Instance *inst)
 	mw->velocity.z = 0;
 	mw->boolDestroyed = 0;
 	mw->parentSafetyFrames = 0;
+	mw->tntSpinY = 0;
 	mw->flags = 0;
 	mw->stopFallAtY = inst->matrix.t[1];
 
@@ -209,10 +210,10 @@ void RB_GenericMine_ThTick(struct Thread *t)
 		}
 
 		// spin driver
-		coll = (struct Instance *)RB_Hazard_HurtDriver(d, 1, mw->instParent->thread->object, param);
+		int didHurt = RB_Hazard_HurtDriver(d, 1, mw->instParent->thread->object, param);
 
 		// if collision, and if this was a red potion
-		if ((coll != 0) && (mw->flags & MINE_WEAPON_FLAG_RED_BEAKER) != 0)
+		if ((didHurt != 0) && (mw->flags & MINE_WEAPON_FLAG_RED_BEAKER) != 0)
 		{
 			RB_RainCloud_Init(d);
 		}
@@ -303,9 +304,7 @@ void RB_GenericMine_ThTick(struct Thread *t)
 		if (model == STATIC_CRATE_TNT)
 		{
 			// damageType 0 keeps driving unless the shield/mask path absorbs TNT.
-			crate = (struct Crate *)RB_Hazard_HurtDriver(d, 0, mw->instParent->thread->object, 2);
-
-			if (crate == 0)
+			if (RB_Hazard_HurtDriver(d, 0, mw->instParent->thread->object, 2) == 0)
 			{
 				goto LAB_800ad174;
 			}

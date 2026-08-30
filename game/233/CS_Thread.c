@@ -523,7 +523,7 @@ processOpcode:
 
 	case CS_OPCODE_GOTO:
 		opcodeChanged = 1;
-		CS_ScriptCmd_OpcodeAt(cs, opcodeMeta->arg1.ptr);
+		CS_ScriptCmd_OpcodeAt(cs, (char *)(uintptr_t)opcodeMeta->arg1.u);
 		goto finishOpcodeStep;
 
 	case CS_OPCODE_HIDE_INSTANCE_AND_END_THREAD:
@@ -570,7 +570,7 @@ processOpcode:
 		}
 		else
 		{
-			CS_ScriptCmd_OpcodeAt(cs, opcodeMeta->arg1.ptr);
+			CS_ScriptCmd_OpcodeAt(cs, (char *)(uintptr_t)opcodeMeta->arg1.u);
 		}
 		opcodeChanged = 1;
 		goto finishOpcodeStep;
@@ -609,7 +609,8 @@ processOpcode:
 		if (instance != 0)
 		{
 			int numHeaders = (int)instance->model->numHeaders;
-			if ((numHeaders != 0) && (modelHeader = instance->model->headers, modelHeader != 0))
+			modelHeader = Model_GetHeaders(instance->model, "cutscene visible-LOD model headers");
+			if ((numHeaders != 0) && (modelHeader != 0))
 			{
 				lodIndex = opcodeMeta->arg1.i;
 				lodIndexState = lodIndex;
@@ -916,7 +917,7 @@ processOpcode:
 		{
 			if ((opcodeMeta->arg0.i != (int)gGarage.garageCharacterIDs[sdata->advCharSelectIndex_curr]) || (gGarage.boolSelected == 0))
 			{
-				opcodeAt = opcodeMeta->arg1.ptr;
+				opcodeAt = (char *)(uintptr_t)opcodeMeta->arg1.u;
 			branchToGarageOpcode:
 				opcodeChanged = 1;
 				CS_ScriptCmd_OpcodeAt(cs, opcodeAt);
@@ -926,7 +927,7 @@ processOpcode:
 		{
 			if ((opcodeMeta->arg0.i == (int)gGarage.garageCharacterIDs[sdata->advCharSelectIndex_curr]) && (gGarage.boolSelected == 1))
 			{
-				opcodeAt = opcodeMeta->arg1.ptr;
+				opcodeAt = (char *)(uintptr_t)opcodeMeta->arg1.u;
 				goto branchToGarageOpcode;
 			}
 		}
@@ -1123,8 +1124,13 @@ void CS_Thread_MoveOnPath(struct Thread *t)
 			return;
 		}
 
-		spawnEntry = &level->ptrSpawnType2[pathIndex];
-		pathPoints = spawnEntry->positions;
+		struct SpawnType2 *positionSpawns = Level_GetSpawnType2(level, "CS_Thread position paths");
+		if (positionSpawns == NULL)
+		{
+			return;
+		}
+		spawnEntry = &positionSpawns[pathIndex];
+		pathPoints = SpawnType2_GetPositions(spawnEntry, "CS_Thread position path");
 
 		if (pathPoints == 0)
 		{
@@ -1187,8 +1193,13 @@ void CS_Thread_MoveOnPath(struct Thread *t)
 			return;
 		}
 
-		spawnEntry = &level->ptrSpawnType2_PosRot[pathIndex];
-		posRot = spawnEntry->posRot;
+		struct SpawnType2 *posRotSpawns = Level_GetSpawnType2PosRot(level, "CS_Thread position/rotation paths");
+		if (posRotSpawns == NULL)
+		{
+			return;
+		}
+		spawnEntry = &posRotSpawns[pathIndex];
+		posRot = SpawnType2_GetPosRot(spawnEntry, "CS_Thread position/rotation path");
 
 		if (posRot == 0)
 		{
@@ -1224,8 +1235,8 @@ void CS_Thread_MoveOnPath(struct Thread *t)
 			return;
 		}
 
-		spawnEntry = level->ptrSpawnType2;
-		pathPoints = spawnEntry->positions;
+		spawnEntry = Level_GetSpawnType2(level, "CS_Thread Coco path");
+		pathPoints = SpawnType2_GetPositions(spawnEntry, "CS_Thread Coco positions");
 
 		if (pathPoints == 0)
 		{

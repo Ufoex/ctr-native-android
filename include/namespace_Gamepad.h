@@ -356,14 +356,34 @@ struct RacingWheelData
 	s16 range;
 };
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct GamepadBuffer) == 0x50);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct GamepadBuffer, ptrControllerPacket) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct GamepadBuffer, gamepadID) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct GamepadBuffer, rwd) == 0x50);
+CTR_STATIC_ASSERT(sizeof(struct GamepadBuffer) == 0x58);
+#endif
 CTR_STATIC_ASSERT(sizeof(struct GamepadButtonMap) == 0x8);
+#if UINTPTR_MAX == UINT32_MAX
 #if BUILD <= SepReview
 CTR_STATIC_ASSERT(sizeof(struct GamepadSystem) == 0x2D4);
 #elif BUILD < EurRetail
 CTR_STATIC_ASSERT(sizeof(struct GamepadSystem) == 0x31C);
 #else
 CTR_STATIC_ASSERT(sizeof(struct GamepadSystem) == 0x320);
+#endif
+#else
+CTR_STATIC_ASSERT(offsetof(struct GamepadSystem, gamepad) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct GamepadSystem, unk) == 0x2c0);
+#if BUILD <= SepReview
+CTR_STATIC_ASSERT(offsetof(struct GamepadSystem, slotBuffer) == 0x2c8);
+CTR_STATIC_ASSERT(sizeof(struct GamepadSystem) == 0x318);
+#else
+CTR_STATIC_ASSERT(offsetof(struct GamepadSystem, slotBuffer) == 0x310);
+CTR_STATIC_ASSERT(sizeof(struct GamepadSystem) == 0x360);
+#endif
 #endif
 CTR_STATIC_ASSERT(sizeof(struct RacingWheelData) == 6);
 

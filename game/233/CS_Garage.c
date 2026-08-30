@@ -303,11 +303,10 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 	int arrowPos[2] = {GARAGE_CHARACTER_ARROW_LEFT_BASE_X - nameLen, nameLen + GARAGE_CHARACTER_ARROW_RIGHT_BASE_X};
 	int arrowRot[2] = {GARAGE_CHARACTER_ARROW_ROT_LEFT, 0};
 
-	struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[4]);
-
 	for (int i = 0; i < 2; i++)
 	{
-		DecalHUD_Arrow2D(iconPtrArray[GARAGE_CHARACTER_ARROW_ICON_INDEX], arrowPos[i], GARAGE_CHARACTER_ARROW_Y,
+		DecalHUD_Arrow2D(IconGroup_GetIcon(gGT->iconGroup[4], GARAGE_CHARACTER_ARROW_ICON_INDEX, "garage character arrow"), arrowPos[i],
+				 GARAGE_CHARACTER_ARROW_Y,
 
 		                 primMem, gGT->pushBuffer_UI.ptrOT,
 

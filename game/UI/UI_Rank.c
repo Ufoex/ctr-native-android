@@ -290,6 +290,11 @@ void UI_DrawRankedDrivers(void)
 	{
 		s16 *trackIconX = &data.rankIconsTransitionTimer[0];
 		int totalNumDrivers = numPlyr + gGT->numBotsNextGame;
+		struct CheckpointNode *restartPoints = Level_GetRestartPoints(gGT->level1, "UI rank checkpoint nodes");
+		if (restartPoints == NULL)
+		{
+			return;
+		}
 
 		for (driverIndex = 0; driverIndex < totalNumDrivers; driverIndex++)
 		{
@@ -314,7 +319,7 @@ void UI_DrawRankedDrivers(void)
 			else
 			{
 				// length of track
-				int trackLength = gGT->level1->ptr_restart_points[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
+				int trackLength = restartPoints[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
 				int driverProgress = trackLength - gGT->drivers[driverIndex]->distanceToFinish_curr;
 				int trackScreenUnit = trackLength / UI_RANK_TRACK_SCREEN_DIVISOR;
 
@@ -400,7 +405,7 @@ void UI_DrawRankedDrivers(void)
 			}
 
 			// pointer to path data
-			struct CheckpointNode *cn = gGT->level1->ptr_restart_points;
+			struct CheckpointNode *cn = restartPoints;
 
 			struct TrackerWeapon *tw = warpballInst->thread->object;
 
@@ -436,7 +441,7 @@ void UI_DrawRankedDrivers(void)
 			int projectedDistance = CTR_GteReadMAC1();
 
 			int trackProgress = cn1->distToFinish * UI_RANK_TRACK_DISTANCE_SCALE + (projectedDistance >> UI_RANK_TRACK_WARPBALL_PROGRESS_SHIFT);
-			int trackLength = gGT->level1->ptr_restart_points[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
+			int trackLength = restartPoints[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
 			int wrappedProgress = trackProgress % trackLength;
 			if (wrappedProgress == 0)
 			{

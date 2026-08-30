@@ -92,20 +92,39 @@ struct DB
 	struct OTMem otMem;
 };
 
-CTR_STATIC_ASSERT(sizeof(struct PrimMem) == 0x1C);
 CTR_STATIC_ASSERT(offsetof(struct PrimMem, capacityBytes) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct PrimMem) == 0x1C);
 CTR_STATIC_ASSERT(offsetof(struct PrimMem, start) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct PrimMem, end) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct PrimMem, cursor) == 0xC);
 CTR_STATIC_ASSERT(offsetof(struct PrimMem, guardEnd) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct PrimMem, primitiveCount) == 0x14);
 CTR_STATIC_ASSERT(offsetof(struct PrimMem, allocationStart) == 0x18);
-CTR_STATIC_ASSERT(sizeof(struct OTMem) == 0x14);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct PrimMem, start) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct PrimMem, end) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct PrimMem, cursor) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct PrimMem, guardEnd) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct PrimMem, primitiveCount) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct PrimMem, allocationStart) == 0x30);
+CTR_STATIC_ASSERT(sizeof(struct PrimMem) == 0x38);
+#endif
 CTR_STATIC_ASSERT(offsetof(struct OTMem, capacityBytes) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct OTMem) == 0x14);
 CTR_STATIC_ASSERT(offsetof(struct OTMem, start) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct OTMem, end) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct OTMem, cursor) == 0xC);
 CTR_STATIC_ASSERT(offsetof(struct OTMem, uiOT) == 0x10);
+#else
+CTR_STATIC_ASSERT(offsetof(struct OTMem, start) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct OTMem, end) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct OTMem, cursor) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct OTMem, uiOT) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct OTMem) == 0x28);
+#endif
 CTR_STATIC_ASSERT(sizeof(struct DisplayBlurFlatPacket) == 0x28);
 CTR_STATIC_ASSERT(offsetof(struct DisplayBlurFlatPacket, tag) == 0x00);
 CTR_STATIC_ASSERT(offsetof(struct DisplayBlurFlatPacket, drawModeStart) == 0x04);

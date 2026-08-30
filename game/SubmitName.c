@@ -1,5 +1,9 @@
 #include <common.h>
 
+#ifdef CTR_NATIVE
+#include <platform/native_input.h>
+#endif
+
 enum
 {
 	SUBMIT_NAME_MODE_ADVENTURE = 0,
@@ -76,7 +80,7 @@ int kbCurr = 0;
 int kbPrev = 0;
 void SubmitName_UseKeyboard(int key)
 {
-	kbCurr = key;
+	Platform_InputSetSubmitNameKey(key, key != 0);
 }
 #endif
 
@@ -91,11 +95,10 @@ s16 SubmitName_DrawMenu(u16 string)
 	u16 stringCopy = string;
 	s16 currNameLength = strlen(gGT->currNameEntered);
 	char *currNameEntered = gGT->currNameEntered;
-	u16 blinkWhite = ((sdata->typeTimer >> 0) & 1) << 2;
 
 	while (currNameEntered[0] != 0)
 	{
-		if (currNameEntered[0] > 2)
+		if ((u8)currNameEntered[0] > 2)
 		{
 			nameLength++;
 		}
@@ -110,6 +113,7 @@ s16 SubmitName_DrawMenu(u16 string)
 	}
 
 	sdata->typeTimer++;
+	u16 blinkWhite = (sdata->typeTimer & 1) << 2;
 	int letterID = 0;
 
 	// grid of letters, 13x3
@@ -211,6 +215,7 @@ s16 SubmitName_DrawMenu(u16 string)
 
 #ifdef CTR_NATIVE
 	// NOTE(aalhendi): native keyboard shortcut; retail input remains gamepad-driven.
+	kbCurr = Platform_InputGetSubmitNameKey();
 
 	if (kbCurr != kbPrev)
 	{
@@ -365,7 +370,7 @@ s16 SubmitName_DrawMenu(u16 string)
 					soundID = 4;
 					gGT->currNameEntered[currNameLength - 1] = 0;
 
-					if (gGT->currNameEntered[currNameLength - 2] < 3)
+					if ((u8)gGT->currNameEntered[currNameLength - 2] < 3)
 					{
 						gGT->currNameEntered[currNameLength - 2] = 0;
 					}

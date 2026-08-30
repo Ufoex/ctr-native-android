@@ -5,18 +5,56 @@
 #endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800326b4-0x80032700.
-void LOAD_RunPtrMap(char *origin, int *patchArr, int numPtrs)
+int LOAD_RunPtrMap(void *assetBase, size_t assetSize, const u32 *patchEntries, size_t patchMapByteSize)
 {
-	int *ptrCurrOffset = patchArr;
+#if defined(CTR_NATIVE) && UINTPTR_MAX > UINT32_MAX
+	struct NativeAssetRelocationError error;
 
-	for (ptrCurrOffset = &patchArr[0]; ptrCurrOffset < &patchArr[numPtrs]; ptrCurrOffset++)
+	if (!NativeAssetRelocation_Relocate(assetBase, assetSize, patchEntries, patchMapByteSize, "LOAD_RunPtrMap", &error))
 	{
-		int offset = (*ptrCurrOffset >> 2) << 2;
-		*(int *)&origin[offset] = *(int *)&origin[offset] + (int)origin;
+		fprintf(stderr,
+		        "[CTR AssetRelocation] %s patch=%zu entry=0x%08x slot=0x%08x target=0x%08x guest=%s\n",
+		        NativeAssetRelocation_StatusName(error.status), error.patchIndex, error.patchEntry, error.slotOffset, error.targetOffset,
+		        NativeGuestRef_StatusName(error.guestReferenceError.status));
+		return 0;
+	}
+
+	return 1;
+#else
+	u8 *asset = assetBase;
+
+	if ((asset == NULL) || (assetSize == 0) || ((patchMapByteSize != 0) && (patchEntries == NULL)) ||
+	    ((patchMapByteSize % sizeof(*patchEntries)) != 0))
+	{
+		return 0;
+	}
+
+	for (size_t patchIndex = 0; patchIndex < patchMapByteSize / sizeof(*patchEntries); patchIndex++)
+	{
+		u32 slotOffset = patchEntries[patchIndex];
+		u32 targetOffset;
+		uintptr_t hostTarget;
+
+		if (((slotOffset & (sizeof(u32) - 1u)) != 0) || ((size_t)slotOffset > assetSize) || ((assetSize - slotOffset) < sizeof(u32)))
+		{
+			return 0;
+		}
+
+		targetOffset = CTR_ReadU32LE(&asset[slotOffset]);
+		if ((size_t)targetOffset >= assetSize)
+		{
+			return 0;
+		}
+
+		hostTarget = (uintptr_t)&asset[targetOffset];
+		CTR_WriteU32LE(&asset[slotOffset], (u32)hostTarget);
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-		NativeCheckpoint_RegisterPointerSlot(&origin[offset]);
+		NativeCheckpoint_RegisterPointerSlot(&asset[slotOffset]);
 #endif
 	}
+
+	return 1;
+#endif
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80032700-0x800327dc.
@@ -81,7 +119,7 @@ void LOAD_Robots1P(int characterID)
 static void (*const LOAD_DriverMPK_SetPointer)(struct LoadQueueSlot *) = LOAD_QUEUE_CALLBACK_SET_POINTER;
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003282c-0x80032b50.
-int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(struct LoadQueueSlot *))
+void *LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(struct LoadQueueSlot *))
 {
 	int i;
 	int gameMode1;
@@ -201,10 +239,55 @@ struct LngFile
 	char strings[1];
 };
 
+#if defined(CTR_NATIVE) && UINTPTR_MAX > UINT32_MAX
+// Retail stores the relocated string-pointer table in the language file's
+// serialized u32 table. LP64 cannot widen that table in place, and its
+// host-width replacement must not consume the retail-pressure MEMPACK arena.
+// It is derived entirely from lngFile, so checkpoint restore rebuilds it.
+static char *s_nativeLanguageStrings[0x1000];
+
+int LOAD_RebuildNativeLanguagePointers(void)
+{
+	struct LngFile *lngFile = sdata->lngFile;
+	u32 size = (sdata->langBufferSize > 0) ? (u32)sdata->langBufferSize : 0;
+	u32 *serializedOffsets;
+	int numStrings;
+
+	if (lngFile == NULL)
+	{
+		sdata->numLngStrings = 0;
+		sdata->lngStrings = NULL;
+		return 1;
+	}
+
+	numStrings = lngFile->numStrings;
+	if ((numStrings < 0) || ((u32)numStrings > len(s_nativeLanguageStrings)) || (lngFile->offsetToPtrArr < 0) ||
+	    ((u64)(u32)lngFile->offsetToPtrArr + (u64)(u32)numStrings * sizeof(u32) > size))
+	{
+		return 0;
+	}
+
+	serializedOffsets = (u32 *)((u8 *)lngFile + lngFile->offsetToPtrArr);
+	for (int i = 0; i < numStrings; i++)
+	{
+		const u32 stringOffset = CTR_ReadU32LE(&serializedOffsets[i]);
+		if (stringOffset >= size)
+		{
+			return 0;
+		}
+		s_nativeLanguageStrings[i] = (char *)((u8 *)lngFile + stringOffset);
+	}
+
+	sdata->numLngStrings = numStrings;
+	sdata->lngStrings = s_nativeLanguageStrings;
+	return 1;
+}
+#endif
+
 // param_1 - Pointer to "cd position of bigfile"
 // param_2 - language index - 0 ja, 1 en, 2 en2, 3 fr, 4 de, 5 it, 6 es, 7 ne
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80032b50-0x80032c24
-void LOAD_LangFile(int bigfilePtr, int lang)
+void LOAD_LangFile(struct BigHeader *bigfile, int lang)
 {
 	struct LngFile *lngFile;
 	u32 size;
@@ -212,6 +295,7 @@ void LOAD_LangFile(int bigfilePtr, int lang)
 	int i;
 	int numStrings;
 	char **strArray;
+	u32 *serializedOffsets;
 
 #if BUILD == EurRetail
 	// This is to turn the screen black for a bit (optional)
@@ -226,21 +310,45 @@ void LOAD_LangFile(int bigfilePtr, int lang)
 
 	lngFile = sdata->lngFile;
 
-	lngFile = LOAD_ReadFile_ex((struct BigHeader *)bigfilePtr, LT_SETADDR, BI_LANGUAGEFILE + lang, lngFile, &size, NULL);
+	lngFile = LOAD_ReadFile_ex(bigfile, LT_SETADDR, BI_LANGUAGEFILE + lang, lngFile, &size, NULL);
 	if (lngFile == NULL)
 	{
 		return;
 	}
 
 	numStrings = lngFile->numStrings;
-	strArray = (char **)((u32)lngFile + lngFile->offsetToPtrArr);
+	if ((numStrings < 0) || (lngFile->offsetToPtrArr < 0) ||
+	    ((u64)(u32)lngFile->offsetToPtrArr + (u64)(u32)numStrings * sizeof(u32) > size))
+	{
+		return;
+	}
+
+	serializedOffsets = (u32 *)((u8 *)lngFile + lngFile->offsetToPtrArr);
+
+	for (i = 0; i < numStrings; i++)
+	{
+		if (CTR_ReadU32LE(&serializedOffsets[i]) >= size)
+		{
+			return;
+		}
+	}
+
+#if UINTPTR_MAX > UINT32_MAX
+	if ((u32)numStrings > len(s_nativeLanguageStrings))
+	{
+		return;
+	}
+	strArray = s_nativeLanguageStrings;
+#else
+	strArray = (char **)(void *)serializedOffsets;
+#endif
 
 	sdata->numLngStrings = numStrings;
 	sdata->lngStrings = strArray;
 
 	for (i = 0; i < numStrings; i++)
 	{
-		strArray[i] = (char *)((u32)strArray[i] + (u32)lngFile);
+		strArray[i] = (char *)((u8 *)lngFile + CTR_ReadU32LE(&serializedOffsets[i]));
 	}
 #if BUILD == EurRetail
 	// set voicelines to new lang

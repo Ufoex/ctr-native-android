@@ -29,7 +29,7 @@ void AH_Sign_LInB(struct Instance *inst)
 	sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
 	sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND | QUADBLOCK_FLAG_COLLISION_SURFACE;
 	sps->Union.QuadBlockColl.quadFlagsIgnored = 0;
-	sps->ptr_mesh_info = sdata->gGT->level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(sdata->gGT->level1, "AH_Sign collision mesh"));
 
 	probeTop->x = inst->matrix.t[0] + normal->x * 2;
 	probeBottom->x = probeTop->x - normal->x * 4;

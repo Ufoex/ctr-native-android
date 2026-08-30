@@ -3,8 +3,13 @@
 static void OVR233_ResetGarage(void);
 static void OVR233_ResetCreditsBSS(void);
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct OverlayRDATA_233) == 0xbd90);
-CTR_STATIC_ASSERT(sizeof(void *) == 4);
+CTR_STATIC_ASSERT(sizeof(void *) == 0x4);
+#else
+CTR_STATIC_ASSERT(sizeof(struct OverlayRDATA_233) == 0xc340);
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+#endif
 
 struct OverlayDATA_233 D233;
 
@@ -83,6 +88,15 @@ void OVR233_RebuildInitMatrixTable(void)
 	D233.cs_initMatrixTable[2].count = 49;
 	D233.cs_initMatrixTable[3].data = &D233.cs_initMatrixData[135];
 	D233.cs_initMatrixTable[3].count = 55;
+}
+
+void OVR233_RebuildCreditsModelHeaders(void)
+{
+	for (int i = 0; i < CS_CREDITS_GHOST_COUNT; i++)
+	{
+		Model_SetRuntimeHeaders(&creditsBSS.creditsObj.creditGhostModelCopies[i],
+		                       creditsBSS.creditsObj.creditGhostHeaders[i]);
+	}
 }
 
 static void OVR233_ResetD233(void)
@@ -188,6 +202,7 @@ static void OVR233_ResetGarage(void)
 
 static void OVR233_ResetCreditsBSS(void)
 {
+	Model_ClearAllRuntimeHeaders();
 	creditsBSS = s_creditsBSSInitialState;
 }
 

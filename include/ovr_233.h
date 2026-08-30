@@ -129,13 +129,19 @@ struct CsParticleConfig
 
 CTR_STATIC_ASSERT(sizeof(struct CsParticleConfigMeta) == 0x4);
 CTR_STATIC_ASSERT(sizeof(struct CsParticleConfigSpawn) == 0x4);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct CsParticleConfig) == 0xc);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct CsParticleConfig, meta) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct CsParticleConfig, spawn) == 0xc);
+CTR_STATIC_ASSERT(sizeof(struct CsParticleConfig) == 0x10);
+#endif
 
 union CsOpcodeArg
 {
 	int i;
 	u32 u;
-	char *ptr;
 };
 
 union CsOpcodeMeta
@@ -155,6 +161,16 @@ union CsOpcodeMeta
 	int words[5];
 	s16 shorts[10];
 };
+
+// The interpreter overlays word and halfword views on this decoded retail
+// record. Bytecode branch targets therefore remain 32-bit guest addresses
+// even when native host pointers are wider.
+CTR_STATIC_ASSERT(sizeof(union CsOpcodeArg) == 0x4);
+CTR_STATIC_ASSERT(OFFSETOF(union CsOpcodeMeta, arg0) == 0x8);
+CTR_STATIC_ASSERT(OFFSETOF(union CsOpcodeMeta, arg1) == 0xc);
+CTR_STATIC_ASSERT(OFFSETOF(union CsOpcodeMeta, rotStart) == 0x10);
+CTR_STATIC_ASSERT(OFFSETOF(union CsOpcodeMeta, rotEnd) == 0x12);
+CTR_STATIC_ASSERT(sizeof(union CsOpcodeMeta) == 0x14);
 
 enum CutsceneOpcode
 {
@@ -361,7 +377,6 @@ struct CutsceneObj
 };
 
 #ifndef CTR_NATIVE
-CTR_STATIC_ASSERT(sizeof(union CsOpcodeMeta) == 0x14);
 CTR_STATIC_ASSERT(OFFSETOF(struct CutsceneObj, rotPad) == 0x26);
 CTR_STATIC_ASSERT(OFFSETOF(struct CutsceneObj, pathProgress32) == 0x28);
 CTR_STATIC_ASSERT(OFFSETOF(struct CutsceneObj, particleID) == 0x44);
@@ -459,7 +474,12 @@ struct Ovr233InitMatrixTableEntry
 	int count;
 };
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct Ovr233InitMatrixTableEntry) == 0x8);
+#else
+CTR_STATIC_ASSERT(offsetof(struct Ovr233InitMatrixTableEntry, count) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct Ovr233InitMatrixTableEntry) == 0x10);
+#endif
 
 struct OverlayRDATA_233
 {
@@ -684,7 +704,20 @@ struct OverlayDATA_233
 	struct Ovr233InitMatrixTableEntry cs_initMatrixTable[4];
 };
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct OverlayDATA_233) == 0x1818);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, ptrModelBossHead) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, ptrModelBossBody) == 0x34);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, cs_initMatrixData) == 0x38);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, cs_initMatrixTable) == 0x17f8);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct OverlayDATA_233) == 0x1840);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, ptrModelBossHead) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, ptrModelBossBody) == 0x38);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, cs_initMatrixData) == 0x40);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_233, cs_initMatrixTable) == 0x1800);
+#endif
 
 extern struct OverlayDATA_233 D233;
 
@@ -694,7 +727,8 @@ extern struct OverlayDATA_233 D233;
 	CTR_STATIC_ASSERT(OFFSETOF(struct OverlayRDATA_233, ELEMENT) == (OFFSET)); \
 	CTR_STATIC_ASSERT(sizeof(((struct OverlayRDATA_233 *)0)->ELEMENT) == (SIZE))
 
-CTR_STATIC_ASSERT(sizeof(void *) == 4);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(void *) == 0x4);
 OVR233_LAYOUT_ASSERT(s_spawn, 0x4, 0x8);
 OVR233_LAYOUT_ASSERT(s_g_dancer, 0xc, 0x10);
 OVR233_LAYOUT_ASSERT(s_podium, 0x2ac, 0x8);
@@ -773,6 +807,90 @@ OVR233_LAYOUT_ASSERT(cutsceneState, 0xbd84, 0x4);
 OVR233_LAYOUT_ASSERT(ptrModelBossHead, 0xbd88, 0x4);
 OVR233_LAYOUT_ASSERT(ptrModelBossBody, 0xbd8c, 0x4);
 CTR_STATIC_ASSERT(sizeof(struct OverlayRDATA_233) == 0xbd90);
+#else
+// R233 is a linked, source-owned native initializer. Retail script branch
+// words are translated by explicit field/range tables rather than by treating
+// this host object as a serialized overlay image.
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+OVR233_LAYOUT_ASSERT(s_spawn, 0x4, 0x8);
+OVR233_LAYOUT_ASSERT(s_g_dancer, 0xc, 0x10);
+OVR233_LAYOUT_ASSERT(s_podium, 0x2ac, 0x8);
+OVR233_LAYOUT_ASSERT(s_third, 0x2b4, 0x8);
+OVR233_LAYOUT_ASSERT(s_second, 0x2bc, 0x8);
+OVR233_LAYOUT_ASSERT(s_first, 0x2c4, 0x8);
+OVR233_LAYOUT_ASSERT(s_tawna, 0x2cc, 0x8);
+OVR233_LAYOUT_ASSERT(s_prize, 0x2d4, 0x8);
+OVR233_LAYOUT_ASSERT(s_victorycam, 0x2dc, 0x10);
+OVR233_LAYOUT_ASSERT(s_introguy, 0x328, 0xc);
+OVR233_LAYOUT_ASSERT(s_introcam, 0x334, 0xc);
+OVR233_LAYOUT_ASSERT(s_box1, 0x340, 0x8);
+OVR233_LAYOUT_ASSERT(s_box2, 0x348, 0x8);
+OVR233_LAYOUT_ASSERT(s_box2_bottom, 0x350, 0x10);
+OVR233_LAYOUT_ASSERT(s_box2_front, 0x360, 0x10);
+OVR233_LAYOUT_ASSERT(s_box2_A, 0x370, 0x8);
+OVR233_LAYOUT_ASSERT(s_box3, 0x378, 0x8);
+OVR233_LAYOUT_ASSERT(s_code, 0x380, 0x8);
+OVR233_LAYOUT_ASSERT(s_glow, 0x388, 0x8);
+OVR233_LAYOUT_ASSERT(s_lid, 0x390, 0x4);
+OVR233_LAYOUT_ASSERT(s_lidb, 0x394, 0x8);
+OVR233_LAYOUT_ASSERT(s_lidc, 0x39c, 0x8);
+OVR233_LAYOUT_ASSERT(s_lidd, 0x3a4, 0x8);
+OVR233_LAYOUT_ASSERT(s_lid2, 0x3ac, 0x8);
+OVR233_LAYOUT_ASSERT(s_kart0, 0x3b4, 0x8);
+OVR233_LAYOUT_ASSERT(s_kart1, 0x3bc, 0x8);
+OVR233_LAYOUT_ASSERT(s_kart2, 0x3c4, 0x8);
+OVR233_LAYOUT_ASSERT(s_kart3, 0x3cc, 0x8);
+OVR233_LAYOUT_ASSERT(s_kart6, 0x3d4, 0x8);
+OVR233_LAYOUT_ASSERT(s_kart7, 0x3dc, 0x8);
+OVR233_LAYOUT_ASSERT(VertSplitLine, 0x518c, 0x4);
+OVR233_LAYOUT_ASSERT(boolLoadNextSwap, 0x5190, 0x4);
+OVR233_LAYOUT_ASSERT(boolStartToSkip, 0x5194, 0x4);
+OVR233_LAYOUT_ASSERT(bossCutsceneIndex, 0x5198, 0x4);
+OVR233_LAYOUT_ASSERT(CutsceneManipulatesAudio, 0x519c, 0x4);
+OVR233_LAYOUT_ASSERT(particleEmitterData, 0x51a0, 0xbd0);
+OVR233_LAYOUT_ASSERT(particleConfigs, 0x5d70, 0x80);
+OVR233_LAYOUT_ASSERT(csOpcodeMetaPrefix, 0x5df0, 0x34);
+OVR233_LAYOUT_ASSERT(bossOpcodeData, 0x5e24, 0x2b4);
+OVR233_LAYOUT_ASSERT(script_tawnaNormal, 0x60d8, 0x28);
+OVR233_LAYOUT_ASSERT(script_tawnaCredits, 0x6100, 0x164c);
+OVR233_LAYOUT_ASSERT(script_default, 0x774c, 0x18);
+OVR233_LAYOUT_ASSERT(script_dingofire, 0x7764, 0x38);
+OVR233_LAYOUT_ASSERT(danceFirstScripts, 0x77a0, 0x80);
+OVR233_LAYOUT_ASSERT(danceOtherOpcodeData, 0x7820, 0x12d4);
+OVR233_LAYOUT_ASSERT(danceOtherScripts, 0x8af8, 0x80);
+OVR233_LAYOUT_ASSERT(introModelOpcodeData, 0x8b78, 0x3b0);
+OVR233_LAYOUT_ASSERT(introModelScripts, 0x8f28, 0x80);
+OVR233_LAYOUT_ASSERT(introCutsceneOpcodeData, 0x8fa8, 0x11c);
+OVR233_LAYOUT_ASSERT(introCutsceneOpcodes, 0x90c8, 0x48);
+OVR233_LAYOUT_ASSERT(introEndingOpcodeData, 0x9110, 0x50);
+OVR233_LAYOUT_ASSERT(creditsCutsceneOpcodeData, 0x9160, 0x1dc);
+OVR233_LAYOUT_ASSERT(creditsCutsceneOpcodes, 0x9340, 0xa0);
+OVR233_LAYOUT_ASSERT(creditsOpcodeData, 0x93e0, 0x40);
+OVR233_LAYOUT_ASSERT(boxAndAdvCharSelectOpcodeData, 0x9420, 0x10c4);
+OVR233_LAYOUT_ASSERT(boxModelScripts, 0xa4e8, 0x158);
+OVR233_LAYOUT_ASSERT(advCharSelectSelectOpcodes, 0xa640, 0x40);
+OVR233_LAYOUT_ASSERT(advCharSelectDeselectOpcodes, 0xa680, 0x40);
+OVR233_LAYOUT_ASSERT(boxAndAdvCharSelectExtraOpcodes, 0xa6c0, 0x10);
+OVR233_LAYOUT_ASSERT(cs_initMatrixData, 0xa6d0, 0x17c0);
+OVR233_LAYOUT_ASSERT(cs_initMatrixTable, 0xbe90, 0x40);
+OVR233_LAYOUT_ASSERT(cs_initMatrixBool, 0xbed0, 0x1);
+OVR233_LAYOUT_ASSERT(introClearBoxColor, 0xbff4, 0x4);
+OVR233_LAYOUT_ASSERT(introClearBoxRect, 0xbff8, 0x8);
+OVR233_LAYOUT_ASSERT(creditsDancerRotOffset, 0xc000, 0x6);
+OVR233_LAYOUT_ASSERT(_pad_creditsDancerRotOffset, 0xc006, 0x2);
+OVR233_LAYOUT_ASSERT(bossCS, 0xc008, 0x310);
+OVR233_LAYOUT_ASSERT(isCutsceneOver, 0xc318, 0x4);
+OVR233_LAYOUT_ASSERT(podiumCameraFrame, 0xc31c, 0x4);
+OVR233_LAYOUT_ASSERT(FXVolumeBackup, 0xc320, 0x2);
+OVR233_LAYOUT_ASSERT(MusicVolumeBackup, 0xc322, 0x2);
+OVR233_LAYOUT_ASSERT(VoiceVolumeBackup, 0xc324, 0x2);
+OVR233_LAYOUT_ASSERT(audioVolumeBackupPad, 0xc326, 0x2);
+OVR233_LAYOUT_ASSERT(podiumPrizeDropReady, 0xc328, 0x4);
+OVR233_LAYOUT_ASSERT(cutsceneState, 0xc32c, 0x4);
+OVR233_LAYOUT_ASSERT(ptrModelBossHead, 0xc330, 0x8);
+OVR233_LAYOUT_ASSERT(ptrModelBossBody, 0xc338, 0x8);
+CTR_STATIC_ASSERT(sizeof(struct OverlayRDATA_233) == 0xc340);
+#endif
 
 #undef OVR233_LAYOUT_ASSERT
 
@@ -843,6 +961,7 @@ struct OVR233_Garage
 	CTR_STATIC_ASSERT(OFFSETOF(struct OVR233_Garage, ELEMENT) == (OFFSET)); \
 	CTR_STATIC_ASSERT(sizeof(((struct OVR233_Garage *)0)->ELEMENT) == (SIZE))
 
+#if UINTPTR_MAX == UINT32_MAX
 OVR233_GARAGE_ASSERT(menuGarage, 0x0, 0x2c);
 OVR233_GARAGE_ASSERT(numFramesMax_GarageMove, 0x2c, 0x4);
 OVR233_GARAGE_ASSERT(padding1, 0x30, 0x4);
@@ -862,6 +981,27 @@ OVR233_GARAGE_ASSERT(numFramesCurr_ZoomOut, 0xa4, 0x2);
 OVR233_GARAGE_ASSERT(delayOneSecond, 0xa6, 0x2);
 OVR233_GARAGE_ASSERT(boolSelected, 0xa8, 0x2);
 CTR_STATIC_ASSERT(sizeof(struct OVR233_Garage) == 0xac);
+#else
+OVR233_GARAGE_ASSERT(menuGarage, 0x0, 0x40);
+OVR233_GARAGE_ASSERT(numFramesMax_GarageMove, 0x40, 0x4);
+OVR233_GARAGE_ASSERT(padding1, 0x44, 0x4);
+OVR233_GARAGE_ASSERT(numFramesMax_Zoom, 0x48, 0x4);
+OVR233_GARAGE_ASSERT(fovMin, 0x4c, 0x4);
+OVR233_GARAGE_ASSERT(fovMax, 0x50, 0x4);
+OVR233_GARAGE_ASSERT(garageCharacterIDs, 0x54, 0x10);
+OVR233_GARAGE_ASSERT(statBarLengths, 0x64, 0x6);
+OVR233_GARAGE_ASSERT(unusedFrameCount, 0x6a, 0x2);
+OVR233_GARAGE_ASSERT(classStringIDs, 0x6c, 0x8);
+OVR233_GARAGE_ASSERT(statBarTargetLengths, 0x74, 0x18);
+OVR233_GARAGE_ASSERT(unusedArr_Colors, 0x8c, 0xc);
+OVR233_GARAGE_ASSERT(statBarSegmentColors, 0x98, 0x1c);
+OVR233_GARAGE_ASSERT(numFramesCurr_GarageMove, 0xb4, 0x2);
+OVR233_GARAGE_ASSERT(numFramesCurr_ZoomIn, 0xb6, 0x2);
+OVR233_GARAGE_ASSERT(numFramesCurr_ZoomOut, 0xb8, 0x2);
+OVR233_GARAGE_ASSERT(delayOneSecond, 0xba, 0x2);
+OVR233_GARAGE_ASSERT(boolSelected, 0xbc, 0x2);
+CTR_STATIC_ASSERT(sizeof(struct OVR233_Garage) == 0xc0);
+#endif
 
 #undef OVR233_GARAGE_ASSERT
 
@@ -885,7 +1025,7 @@ struct CreditsLevHeader
 	// char* ptrStrings[0];
 };
 
-#define CREDITSHEADER_GETSTRINGS(x) ((u32)x + sizeof(struct CreditsLevHeader))
+#define CREDITSHEADER_GETSTRINGS(x) ((u8 *)(x) + sizeof(struct CreditsLevHeader))
 
 #ifndef CTR_NATIVE
 CTR_STATIC_ASSERT(OFFSETOF(struct CreditsLevHeader, numStrings) == 0x4);
@@ -1002,6 +1142,7 @@ struct Ovr233_Credits_BSS
 	CTR_STATIC_ASSERT(OFFSETOF(struct CreditsObj, ELEMENT) == (OFFSET)); \
 	CTR_STATIC_ASSERT(sizeof(((struct CreditsObj *)0)->ELEMENT) == (SIZE))
 
+#if UINTPTR_MAX == UINT32_MAX
 OVR233_CREDITS_OBJ_ASSERT(creditGhostModel, 0x0, 0x14);
 OVR233_CREDITS_OBJ_ASSERT(creditGhostInst, 0x14, 0x14);
 OVR233_CREDITS_OBJ_ASSERT(creditGhostHeaders, 0x28, 0x280);
@@ -1016,6 +1157,24 @@ OVR233_CREDITS_OBJ_ASSERT(epilogueNextString, 0x338, 0x4);
 OVR233_CREDITS_OBJ_ASSERT(epilogueFramesLeft, 0x33c, 0x2);
 OVR233_CREDITS_OBJ_ASSERT(epiloguePosX_unused, 0x33e, 0x2);
 CTR_STATIC_ASSERT(sizeof(struct CreditsObj) == 0x340);
+#else
+// Native runtime pointers widen, while the embedded serialized Model and
+// ModelHeader copies retain their retail sizes through CtrAssetRef32.
+OVR233_CREDITS_OBJ_ASSERT(creditGhostModel, 0x0, 0x28);
+OVR233_CREDITS_OBJ_ASSERT(creditGhostInst, 0x28, 0x28);
+OVR233_CREDITS_OBJ_ASSERT(creditGhostHeaders, 0x50, 0x280);
+OVR233_CREDITS_OBJ_ASSERT(creditGhostModelCopies, 0x2d0, 0x78);
+OVR233_CREDITS_OBJ_ASSERT(countdown, 0x348, 0x2);
+OVR233_CREDITS_OBJ_ASSERT(unused_324, 0x34c, 0x4);
+OVR233_CREDITS_OBJ_ASSERT(creditDanceInst, 0x350, 0x8);
+OVR233_CREDITS_OBJ_ASSERT(creditsPosY, 0x358, 0x2);
+OVR233_CREDITS_OBJ_ASSERT(creditsTopString, 0x360, 0x8);
+OVR233_CREDITS_OBJ_ASSERT(epilogueTopString, 0x368, 0x8);
+OVR233_CREDITS_OBJ_ASSERT(epilogueNextString, 0x370, 0x8);
+OVR233_CREDITS_OBJ_ASSERT(epilogueFramesLeft, 0x378, 0x2);
+OVR233_CREDITS_OBJ_ASSERT(epiloguePosX_unused, 0x37a, 0x2);
+CTR_STATIC_ASSERT(sizeof(struct CreditsObj) == 0x380);
+#endif
 
 #undef OVR233_CREDITS_OBJ_ASSERT
 
@@ -1023,6 +1182,7 @@ CTR_STATIC_ASSERT(sizeof(struct CreditsObj) == 0x340);
 	CTR_STATIC_ASSERT(OFFSETOF(struct Ovr233_Credits_BSS, ELEMENT) == (OFFSET)); \
 	CTR_STATIC_ASSERT(sizeof(((struct Ovr233_Credits_BSS *)0)->ELEMENT) == (SIZE))
 
+#if UINTPTR_MAX == UINT32_MAX
 OVR233_CREDITS_BSS_ASSERT(creditGhostPos, 0x0, 0x6);
 OVR233_CREDITS_BSS_ASSERT(_pad_creditGhostPos, 0x6, 0x2);
 OVR233_CREDITS_BSS_ASSERT(unused_Pos, 0x8, 0x6);
@@ -1037,6 +1197,22 @@ OVR233_CREDITS_BSS_ASSERT(boolAllBlue, 0x28, 0x2);
 OVR233_CREDITS_BSS_ASSERT(unused, 0x2c, 0x8);
 OVR233_CREDITS_BSS_ASSERT(creditsObj, 0x34, 0x340);
 CTR_STATIC_ASSERT(sizeof(struct Ovr233_Credits_BSS) == 0x374);
+#else
+OVR233_CREDITS_BSS_ASSERT(creditGhostPos, 0x0, 0x6);
+OVR233_CREDITS_BSS_ASSERT(_pad_creditGhostPos, 0x6, 0x2);
+OVR233_CREDITS_BSS_ASSERT(unused_Pos, 0x8, 0x6);
+OVR233_CREDITS_BSS_ASSERT(_pad_unused_Pos, 0xe, 0x2);
+OVR233_CREDITS_BSS_ASSERT(creditTextPosX, 0x10, 0x4);
+OVR233_CREDITS_BSS_ASSERT(creditThread, 0x18, 0x8);
+OVR233_CREDITS_BSS_ASSERT(dancerThread, 0x20, 0x8);
+OVR233_CREDITS_BSS_ASSERT(dancerInst_invisible, 0x28, 0x8);
+OVR233_CREDITS_BSS_ASSERT(numStrings, 0x30, 0x2);
+OVR233_CREDITS_BSS_ASSERT(ptrStrings, 0x38, 0x8);
+OVR233_CREDITS_BSS_ASSERT(boolAllBlue, 0x40, 0x2);
+OVR233_CREDITS_BSS_ASSERT(unused, 0x44, 0x8);
+OVR233_CREDITS_BSS_ASSERT(creditsObj, 0x50, 0x380);
+CTR_STATIC_ASSERT(sizeof(struct Ovr233_Credits_BSS) == 0x3d0);
+#endif
 
 #undef OVR233_CREDITS_BSS_ASSERT
 

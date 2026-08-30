@@ -19,7 +19,7 @@ void RB_MakeInstanceReflective(struct ScratchpadStruct *sps, struct Instance *in
 			return;
 		}
 
-		quadFlags = sps->hit.ptrQuadblock->quadFlags;
+		quadFlags = COLL_Scratch_GetHost(sps)->hitQuadblock->quadFlags;
 
 		if ((quadFlags & QUADBLOCK_FLAG_COLLISION_SURFACE) == 0)
 		{

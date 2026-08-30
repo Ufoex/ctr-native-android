@@ -17,6 +17,14 @@ CTR_STATIC_ASSERT(VEH_LAP_TRACK_DISTANCE_SCALE_SHIFT == 3);
 CTR_STATIC_ASSERT(VEH_LAP_PROJECTED_DISTANCE_SHIFT == 0xc);
 CTR_STATIC_ASSERT(VEH_LAP_WRONG_WAY_DOT_LIMIT == 0x5a801);
 
+#if defined(CTR_NATIVE)
+static int VehLap_NativeCheckpointIndexInRange(s16 checkpointIndex, const struct Level *level)
+{
+	return (level != NULL) && (level->cnt_restart_points > 0) && (checkpointIndex >= 0) &&
+	       ((u32)checkpointIndex < (u32)level->cnt_restart_points);
+}
+#endif
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005ca24-0x8005cd1c
 void VehLap_UpdateProgress(struct Driver *driver)
 {
@@ -48,7 +56,23 @@ void VehLap_UpdateProgress(struct Driver *driver)
 		return;
 	}
 
-	struct CheckpointNode *nodes = level->ptr_restart_points;
+#if defined(CTR_NATIVE)
+	// Retail can transiently leave an AI checkpoint at the 0xff sentinel.
+	// Reading nodes[0xff] then consumes unrelated relocated words after the
+	// actual array, so ILP32 host pointers and LP64 guest references produce
+	// different race progress. Keep the retail instruction path unchanged on
+	// PS1, but make the native ports independent of pointer representation.
+	if (!VehLap_NativeCheckpointIndexInRange(checkpointIndex, level))
+	{
+		return;
+	}
+#endif
+
+	struct CheckpointNode *nodes = Level_GetRestartPoints(level, "VehLap checkpoint nodes");
+	if (nodes == NULL)
+	{
+		return;
+	}
 	struct CheckpointNode *checkpointNode = &nodes[checkpointIndex];
 	struct CheckpointNode *progressNode = &nodes[checkpointNode->nextIndex_forward];
 	struct CheckpointNode *nextNode = &nodes[progressNode->nextIndex_forward];
@@ -105,3 +129,31 @@ void VehLap_UpdateProgress(struct Driver *driver)
 
 	driver->checkpoint.currentIndex = checkpointIndex;
 }
+
+#if defined(CTR_NATIVE)
+int VehLap_RunCheckpointBoundsSelfTest(void)
+{
+	struct Level level = {0};
+	level.cnt_restart_points = 4;
+
+	if (!VehLap_NativeCheckpointIndexInRange(0, &level) ||
+	    !VehLap_NativeCheckpointIndexInRange(level.cnt_restart_points - 1, &level) ||
+	    VehLap_NativeCheckpointIndexInRange(level.cnt_restart_points, &level) ||
+	    VehLap_NativeCheckpointIndexInRange(VEH_LAP_INVALID_CHECKPOINT, &level) ||
+	    VehLap_NativeCheckpointIndexInRange(-1, &level))
+	{
+		fprintf(stderr, "[CTR VehLap] self-test failed: native checkpoint bounds\n");
+		return 1;
+	}
+
+	level.cnt_restart_points = 0;
+	if (VehLap_NativeCheckpointIndexInRange(0, &level) || VehLap_NativeCheckpointIndexInRange(0, NULL))
+	{
+		fprintf(stderr, "[CTR VehLap] self-test failed: empty/null level\n");
+		return 1;
+	}
+
+	printf("[CTR VehLap] self-test passed: count=4 first=valid last=valid one-past=rejected sentinel=0xff-rejected empty=rejected\n");
+	return 0;
+}
+#endif

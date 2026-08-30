@@ -11,6 +11,9 @@ struct PlatformMempackArena
 };
 
 void Platform_Init(const char *title, int width, int height);
+int Platform_IsInitialized(void);
+int Platform_IsHostActive(void);
+int Platform_ShouldQuit(void);
 void Platform_Shutdown(void);
 void Platform_InitScratchpad(void);
 const struct PlatformMempackArena *Platform_InitMempackArena(void);
@@ -26,6 +29,11 @@ int Platform_GetVBlankCount(void);
 void Platform_WaitUntilVBlank(int targetVBlank);
 void Platform_PollHostEvents(void);
 int Platform_PollInput(void);
+void Platform_InputAcknowledgeRetailPoll(void);
+int Platform_StartDisplayLoop(void (*callback)(void *), void *userdata);
+void Platform_StopDisplayLoop(void);
+int Platform_RunLifecycleSelfTest(void);
+int Platform_RunFrameStatsSelfTest(void);
 
 #if defined(CTR_NATIVE)
 int NikoGetEnterKey(void);

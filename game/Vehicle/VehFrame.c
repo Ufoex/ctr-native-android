@@ -83,23 +83,22 @@ u32 VehFrameInst_GetNumAnimFrames(struct Instance *inst, int animIndex)
 	{
 		return 0;
 	}
-	if (inst->model->headers == NULL)
+	struct ModelHeader *mh = Model_GetHeaders(inst->model, "vehicle animation headers");
+	if (mh == NULL)
 	{
 		return 0;
 	}
-
-	struct ModelHeader *mh = inst->model->headers;
 
 	if (animIndex >= (int)mh->numAnimations)
 	{
 		return 0;
 	}
-	if (mh->ptrAnimations == NULL)
+	if (mh->ptrAnimations.bits == 0)
 	{
 		return 0;
 	}
 
-	struct ModelAnim *anim = mh->ptrAnimations[animIndex];
+	struct ModelAnim *anim = ModelHeader_GetAnimation(mh, (size_t)animIndex, "vehicle animation");
 
 	if (anim == NULL)
 	{

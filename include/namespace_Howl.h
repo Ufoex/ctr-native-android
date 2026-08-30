@@ -34,6 +34,16 @@ CTR_STATIC_ASSERT(sizeof(AudioState) == 0x2);
 CTR_STATIC_ASSERT(AUDIO_NONE == 0);
 CTR_STATIC_ASSERT(AUDIO_RACE_END == 16);
 
+struct HowlChainParams
+{
+	CdlFILE *cdlFile;
+	void *destination;
+	int firstSector;
+	int numSectors;
+};
+
+CTR_STATIC_ASSERT(sizeof(struct HowlChainParams) == 2 * sizeof(void *) + 2 * sizeof(int));
+
 struct VoicelineItem
 {
 	// 0x0
@@ -181,7 +191,7 @@ typedef struct
 struct ChannelAttr
 {
 	// 0x0
-	void *spuStartAddr;
+	u32 spuStartAddr;
 
 	// as + dr = ASDR (envelope standard)
 
@@ -427,7 +437,7 @@ struct CseqSongHeader
 	// each seq is an array of SongNote
 	// s16 seqOffsetArr[0];
 };
-#define SONGHEADER_GETSEQOFFARR(x) ((u32)x + sizeof(struct CseqSongHeader))
+#define SONGHEADER_GETSEQOFFARR(x) ((u8 *)(x) + sizeof(struct CseqSongHeader))
 
 // right before first note
 struct SongNoteHeader
@@ -439,7 +449,7 @@ struct SongNoteHeader
 
 	// char notes[0];
 };
-#define NOTEHEADER_GETNOTES(x) ((u32)x + sizeof(struct SongNoteHeader))
+#define NOTEHEADER_GETNOTES(x) ((u8 *)(x) + sizeof(struct SongNoteHeader))
 
 struct SongSeq
 {
@@ -565,7 +575,7 @@ struct SampleBlockHeader
 
 	// s16 spuIndexArr[0];
 };
-#define SBHEADER_GETARR(x) (s16 *)((u32)x + sizeof(struct SampleBlockHeader))
+#define SBHEADER_GETARR(x) ((s16 *)((u8 *)(x) + sizeof(struct SampleBlockHeader)))
 
 struct SpuAddrEntry
 {
@@ -636,11 +646,33 @@ enum VoiceType_XAGAME2
 #endif
 
 CTR_STATIC_ASSERT(sizeof(SpuReverbAttr) == 0x14);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct VoicelineItem) == 0x10);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct VoicelineItem, voiceID) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct VoicelineItem, startFrame) == 0x14);
+CTR_STATIC_ASSERT(sizeof(struct VoicelineItem) == 0x18);
+#endif
 CTR_STATIC_ASSERT(sizeof(struct ChannelAttr) == 0x10);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct ChannelStats) == 0x20);
+#else
+CTR_STATIC_ASSERT(offsetof(struct ChannelStats, flags) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct ChannelStats, soundID) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct ChannelStats, startFrame) == 0x24);
+CTR_STATIC_ASSERT(sizeof(struct ChannelStats) == 0x28);
+#endif
 CTR_STATIC_ASSERT(sizeof(struct GarageFX) == 0xC);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct SongSeq) == 0x1C);
 CTR_STATIC_ASSERT(sizeof(struct Song) == 0x7C);
+#else
+CTR_STATIC_ASSERT(offsetof(struct SongSeq, firstNote) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct SongSeq, currNote) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct SongSeq) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct Song, CseqSequences) == 0x20);
+CTR_STATIC_ASSERT(sizeof(struct Song) == 0xe0);
+#endif
 
 #endif

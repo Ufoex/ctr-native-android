@@ -325,7 +325,7 @@ struct ModelAnim
 	// copied to instance -> 0xd4
 	// used for compressed animations,
 	// or nullptr if animation is uncompressed
-	u32 *ptrDeltaArray;
+	struct CtrAssetRef32 ptrDeltaArray;
 
 	// 0x18
 	// struct ModelFrame firstFrame;
@@ -358,30 +358,32 @@ struct ModelHeader
 	s16 _pad_scale;
 
 	// 0x20
-	u32 ptrCommandList;
+	struct CtrAssetRef32 ptrCommandList;
 
 	// 0x24
 	// null if there are animations
-	struct ModelFrame *ptrFrameData;
+	struct CtrAssetRef32 ptrFrameData;
 
 	// 0x28
-	struct TextureLayout **ptrTexLayout; // same as LEV
+	// Reference to an array of CtrAssetRef32 texture-layout references.
+	struct CtrAssetRef32 ptrTexLayout;
 
 	// 0x2C
-	u32 *ptrColors; // CLUT = color lookup table
+	struct CtrAssetRef32 ptrColors; // CLUT = color lookup table
 
 	// 0x30
 	// same as anim->0x14
-	u32 unk3;
+	struct CtrAssetRef32 unk3;
 
 	// 0x34
 	u32 numAnimations;
 
 	// 0x38
-	struct ModelAnim **ptrAnimations;
+	// Reference to an array of CtrAssetRef32 animation references.
+	struct CtrAssetRef32 ptrAnimations;
 
 	// 0x3C
-	struct AnimTex *animtex;
+	struct CtrAssetRef32 animtex;
 };
 
 enum
@@ -413,12 +415,13 @@ struct Model
 	s16 numHeaders;
 
 	// 0x14
-	struct ModelHeader *headers;
+	struct CtrAssetRef32 headers;
 };
 
 CTR_STATIC_ASSERT(sizeof(((struct Model *)0)->name) == MODEL_NAME_WORD_COUNT * sizeof(u32));
 CTR_STATIC_ASSERT(OFFSETOF(struct Model, id) == 0x10);
 CTR_STATIC_ASSERT(OFFSETOF(struct Model, headers) == 0x14);
+CTR_STATIC_ASSERT(sizeof(struct Model) == 0x18);
 
 struct InstDef
 {
@@ -426,7 +429,7 @@ struct InstDef
 	char name[0x10];
 
 	// 0x10 (0x18 - 8)
-	struct Model *model;
+	struct CtrAssetRef32 model;
 
 	// 0x14 (0x1c - 8)
 	SVec3 scale;
@@ -442,7 +445,11 @@ struct InstDef
 	int unk28;
 
 	// 0x2c
-	struct Instance *ptrInstance;
+	// Raw host pointer on i686; instance-pool index handle on LP64.
+	struct CtrRuntimeInstanceRef32
+	{
+		u32 bits;
+	} ptrInstance;
 
 	// 0x30
 	SVec3 pos;
@@ -455,6 +462,11 @@ struct InstDef
 
 	// 0x40 -- struct size
 };
+
+CTR_STATIC_ASSERT(sizeof(struct CtrRuntimeInstanceRef32) == 0x4);
+CTR_STATIC_ASSERT(offsetof(struct InstDef, model) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct InstDef, ptrInstance) == 0x2c);
+CTR_STATIC_ASSERT(sizeof(struct InstDef) == 0x40);
 
 struct InstDrawPerPlayer
 {
@@ -483,16 +495,16 @@ struct InstDrawPerPlayer
 	struct ModelFrame *ptrNextFrame;
 
 	// 0xc8
-	u32 ptrCommandList;
+	u32 *ptrCommandList;
 
 	// 0xcc
-	struct TextureLayout **ptrTexLayout;
+	struct CtrAssetRef32 *ptrTexLayout;
 
 	// 0xd0
-	u32 ptrColorLayout; // maybe should be `u32*`
+	u32 *ptrColorLayout;
 
 	// 0xd4
-	int ptrDeltaArray;
+	u32 *ptrDeltaArray;
 
 	// 0xd8 - LOD index (0,1,2,3)
 	int lodIndex;
@@ -504,8 +516,8 @@ struct InstDrawPerPlayer
 	struct ModelHeader *mh;
 
 	// 0xe4
-	int otRangeNormal;    // ptrOT + depthOffset
-	int otRangeSecondary; // ptrOT + depthOffset
+	u32 *otRangeNormal;    // ptrOT + depthOffset
+	u32 *otRangeSecondary; // ptrOT + depthOffset
 	int unkEC;            // drawFunc1
 	int unkF0;            // drawFunc2
 
@@ -522,6 +534,13 @@ struct InstDrawPerPlayer
 	// 0x88 = size of struct
 };
 
+CTR_STATIC_ASSERT(sizeof(((struct InstDrawPerPlayer *)0)->ptrCommandList) == sizeof(void *));
+CTR_STATIC_ASSERT(sizeof(((struct InstDrawPerPlayer *)0)->ptrColorLayout) == sizeof(void *));
+CTR_STATIC_ASSERT(sizeof(((struct InstDrawPerPlayer *)0)->ptrDeltaArray) == sizeof(void *));
+CTR_STATIC_ASSERT(sizeof(((struct InstDrawPerPlayer *)0)->otRangeNormal) == sizeof(void *));
+CTR_STATIC_ASSERT(sizeof(((struct InstDrawPerPlayer *)0)->otRangeSecondary) == sizeof(void *));
+
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct InstDrawPerPlayer, pushBuffer) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct InstDrawPerPlayer, mvp) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct InstDrawPerPlayer, mvp) + CTR_OFFSET_OF_ARRAY(MATRIX, t, 0) == 0x18);
@@ -545,6 +564,7 @@ CTR_STATIC_ASSERT(offsetof(struct InstDrawPerPlayer, otRangeSecondary) == 0x74);
 CTR_STATIC_ASSERT(offsetof(struct InstDrawPerPlayer, unkEC) == 0x78);
 CTR_STATIC_ASSERT(offsetof(struct InstDrawPerPlayer, unkF0) == 0x7c);
 CTR_STATIC_ASSERT(sizeof(struct InstDrawPerPlayer) == 0x88);
+#endif
 
 // draws anything with a model
 struct Instance
@@ -638,6 +658,7 @@ struct Instance
 };
 
 CTR_STATIC_ASSERT(offsetof(struct Instance, next) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct Instance, prev) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct Instance, model) == 0x18);
 CTR_STATIC_ASSERT(offsetof(struct Instance, scale.x) == 0x1c);
@@ -663,6 +684,36 @@ CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct Instance, funcPtr, 3) == 0x68);
 CTR_STATIC_ASSERT(offsetof(struct Instance, thread) == 0x6c);
 CTR_STATIC_ASSERT(offsetof(struct Instance, compressedNormalAndDriverIndex) == 0x70);
 CTR_STATIC_ASSERT(sizeof(struct Instance) == 0x74);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Instance, prev) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Instance, name) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct Instance, model) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct Instance, scale.x) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct Instance, scale.y) == 0x2a);
+CTR_STATIC_ASSERT(offsetof(struct Instance, scale.z) == 0x2c);
+CTR_STATIC_ASSERT(offsetof(struct Instance, alphaScale) == 0x2e);
+CTR_STATIC_ASSERT(offsetof(struct Instance, flags) == 0x34);
+CTR_STATIC_ASSERT(offsetof(struct Instance, instDef) == 0x38);
+CTR_STATIC_ASSERT(offsetof(struct Instance, matrix) == 0x40);
+CTR_STATIC_ASSERT(offsetof(struct Instance, matrix) + CTR_OFFSET_OF_ARRAY(MATRIX, t, 0) == 0x54);
+CTR_STATIC_ASSERT(offsetof(struct Instance, matrix) + CTR_OFFSET_OF_ARRAY(MATRIX, t, 1) == 0x58);
+CTR_STATIC_ASSERT(offsetof(struct Instance, matrix) + CTR_OFFSET_OF_ARRAY(MATRIX, t, 2) == 0x5c);
+CTR_STATIC_ASSERT(offsetof(struct Instance, depthBiasNormal) == 0x60);
+CTR_STATIC_ASSERT(offsetof(struct Instance, depthBiasSecondary) == 0x61);
+CTR_STATIC_ASSERT(offsetof(struct Instance, animIndex) == 0x62);
+CTR_STATIC_ASSERT(offsetof(struct Instance, specLightX) == 0x63);
+CTR_STATIC_ASSERT(offsetof(struct Instance, animFrame) == 0x64);
+CTR_STATIC_ASSERT(offsetof(struct Instance, vertSplit) == 0x66);
+CTR_STATIC_ASSERT(offsetof(struct Instance, funcPtr) == 0x70);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct Instance, funcPtr, 0) == 0x70);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct Instance, funcPtr, 1) == 0x78);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct Instance, funcPtr, 2) == 0x80);
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct Instance, funcPtr, 3) == 0x88);
+CTR_STATIC_ASSERT(offsetof(struct Instance, thread) == 0x90);
+CTR_STATIC_ASSERT(offsetof(struct Instance, compressedNormalAndDriverIndex) == 0x98);
+CTR_STATIC_ASSERT(sizeof(struct Instance) == 0xa0);
+#endif
 
 enum InstanceCompressedNormalLayout
 {
@@ -691,6 +742,6 @@ static inline u32 INST_CompressNormalVectorAndDriverIndex(s32 normalX, s32 norma
 	return INST_CompressNormalVector(normalX, normalY, normalZ) | (((u32)driverID + INST_COMPRESSED_DRIVER_INDEX_OFFSET) << INST_COMPRESSED_DRIVER_INDEX_SHIFT);
 }
 
-#define INST_GETIDPP(x) (struct InstDrawPerPlayer *)((u32)x + sizeof(struct Instance))
+#define INST_GETIDPP(x) ((struct InstDrawPerPlayer *)((u8 *)(x) + sizeof(struct Instance)))
 
 #endif

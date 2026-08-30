@@ -163,10 +163,9 @@ static int DrawLevelOvr2P_DispatchBucketHandler(u32 handlerAddress, void *bucket
 	}
 }
 
-static int DrawLevelOvr2P_DrawViewportBucket(struct DrawLevelOvr1PRenderList *renderList, s32 renderListOffset, struct PushBuffer *pb, struct mesh_info *mesh,
+static int DrawLevelOvr2P_DrawViewportBucket(struct DrawLevelOvr1PRenderList *renderList, s32 bucketIndex, struct PushBuffer *pb, struct mesh_info *mesh,
                                              struct PrimMem *primMem, const int *visFaceList, u8 **clipCursor, int playerIndex, int applySetup)
 {
-	u32 bucketIndex = (u32)renderListOffset / sizeof(u32);
 	const struct DrawLevelOvr1PBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
 	void *bucketValue = DrawLevelOvr1P_GetRenderListBucketValue(renderList, bucket);
 	u32 setupAddress = R227.bucketSetupAddresses[bucketIndex];
@@ -197,20 +196,19 @@ static int DrawLevelOvr2P_DrawViewportBucket(struct DrawLevelOvr1PRenderList *re
 static int DrawLevelOvr2P_DispatchBucketTable(struct DrawLevelOvr1PRenderList *renderLists, struct PushBuffer *pushBuffers, struct mesh_info *mesh,
                                               struct PrimMem *primMem, const int *visFaceList0, const int *visFaceList1, u8 **clipCursors)
 {
-	for (s32 renderListOffset = DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
+	for (s32 bucketIndex = OVR227_BUCKET_COUNT - 1; bucketIndex >= 0; bucketIndex--)
 	{
-		u32 bucketIndex = (u32)renderListOffset / sizeof(u32);
 		const struct DrawLevelOvr1PBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
 		void *viewport0BucketValue = DrawLevelOvr1P_GetRenderListBucketValue(&renderLists[0], bucket);
 
-		DrawLevelOvr1P_Scratch()->currentBucketOffset = (u32)renderListOffset;
+		DrawLevelOvr1P_Scratch()->currentBucketOffset = (u32)bucketIndex * sizeof(u32);
 
-		if (!DrawLevelOvr2P_DrawViewportBucket(&renderLists[0], renderListOffset, &pushBuffers[0], mesh, primMem, visFaceList0, &clipCursors[0], 0, 1))
+		if (!DrawLevelOvr2P_DrawViewportBucket(&renderLists[0], bucketIndex, &pushBuffers[0], mesh, primMem, visFaceList0, &clipCursors[0], 0, 1))
 		{
 			return 0;
 		}
 
-		if (!DrawLevelOvr2P_DrawViewportBucket(&renderLists[1], renderListOffset, &pushBuffers[1], mesh, primMem, visFaceList1, &clipCursors[1], 1,
+		if (!DrawLevelOvr2P_DrawViewportBucket(&renderLists[1], bucketIndex, &pushBuffers[1], mesh, primMem, visFaceList1, &clipCursors[1], 1,
 		                                       viewport0BucketValue == NULL))
 		{
 			return 0;
@@ -251,13 +249,13 @@ void DrawLevelOvr2P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspL
 		return;
 	}
 
-	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
+	DrawLevelOvr1P_SetWaterEnvMap(waterEnvMap);
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[0] = (u32)(uintptr_t)&pb[0];
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[1] = (u32)(uintptr_t)&pb[1];
 	DrawLevelOvr1P_Scratch()->playerClipCursorPtr32[0] = (u32)(uintptr_t)clipCursors[0];
 	DrawLevelOvr1P_Scratch()->playerClipCursorPtr32[1] = (u32)(uintptr_t)clipCursors[1];
 
-	if (mesh->ptrQuadBlockArray == NULL)
+	if (MeshInfo_GetQuadBlocks(mesh, "DrawLevel 2P quad blocks") == NULL)
 	{
 		return;
 	}

@@ -809,7 +809,7 @@ void RB_RainCloud_Init(struct Driver *d)
 		cloudInst->depthBiasSecondary = d->instSelf->depthBiasSecondary;
 
 		// add rain to pool
-		rlocal = (struct RainLocal *)JitPool_Add(&sdata->gGT->JitPools.rain);
+		rlocal = (struct RainLocal *)(void *)JitPool_Add(&sdata->gGT->JitPools.rain);
 
 		if (rlocal != NULL)
 		{

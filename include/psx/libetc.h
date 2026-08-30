@@ -46,18 +46,20 @@ extern int PadIdentifier;
 
 extern char *_scratchData;
 
+typedef void (*VSyncCallbackFn)(void);
+
 extern int CheckCallback(void);
 extern void PadInit(int mode);
 extern int ResetCallback(void);
 extern int RestartCallback(void);
 extern int StopCallback(void);
 extern int VSync(int mode);
-extern int VSyncCallback(void (*f)(void));
+extern VSyncCallbackFn VSyncCallback(VSyncCallbackFn f);
 extern int GetVideoMode(void);
 extern int SetVideoMode(int mode);
 extern uint32_t PadRead(int id);
 extern void PadStop(void);
-extern void (*vsync_callback)(void);
+extern VSyncCallbackFn vsync_callback;
 
 
 #endif

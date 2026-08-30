@@ -172,19 +172,19 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// ========== Set LevelLOD variables ================
 
 
-		// default
-		sdata->levelLOD = gGT->numPlyrCurrGame;
-
 		// main menu or adv garage
 		if ((gGT->gameMode1 & MAIN_MENU) != 0)
 		{
 			sdata->levelLOD = LOAD_LEVEL_LOD_1P;
 		}
-
 		// if relic, or time trial
-		if ((gGT->gameMode1 & (TIME_TRIAL | RELIC_RACE)) != 0)
+		else if ((gGT->gameMode1 & (TIME_TRIAL | RELIC_RACE)) != 0)
 		{
 			sdata->levelLOD = LOAD_LEVEL_LOD_RELIC;
+		}
+		else
+		{
+			sdata->levelLOD = gGT->numPlyrCurrGame;
 		}
 
 		gGT->hudFlags |= HUD_FLAG_INIT_UI_INSTANCES;
@@ -326,7 +326,7 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// clear and reset
 		LibraryOfModels_Clear(gGT);
 
-		sdata->PLYROBJECTLIST = (int **)((u32)sdata->ptrMPK + 4);
+		sdata->PLYROBJECTLIST = (struct CtrAssetRef32 *)(sdata->ptrMPK + sizeof(u32));
 		if (sdata->ptrMPK == 0)
 		{
 			sdata->PLYROBJECTLIST = 0;
@@ -338,11 +338,16 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		gGT->mpkIcons = 0;
 		if (sdata->ptrMPK != 0)
 		{
-			gGT->mpkIcons = *(int *)sdata->ptrMPK;
+			const struct CtrAssetRef32 mpkIconReference =
+			    *(const struct CtrAssetRef32 *)sdata->ptrMPK;
+			CtrAssetRef_ResolveOptional(mpkIconReference, sizeof(*gGT->mpkIcons),
+			                            _Alignof(struct LevTexLookup),
+			                            (void **)&gGT->mpkIcons,
+			                            "LOAD_TenStages MPK icon lookup");
 
 			if (gGT->mpkIcons != 0)
 			{
-				DecalGlobal_Store(gGT, (struct LevTexLookup *)gGT->mpkIcons);
+				DecalGlobal_Store(gGT, gGT->mpkIcons);
 			}
 		}
 
@@ -454,16 +459,16 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		sdata->load_inProgress = 1;
 
 		// add VRAM to loading queue
-		LOAD_AppendQueue(0, LT_VRAM, LOAD_GetBigfileIndex(gGT->levelID, sdata->levelLOD, LVI_VRAM), NULL, NULL);
+		LOAD_AppendQueue(bigfile, LT_VRAM, LOAD_GetBigfileIndex(gGT->levelID, sdata->levelLOD, LVI_VRAM), NULL, NULL);
 
 		// add LEV to loading queue
-		LOAD_AppendQueue(0, LT_GETADDR, LOAD_GetBigfileIndex(gGT->levelID, sdata->levelLOD, LVI_LEV), NULL, LOAD_Callback_LEV);
+		LOAD_AppendQueue(bigfile, LT_GETADDR, LOAD_GetBigfileIndex(gGT->levelID, sdata->levelLOD, LVI_LEV), NULL, LOAD_Callback_LEV);
 
 		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800340c0-0x80034180; retail queues PTR maps by level-ID ranges.
 		if (((u32)(levelID - GEM_STONE_VALLEY) < LOAD_PTR_MAP_ADV_LEVEL_COUNT) || ((u32)(levelID - CREDITS_CRASH) < LOAD_PTR_MAP_CREDIT_LEVEL_COUNT))
 		{
 			// add PTR file to loading queue
-			LOAD_AppendQueue(0, LT_SETADDR, LOAD_GetBigfileIndex(gGT->levelID, sdata->levelLOD, LVI_PTR), sdata->PatchMem_Ptr, LOAD_Callback_PatchMem);
+			LOAD_AppendQueue(bigfile, LT_SETADDR, LOAD_GetBigfileIndex(gGT->levelID, sdata->levelLOD, LVI_PTR), sdata->PatchMem_Ptr, LOAD_Callback_PatchMem);
 		}
 		break;
 	}
@@ -473,11 +478,11 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		struct Level *lev = sdata->ptrLevelFile;
 
 		gGT->level1 = lev;
-		gGT->visMem1 = lev->visMem;
+		gGT->visMem1 = Level_GetVisMem(lev, "LOAD_TenStages level visibility memory");
 
 		if (lev != 0)
 		{
-			DecalGlobal_Store(gGT, lev->levTexLookup);
+			DecalGlobal_Store(gGT, Level_GetTexLookup(lev, "LOAD_TenStages texture lookup"));
 		}
 
 		DebugFont_Init(gGT);
@@ -485,51 +490,36 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// if level is not nullptr
 		if (lev != 0)
 		{
-			LibraryOfModels_Store(gGT, lev->numModels, lev->ptrModelsPtrArray);
+			LibraryOfModels_Store(gGT, lev->numModels, Level_GetModelRefs(lev, "LOAD_TenStages model references"));
 
-			gGT->ptrCircle = (u32)DecalGlobal_FindInLEV(lev, rdata.s_circle);
-			gGT->ptrClod = (u32)DecalGlobal_FindInLEV(lev, rdata.s_clod);
-			gGT->ptrDustpuff = (u32)DecalGlobal_FindInLEV(lev, rdata.s_dustpuff);
-			gGT->ptrSmoking = (u32)DecalGlobal_FindInLEV(lev, rdata.s_smokering); // "Smoke Ring"
-			gGT->ptrSparkle = (u32)DecalGlobal_FindInLEV(lev, rdata.s_sparkle);
+			gGT->ptrCircle = DecalGlobal_FindInLEV(lev, rdata.s_circle);
+			gGT->ptrClod = DecalGlobal_FindInLEV(lev, rdata.s_clod);
+			gGT->ptrDustpuff = DecalGlobal_FindInLEV(lev, rdata.s_dustpuff);
+			gGT->ptrSmoking = DecalGlobal_FindInLEV(lev, rdata.s_smokering); // "Smoke Ring"
+			gGT->ptrSparkle = DecalGlobal_FindInLEV(lev, rdata.s_sparkle);
 		}
 
 		// if linked list of icons exists
 		if (gGT->mpkIcons != 0)
 		{
-			u32 *mpkIconList = (u32 *)*(u32 *)(gGT->mpkIcons + 4);
+			struct Icon *mpkIconList = LevTexLookup_GetIcons(gGT->mpkIcons, "LOAD_TenStages MPK icons");
 
-			gGT->trafficLightIcon[0] = (struct Icon *)DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightredoff);
-			gGT->trafficLightIcon[1] = (struct Icon *)DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightredon);
-			gGT->trafficLightIcon[2] = (struct Icon *)DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightgreenoff);
-			gGT->trafficLightIcon[3] = (struct Icon *)DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightgreenon);
+			gGT->trafficLightIcon[0] = DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightredoff);
+			gGT->trafficLightIcon[1] = DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightredon);
+			gGT->trafficLightIcon[2] = DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightgreenoff);
+			gGT->trafficLightIcon[3] = DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightgreenon);
 		}
 
 		gGT->gameMode1_prevFrame = 1;
 
-		MEMPACK_SwapPacks(LOAD_MAIN_PACK_INDEX);
 		if (((gGT->gameMode1 & (GAME_CUTSCENE | ADVENTURE_ARENA)) == 0) && ((gGT->gameMode2 & CREDITS) == 0))
 		{
 			MainInit_JitPoolsNew(gGT);
 			return loadingStage + 1;
 		}
 
-		if ((gGT->gameMode2 & LEV_SWAP) == 0)
-		{
-			break;
-		}
-
-		// === Assume LEV_SWAP Active ===
-
-		if ((gGT->gameMode1 & ADVENTURE_ARENA) == 0)
-		{
-			break;
-		}
-
-		// === Assume AdventureArena Active ===
-
 		// podium reward
-		if (gGT->podiumRewardID == 0)
+		if (gGT->podiumRewardID == NOFUNC)
 		{
 			break;
 		}
@@ -554,7 +544,7 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		sdata->load_inProgress = 1;
 
 		// VRAM for podium and all related models
-		LOAD_AppendQueue(0, LT_VRAM, BI_PODIUMVRMS + podiumFileVariant, NULL, NULL);
+		LOAD_AppendQueue(bigfile, LT_VRAM, BI_PODIUMVRMS + podiumFileVariant, NULL, NULL);
 
 		int fileIndex;
 		u8 *ptrIndexArr = &gGT->podium_modelIndex_First;
@@ -565,38 +555,38 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		if ((ptrIndexArr[0] != 0) && (ptrIndexArr[0] != STATIC_OXIDEDANCE))
 		{
 			fileIndex = BI_DANCEMODELWIN + podiumFileVariant + (ptrIndexArr[0] - STATIC_CRASHDANCE) * LOAD_PODIUM_MODEL_FILE_STRIDE;
-			LOAD_AppendQueue(0, LT_GETADDR, fileIndex, &ptrModelPtrArr[0], setPtrCb);
+			LOAD_AppendQueue(bigfile, LT_GETADDR, fileIndex, &ptrModelPtrArr[0], setPtrCb);
 		}
 
 		// podium second place
 		if (ptrIndexArr[1] != 0)
 		{
 			fileIndex = BI_DANCEMODELLOSE + podiumFileVariant + (ptrIndexArr[1] - STATIC_CRASHDANCE) * LOAD_PODIUM_MODEL_FILE_STRIDE;
-			LOAD_AppendQueue(0, LT_GETADDR, fileIndex, &ptrModelPtrArr[1], setPtrCb);
+			LOAD_AppendQueue(bigfile, LT_GETADDR, fileIndex, &ptrModelPtrArr[1], setPtrCb);
 		}
 
 		// podium third place
 		if (ptrIndexArr[2] != 0)
 		{
 			fileIndex = BI_DANCEMODELLOSE + podiumFileVariant + (ptrIndexArr[2] - STATIC_CRASHDANCE) * LOAD_PODIUM_MODEL_FILE_STRIDE;
-			LOAD_AppendQueue(0, LT_GETADDR, fileIndex, &ptrModelPtrArr[2], setPtrCb);
+			LOAD_AppendQueue(bigfile, LT_GETADDR, fileIndex, &ptrModelPtrArr[2], setPtrCb);
 		}
 
 		// TAWNA
 		fileIndex = BI_DANCETAWNAGIRL + podiumFileVariant + (gGT->podium_modelIndex_tawna - STATIC_TAWNA1) * LOAD_PODIUM_MODEL_FILE_STRIDE;
 
 		// add TAWNA to loading queue
-		LOAD_AppendQueue(0, LT_GETADDR, fileIndex, (void *)&data.podiumModel_tawna, setPtrCb);
+		LOAD_AppendQueue(bigfile, LT_GETADDR, fileIndex, (void *)&data.podiumModel_tawna, setPtrCb);
 
 		// if 0x7e+5 (dingo)
 		if (gGT->podium_modelIndex_First == STATIC_DINGODANCE)
 		{
 			// add "DingoFire" to loading queue
-			LOAD_AppendQueue(0, LT_GETADDR, BI_DINGOFIRE + podiumFileVariant, (void *)&data.podiumModel_dingoFire, setPtrCb);
+			LOAD_AppendQueue(bigfile, LT_GETADDR, BI_DINGOFIRE + podiumFileVariant, (void *)&data.podiumModel_dingoFire, setPtrCb);
 		}
 
 		// add Podium
-		LOAD_AppendQueue(0, LT_GETADDR, BI_PODIUM + podiumFileVariant, NULL, LOAD_Callback_Podiums);
+		LOAD_AppendQueue(bigfile, LT_GETADDR, BI_PODIUM + podiumFileVariant, NULL, LOAD_Callback_Podiums);
 
 		// Disable LEV instances on Adv Hub, for podium scene
 		gGT->gameMode2 = gGT->gameMode2 | NO_LEV_INSTANCE;

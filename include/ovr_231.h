@@ -50,7 +50,14 @@ struct MaskHeadWeapon
 
 	// 0x14 bytes large
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct MaskHeadWeapon) == 0x14);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct MaskHeadWeapon, maskBeamInst) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct MaskHeadWeapon, pos) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct MaskHeadWeapon) == 0x18);
+#endif
 
 enum
 {
@@ -179,10 +186,19 @@ struct TrackerWeapon
 
 	// 0x58 bytes large
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, pathProgress) == 0x2c);
 CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, savedPosXY) == 0x4c);
 CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, savedPosZ) == 0x50);
 CTR_STATIC_ASSERT(sizeof(struct TrackerWeapon) == 0x58);
+#else
+CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, pathProgress) == 0x3c);
+CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, ptrNodeCurr) == 0x50);
+CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, ptrNodeNext) == 0x58);
+CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, savedPosXY) == 0x68);
+CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, savedPosZ) == 0x6c);
+CTR_STATIC_ASSERT(sizeof(struct TrackerWeapon) == 0x78);
+#endif
 
 struct RainLocal
 {
@@ -210,10 +226,19 @@ struct RainLocal
 
 	// 0x28 -- size
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct RainLocal, scroll) == 0xc);
 CTR_STATIC_ASSERT(offsetof(struct RainLocal, vel) == 0x14);
 CTR_STATIC_ASSERT(offsetof(struct RainLocal, pos) == 0x1c);
 CTR_STATIC_ASSERT(sizeof(struct RainLocal) == 0x28);
+#else
+CTR_STATIC_ASSERT(offsetof(struct RainLocal, frameCount) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct RainLocal, scroll) == 0x14);
+CTR_STATIC_ASSERT(offsetof(struct RainLocal, vel) == 0x1c);
+CTR_STATIC_ASSERT(offsetof(struct RainLocal, pos) == 0x24);
+CTR_STATIC_ASSERT(offsetof(struct RainLocal, cloudInst) == 0x30);
+CTR_STATIC_ASSERT(sizeof(struct RainLocal) == 0x38);
+#endif
 
 struct RainCloud
 {
@@ -228,8 +253,13 @@ struct RainCloud
 
 	// size - 0x8
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct RainCloud, effect) == 0x6);
 CTR_STATIC_ASSERT(sizeof(struct RainCloud) == 0x8);
+#else
+CTR_STATIC_ASSERT(offsetof(struct RainCloud, effect) == 0xa);
+CTR_STATIC_ASSERT(sizeof(struct RainCloud) == 0x10);
+#endif
 
 typedef u16 ShieldFlags;
 
@@ -265,7 +295,13 @@ struct Shield
 	// 0x18
 };
 CTR_STATIC_ASSERT(offsetof(struct Shield, flags) == 0x6);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct Shield) == 0x18);
+#else
+CTR_STATIC_ASSERT(offsetof(struct Shield, instColor) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Shield, instHighlight) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct Shield) == 0x20);
+#endif
 
 struct MineWeapon;
 
@@ -287,7 +323,12 @@ struct WeaponSlot231
 	// 0x8
 	struct MineWeapon *mineWeapon;
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct WeaponSlot231) == 0xc);
+#else
+CTR_STATIC_ASSERT(offsetof(struct WeaponSlot231, mineWeapon) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct WeaponSlot231) == 0x18);
+#endif
 
 typedef u16 MineWeaponFlags;
 
@@ -350,8 +391,14 @@ struct MineWeapon
 	// 0x2a
 	s16 cooldown;
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct MineWeapon, flags) == 0x28);
 CTR_STATIC_ASSERT(sizeof(struct MineWeapon) == 0x2c);
+#else
+CTR_STATIC_ASSERT(offsetof(struct MineWeapon, weaponSlot231) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct MineWeapon, flags) == 0x3c);
+CTR_STATIC_ASSERT(sizeof(struct MineWeapon) == 0x40);
+#endif
 
 struct Baron
 {
@@ -388,8 +435,14 @@ struct Baron
 	// 0x30 bytes large
 };
 CTR_STATIC_ASSERT(offsetof(struct Baron, soundID_flags) == 0x24);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct Baron, pointIndex) == 0x2c);
 CTR_STATIC_ASSERT(sizeof(struct Baron) == 0x30);
+#else
+CTR_STATIC_ASSERT(offsetof(struct Baron, otherInst) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct Baron, pointIndex) == 0x30);
+CTR_STATIC_ASSERT(sizeof(struct Baron) == 0x38);
+#endif
 
 struct Blade
 {
@@ -549,13 +602,23 @@ struct Follower
 	SVec3 realPos;
 	s16 _pad_realPos;
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct Follower) == 0x18);
+#else
+CTR_STATIC_ASSERT(offsetof(struct Follower, driver) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Follower, mineTh) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct Follower) == 0x28);
+#endif
 
 struct Fruit
 {
 	struct Driver *driver;
 };
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct Fruit) == 0x4);
+#else
+CTR_STATIC_ASSERT(sizeof(struct Fruit) == 0x8);
+#endif
 
 struct Minecart
 {
@@ -741,8 +804,13 @@ struct Spider
 };
 CTR_STATIC_ASSERT(offsetof(struct Spider, isNearRoof) == 0x6);
 CTR_STATIC_ASSERT(offsetof(struct Spider, delay) == 0x4);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct Spider, shadowInst) == 0xc);
 CTR_STATIC_ASSERT(sizeof(struct Spider) == 0x10);
+#else
+CTR_STATIC_ASSERT(offsetof(struct Spider, shadowInst) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct Spider) == 0x18);
+#endif
 
 typedef s32 TeethDirection;
 

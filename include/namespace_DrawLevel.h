@@ -70,13 +70,23 @@ struct DrawLevelOvr1PBucket
 	u8 lodMode;
 };
 
-CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvr1PRenderListSlot) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderListSlot, ptrQuadBlocksRendered) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvr1PRenderListSlot) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderListSlot, bspListStart) == 0x4);
 CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvr1PRenderList) == 0x30);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderList, list) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderList, bspListStart_FullDynamic) == 0x28);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderList, ptrQuadBlocksRendered_FullDynamic) == 0x2c);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvr1PRenderListSlot) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderListSlot, bspListStart) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderList, list) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderList, bspListStart_FullDynamic) == 0x50);
+CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PRenderList, ptrQuadBlocksRendered_FullDynamic) == 0x58);
+CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvr1PRenderList) == 0x60);
+#endif
 
 enum DrawLevelOvr1PUvScratchSlot
 {

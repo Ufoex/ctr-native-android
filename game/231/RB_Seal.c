@@ -275,10 +275,21 @@ void RB_Seal_LInB(struct Instance *inst)
 
 	if (sdata->gGT->level1->numSpawnType2 != 0)
 	{
-		spawnType2 = &sdata->gGT->level1->ptrSpawnType2[sealObj->sealID];
+		struct SpawnType2 *spawns = Level_GetSpawnType2(sdata->gGT->level1, "RB_Seal path table");
+		SVec3 *positions;
 
-		sealObj->spawnPos = spawnType2->positions[0];
-		sealObj->endPos = spawnType2->positions[1];
+		if ((spawns == NULL) || (sealObj->sealID >= sdata->gGT->level1->numSpawnType2))
+		{
+			return;
+		}
+		spawnType2 = &spawns[sealObj->sealID];
+		positions = SpawnType2_GetPositions(spawnType2, "RB_Seal path");
+
+		if ((positions != NULL) && (spawnType2->numCoords >= 2))
+		{
+			sealObj->spawnPos = positions[0];
+			sealObj->endPos = positions[1];
+		}
 	}
 
 	// distance between points

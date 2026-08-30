@@ -630,7 +630,7 @@ const struct OverlayRDATA_233 R233 =
         .particleEmitterData = {
             /* 0x51a0 */ {.flags = 0x0001,
                           .initOffset = 12,
-                          .InitTypes.AxisInit = {{0, 163, 12}, {0, 0, 0}},
+                          .InitTypes.FuncInit = {.particle_funcPtr = NULL, .particle_colorFlags = 163, .particle_lifespan = 12},
                           .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
             /* 0x51c4 */
             {.flags = 0x0002,
@@ -680,7 +680,7 @@ const struct OverlayRDATA_233 R233 =
             /* 0x5308 */
             {.flags = 0x0001,
              .initOffset = 12,
-             .InitTypes.AxisInit = {{0, 163, 12}, {0, 0, 0}},
+             .InitTypes.FuncInit = {.particle_funcPtr = NULL, .particle_colorFlags = 163, .particle_lifespan = 12},
              .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
             /* 0x532c */
             {.flags = 0x0012,
@@ -730,7 +730,7 @@ const struct OverlayRDATA_233 R233 =
             /* 0x5470 */
             {.flags = 0x0001,
              .initOffset = 12,
-             .InitTypes.AxisInit = {{0, 163, 15}, {0, 0, 0}},
+             .InitTypes.FuncInit = {.particle_funcPtr = NULL, .particle_colorFlags = 163, .particle_lifespan = 15},
              .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
             /* 0x5494 */
             {.flags = 0x0001,
@@ -770,7 +770,7 @@ const struct OverlayRDATA_233 R233 =
             /* 0x5590 */
             {.flags = 0x0001,
              .initOffset = 12,
-             .InitTypes.AxisInit = {{0, 163, 15}, {0, 0, 0}},
+             .InitTypes.FuncInit = {.particle_funcPtr = NULL, .particle_colorFlags = 163, .particle_lifespan = 15},
              .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
             /* 0x55b4 */
             {.flags = 0x0013,
@@ -820,7 +820,7 @@ const struct OverlayRDATA_233 R233 =
             /* 0x56f8 */
             {.flags = 0x0001,
              .initOffset = 12,
-             .InitTypes.AxisInit = {{0, 195, 15}, {0, 0, 0}},
+             .InitTypes.FuncInit = {.particle_funcPtr = NULL, .particle_colorFlags = 195, .particle_lifespan = 15},
              .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
             /* 0x571c */
             {.flags = 0x0001,
@@ -860,7 +860,7 @@ const struct OverlayRDATA_233 R233 =
             /* 0x5818 */
             {.flags = 0x0001,
              .initOffset = 12,
-             .InitTypes.AxisInit = {{0, 163, 15}, {0, 0, 0}},
+             .InitTypes.FuncInit = {.particle_funcPtr = NULL, .particle_colorFlags = 163, .particle_lifespan = 15},
              .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
             /* 0x583c */
             {.flags = 0x0001,
@@ -900,7 +900,7 @@ const struct OverlayRDATA_233 R233 =
             /* 0x5938 */
             {.flags = 0x0001,
              .initOffset = 12,
-             .InitTypes.AxisInit = {{0, 20642, 8}, {0, 0, 0}},
+             .InitTypes.FuncInit = {.particle_funcPtr = NULL, .particle_colorFlags = 20642, .particle_lifespan = 8},
              .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
             /* 0x595c */
             {.flags = 0x0012,
@@ -3384,6 +3384,80 @@ const struct OverlayRDATA_233 R233 =
             },
 };
 /* END OVERLAY 233 IMMUTABLE INITIAL STATE */
+
+int OVR233_RunParticleEmitterLayoutSelfTest(void)
+{
+	static const int groupStarts[] = {0, 10, 20, 28, 38, 46, 54};
+	static const int terminators[] = {9, 19, 27, 37, 45, 53, 62};
+	static const u16 colorFlags[] = {163, 163, 163, 163, 195, 163, 20642};
+	static const s16 lifespans[] = {12, 12, 15, 15, 15, 15, 8};
+	static const int configEmitterIndices[] = {0, 10, 20, 28, 28, 38, 46, 54};
+	static const u8 configFrameOffsets[] = {0, 0, 0, 0, 1, 0, 0, 2};
+	static const u8 configCounts[] = {3, 1, 1, 2, 2, 1, 1, 10};
+	static const u8 configFlags[] = {1, 0, 0, 1, 0, 0, 0, 0};
+	static const s8 configModelDeltas[] = {0, 0, 2, 0, 0, 2, 2, -2};
+
+	for (unsigned int i = 0; i < sizeof(groupStarts) / sizeof(groupStarts[0]); i++)
+	{
+		const struct ParticleEmitter *emitter = &R233.particleEmitterData[groupStarts[i]];
+		const struct ParticleEmitter *terminator = &R233.particleEmitterData[terminators[i]];
+
+		if (emitter->flags != PARTICLE_EMITTER_FLAG_BASE_START ||
+		    emitter->initOffset != PARTICLE_EMITTER_INIT_FUNC_OFFSET ||
+		    emitter->InitTypes.FuncInit.particle_funcPtr != NULL ||
+		    emitter->InitTypes.FuncInit.particle_colorFlags != colorFlags[i] ||
+		    emitter->InitTypes.FuncInit.particle_lifespan != lifespans[i] ||
+		    emitter->InitTypes.FuncInit.particle_Type != 0 ||
+		    emitter->InitTypes.FuncInit.emptyFiller != 0 ||
+		    terminator->flags != 0)
+		{
+			fprintf(stderr, "[CTR CutsceneEmitter] self-test failed: emitter group %u semantic mismatch\n", i);
+			return 1;
+		}
+
+#if UINTPTR_MAX == UINT32_MAX
+		{
+			const u32 retailWords[9] = {
+			    0x000c0001,
+			    0x00000000,
+			    ((u32)(u16)lifespans[i] << 16) | colorFlags[i],
+			    0x00000000,
+			    0x00000000,
+			    0x00000000,
+			    0x00000000,
+			    0x00000000,
+			    0x00000000,
+			};
+
+			if (memcmp(emitter, retailWords, sizeof(retailWords)) != 0)
+			{
+				fprintf(stderr, "[CTR CutsceneEmitter] self-test failed: emitter group %u retail bytes changed\n", i);
+				return 1;
+			}
+		}
+#endif
+	}
+
+	for (unsigned int i = 0; i < sizeof(configEmitterIndices) / sizeof(configEmitterIndices[0]); i++)
+	{
+		const struct CsParticleConfig *config = &R233.particleConfigs[i];
+
+		if (config->emitter != &R233.particleEmitterData[configEmitterIndices[i]] ||
+		    config->meta.iconGroupIndex != 1 ||
+		    config->meta.frameOffset != configFrameOffsets[i] ||
+		    config->meta.count != configCounts[i] ||
+		    config->meta.flags != configFlags[i] ||
+		    config->spawn.modelDelta != configModelDeltas[i])
+		{
+			fprintf(stderr, "[CTR CutsceneEmitter] self-test failed: particle config %u mismatch\n", i);
+			return 1;
+		}
+	}
+
+	printf("[CTR CutsceneEmitter] self-test passed: pointer-size=%zu groups=7 observed-group=46 lifespan=15 count=1 typed-function-init=yes\n",
+	       sizeof(void *));
+	return 0;
+}
 
 #undef OVR233_CS_OP_SET_AUDIO_VOLUME_AT
 #undef OVR233_CS_OP_WAIT_UI_FADE_AT

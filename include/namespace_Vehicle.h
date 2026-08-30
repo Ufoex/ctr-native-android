@@ -188,7 +188,7 @@ union VehEmitterWallScratch
 struct VehGroundSkidsScratch
 {
 	SVECTOR projected[3];
-	struct PushBuffer *pushBuffer;
+	u32 pushBufferPtr32;
 	u32 colorNear;
 	u32 colorFar;
 	union
@@ -879,7 +879,7 @@ struct BotData
 struct Driver
 {
 	// 0x0
-	struct Icon **wheelSprites;
+	struct CtrAssetRef32 *wheelSprites;
 	// 0x4
 	u16 wheelSize;
 
@@ -2032,7 +2032,18 @@ struct Driver
 enum
 {
 	DRIVER_NTSC_RETAIL_SIZE = 0x62c,
+	DRIVER_RETAIL_GHOST_OBJECT_SIZE = 0x638,
+	DRIVER_LARGE_STACK_SPARE_SIZE = 0x30,
 };
+
+#define DRIVER_RACE_OBJECT_SIZE       offsetof(struct Driver, ghostTape)
+#define DRIVER_GHOST_OBJECT_SIZE      sizeof(struct Driver)
+#define DRIVER_LARGE_STACK_ITEM_SIZE  (sizeof(struct Item) + DRIVER_GHOST_OBJECT_SIZE + DRIVER_LARGE_STACK_SPARE_SIZE)
+#if UINTPTR_MAX == UINT32_MAX
+#define DRIVER_GHOST_REQUEST_SIZE     4u
+#else
+#define DRIVER_GHOST_REQUEST_SIZE     DRIVER_GHOST_OBJECT_SIZE
+#endif
 
 CTR_STATIC_ASSERT(sizeof(struct MetaPhys) == 0x1C);
 CTR_STATIC_ASSERT(sizeof(DriverFunc) == sizeof(void *));
@@ -2075,6 +2086,7 @@ CTR_STATIC_ASSERT(offsetof(struct BotPhysics, accel) == 0x1c);
 CTR_STATIC_ASSERT(offsetof(struct BotPhysics, velocity) == 0x28);
 CTR_STATIC_ASSERT(sizeof(((struct BotPhysics *)0)->accel) == 0xc);
 CTR_STATIC_ASSERT(sizeof(((struct BotPhysics *)0)->velocity) == 0xc);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct BotData) == 0x94);
 CTR_STATIC_ASSERT(offsetof(struct BotData, aiPhysics) == 0x24);
 CTR_STATIC_ASSERT(offsetof(struct BotData, reserved_0x5a0) == 0x8);
@@ -2087,6 +2099,23 @@ CTR_STATIC_ASSERT(offsetof(struct BotData, estimatePosition) == 0x74);
 CTR_STATIC_ASSERT(sizeof(((struct BotData *)0)->estimatePosition) == 0x6);
 CTR_STATIC_ASSERT(offsetof(struct BotData, estimateFlags) == 0x82);
 CTR_STATIC_ASSERT(offsetof(struct BotData, estimateTail) == 0x84);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct BotData, reserved_0x5a0) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct BotData, botNavFrame) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct BotData, reserved_0x5ac) == 0x24);
+CTR_STATIC_ASSERT(offsetof(struct BotData, aiPhysics) == 0x34);
+CTR_STATIC_ASSERT(offsetof(struct BotData, positionBackup) == 0x68);
+CTR_STATIC_ASSERT(offsetof(struct BotData, ai_quadblock_checkpointIndex) == 0x82);
+CTR_STATIC_ASSERT(offsetof(struct BotData, estimateNavFrame) == 0x84);
+CTR_STATIC_ASSERT(offsetof(struct BotData, estimatePosition) == 0x84);
+CTR_STATIC_ASSERT(sizeof(((struct BotData *)0)->estimatePosition) == 0x6);
+CTR_STATIC_ASSERT(offsetof(struct BotData, estimateFlags) == 0x92);
+CTR_STATIC_ASSERT(offsetof(struct BotData, estimateTail) == 0x94);
+CTR_STATIC_ASSERT(offsetof(struct BotData, maskObj) == 0x98);
+CTR_STATIC_ASSERT(offsetof(struct BotData, reserved_0x628) == 0xa4);
+CTR_STATIC_ASSERT(sizeof(struct BotData) == 0xa8);
+#endif
 CTR_STATIC_ASSERT(BOT_FLAG_ESTIMATE_NAV == 0x1);
 CTR_STATIC_ASSERT(BOT_FLAG_DAMAGE_ACTIVE == 0x2);
 CTR_STATIC_ASSERT(BOT_FLAG_DAMAGE_SUPPRESS_EMITTER == 0x4);
@@ -2172,7 +2201,7 @@ CTR_STATIC_ASSERT(offsetof(union VehEmitterSkidmark, flags) == 0x7);
 CTR_STATIC_ASSERT(offsetof(union VehEmitterSkidmark, edge1) == 0x8);
 CTR_STATIC_ASSERT(sizeof(union VehEmitterWallScratch) == 0x18);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundSkidsScratch, projected) == 0x0);
-CTR_STATIC_ASSERT(offsetof(struct VehGroundSkidsScratch, pushBuffer) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct VehGroundSkidsScratch, pushBufferPtr32) == 0x18);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundSkidsScratch, colorNear) == 0x1c);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundSkidsScratch, colorFar) == 0x20);
 CTR_STATIC_ASSERT(offsetof(struct VehGroundSkidsScratch, segmentFlags) == 0x24);
@@ -2198,6 +2227,11 @@ CTR_STATIC_ASSERT(sizeof(RevEngineChargeState) == 0x1);
 CTR_STATIC_ASSERT(sizeof(RevEngineLockoutFlags) == 0x1);
 CTR_STATIC_ASSERT(sizeof(EngineSoundMode) == 0x1);
 
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(DRIVER_RACE_OBJECT_SIZE == DRIVER_NTSC_RETAIL_SIZE);
+CTR_STATIC_ASSERT(DRIVER_GHOST_OBJECT_SIZE == DRIVER_RETAIL_GHOST_OBJECT_SIZE);
+CTR_STATIC_ASSERT(DRIVER_GHOST_REQUEST_SIZE == 0x4);
+CTR_STATIC_ASSERT(DRIVER_LARGE_STACK_ITEM_SIZE == 0x670);
 CTR_STATIC_ASSERT(offsetof(struct Driver, ghostTape) == DRIVER_NTSC_RETAIL_SIZE);
 CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->funcPtrs) == DRIVER_FUNC_COUNT * sizeof(DriverFunc));
 #if BUILD < EurRetail
@@ -2309,5 +2343,138 @@ CTR_STATIC_ASSERT(offsetof(struct Driver, rotPrev.y) == 0x2f6);
 CTR_STATIC_ASSERT(offsetof(struct Driver, rotPrev.z) == 0x2f8);
 CTR_STATIC_ASSERT(offsetof(struct Driver, rotPrev.w) == 0x2fa);
 CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.MaskGrab.AngleAxis_NormalVec) == 0x584);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(DRIVER_RACE_OBJECT_SIZE == 0x6d8);
+CTR_STATIC_ASSERT(DRIVER_GHOST_OBJECT_SIZE == 0x6e8);
+CTR_STATIC_ASSERT(DRIVER_GHOST_REQUEST_SIZE == 0x6e8);
+CTR_STATIC_ASSERT(DRIVER_LARGE_STACK_ITEM_SIZE == 0x728);
+CTR_STATIC_ASSERT(offsetof(struct Driver, wheelSprites) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, instBombThrow) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct Driver, instTntSend) == 0x38);
+CTR_STATIC_ASSERT(offsetof(struct Driver, driverID) == 0x66);
+CTR_STATIC_ASSERT(offsetof(struct Driver, funcPtrs) == 0x70);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->funcPtrs) == DRIVER_FUNC_COUNT * sizeof(DriverFunc));
+CTR_STATIC_ASSERT(offsetof(struct Driver, velocity) == 0xd8);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->velocity) == 0xc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, currBlockTouching) == 0xf0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, collisionFlags) == 0xfe);
+CTR_STATIC_ASSERT(offsetof(struct Driver, spsHitPos) == 0x100);
+CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0xb2) == 0x106);
+CTR_STATIC_ASSERT(offsetof(struct Driver, spsNormalVec) == 0x108);
+CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0xba) == 0x10e);
+CTR_STATIC_ASSERT(offsetof(struct Driver, stepFlagSet) == 0x110);
+CTR_STATIC_ASSERT(offsetof(struct Driver, skidmarks) == 0x118);
+CTR_STATIC_ASSERT(offsetof(struct Driver, skidmarkEnableFlags) == 0x318);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->stepFlagSet) == 0x4);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->spsHitPosRaw) == 0x8);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->spsNormalVecRaw) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0x3e) == 0x5a);
+CTR_STATIC_ASSERT(offsetof(struct Driver, actionsFlagSet) == 0x31c);
+CTR_STATIC_ASSERT(offsetof(struct Driver, actionsFlagSetPrevFrame) == 0x320);
+CTR_STATIC_ASSERT(offsetof(struct Driver, quadBlockHeight) == 0x324);
+CTR_STATIC_ASSERT(offsetof(struct Driver, posCurr) == 0x328);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->posCurr) == 0xc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, underDriver) == 0x3a8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, lastValid) == 0x3b0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, terrainMeta1) == 0x3b8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, terrainMeta2) == 0x3c0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, forcedJumpType) == 0x3ce);
+CTR_STATIC_ASSERT(offsetof(struct Driver, AxisAngle2_normalVec) == 0x3d0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, speedometerNeedleValue) == 0x3d6);
+CTR_STATIC_ASSERT(offsetof(struct Driver, AxisAngle3_normalVec) == 0x3d8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, AxisAngle4_normalVec) == 0x3e0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0x37e) == 0x3e6);
+CTR_STATIC_ASSERT(offsetof(struct Driver, failedBoostExhaustTimer) == 0x3e9);
+CTR_STATIC_ASSERT(offsetof(struct Driver, posWallColl) == 0x3ec);
+CTR_STATIC_ASSERT(offsetof(struct Driver, wallRubSpeedLimit) == 0x3f2);
+CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0x398) == 0x400);
+CTR_STATIC_ASSERT(offsetof(struct Driver, forwardAccelVector) == 0x414);
+CTR_STATIC_ASSERT(offsetof(struct Driver, forwardAccelImpulse) == 0x41a);
+CTR_STATIC_ASSERT(offsetof(struct Driver, engineSoundVolumeState) == 0x41e);
+CTR_STATIC_ASSERT(offsetof(struct Driver, engineSoundPitchState) == 0x420);
+CTR_STATIC_ASSERT(offsetof(struct Driver, tireColorCycleTimer) == 0x424);
+CTR_STATIC_ASSERT(offsetof(struct Driver, tireColorCycleStep) == 0x426);
+CTR_STATIC_ASSERT(offsetof(struct Driver, accelTapWindowTimer) == 0x428);
+CTR_STATIC_ASSERT(offsetof(struct Driver, accelTapCount) == 0x42a);
+CTR_STATIC_ASSERT(offsetof(struct Driver, terrainScaledBaseSpeed) == 0x42c);
+CTR_STATIC_ASSERT(offsetof(struct Driver, accel) == 0x434);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->accel) == 0x6);
+CTR_STATIC_ASSERT(offsetof(struct Driver, turnWobbleAngle) == 0x43c);
+CTR_STATIC_ASSERT(offsetof(struct Driver, turnWobbleVelocity) == 0x43e);
+CTR_STATIC_ASSERT(offsetof(struct Driver, turnWobbleTimer) == 0x440);
+CTR_STATIC_ASSERT(offsetof(struct Driver, jump_HighJumpTimerMS) == 0x462);
+CTR_STATIC_ASSERT(offsetof(struct Driver, wallRubTimer) == 0x466);
+CTR_STATIC_ASSERT(offsetof(struct Driver, vShiftStartGuardTimer) == 0x46e);
+CTR_STATIC_ASSERT(offsetof(struct Driver, vShiftWindowTimer) == 0x470);
+CTR_STATIC_ASSERT(offsetof(struct Driver, vShiftCount) == 0x472);
+CTR_STATIC_ASSERT(offsetof(struct Driver, reserved_0x40e) == 0x476);
+CTR_STATIC_ASSERT(offsetof(struct Driver, reserved_0x412) == 0x47a);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_PreTurbo) == 0x4a8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_SteerAccelTurnVelScale) == 0x4b6);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_SteerAccelTurnVelLimit) == 0x4b8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_ModelTurnCounterSteerStrength) == 0x4bf);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_ModelTurnReturnStrength) == 0x4c0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_ModelTurnNegativeReturnStrength) == 0x4c1);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_ModelTurnVelocityLerp) == 0x4c2);
+CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0x45b) == 0x4c3);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftTurnBase) == 0x4c8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftTurnStartupScale) == 0x4c9);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftTurnRampFrames) == 0x4ca);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_Drifting_FramesTillSpinout) == 0x4cb);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftSpinRateAccel) == 0x4cc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftSpinRateDecel) == 0x4ce);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_Drifting_CameraSpinRate) == 0x4d0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftCameraLerpStep) == 0x4d2);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftReleaseTurnAssistFrames) == 0x4d3);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_MetaPhys33) == 0x4d4);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_MetaPhys34) == 0x4d6);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftTurnSameDirectionAngle) == 0x4d8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftTurnOppositeDirectionAngle) == 0x4da);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftTurnAngleScale) == 0x4dc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_turboFullBarReserveGain) == 0x4e0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftBoostDurationFrames) == 0x4e1);
+CTR_STATIC_ASSERT(offsetof(struct Driver, const_DriftBoostAxisKickRate) == 0x4e2);
+CTR_STATIC_ASSERT(offsetof(struct Driver, engineSoundMode) == 0x4e3);
+CTR_STATIC_ASSERT(offsetof(struct Driver, checkpoint) == 0x4fc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, checkpoint.branchChoiceIndex) == 0x4fc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, checkpoint.currentIndex) == 0x4fd);
+CTR_STATIC_ASSERT(offsetof(struct Driver, instBigNum) == 0x500);
+CTR_STATIC_ASSERT(offsetof(struct Driver, instFruitDisp) == 0x508);
+CTR_STATIC_ASSERT(offsetof(struct Driver, thCloud) == 0x510);
+CTR_STATIC_ASSERT(offsetof(struct Driver, thTrackingMe) == 0x518);
+CTR_STATIC_ASSERT(offsetof(struct Driver, plantEatingMe) == 0x520);
+CTR_STATIC_ASSERT(offsetof(struct Driver, BattleHUD.reserved_0x4d8) == 0x554);
+CTR_STATIC_ASSERT(offsetof(struct Driver, wakeInst) == 0x578);
+CTR_STATIC_ASSERT(offsetof(struct Driver, pendingDamageType) == 0x583);
+CTR_STATIC_ASSERT(offsetof(struct Driver, pendingDamageAttacker) == 0x588);
+CTR_STATIC_ASSERT(offsetof(struct Driver, pendingDamageReasonByte) == 0x590);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->pendingDamageReasonPadding) == 0x3);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rainCloudEffect) == 0x596);
+CTR_STATIC_ASSERT(offsetof(struct Driver, numTimesWumpa) == 0x5f5);
+CTR_STATIC_ASSERT(offsetof(struct Driver, EndOfRaceComment_ptrQuip) == 0x5f8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates) == 0x610);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.overRevTimerMS) == 0x620);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.releaseCooldownTimerMS) == 0x622);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.emptyCooldownTimerMS) == 0x624);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.chargeState) == 0x626);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.lockoutFlags) == 0x627);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.Warp) == 0x610);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.Warp.dustAngle) == 0x61c);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.Warp.beamHeight) == 0x620);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotCurr.x) == 0x340);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotCurr.y) == 0x342);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotCurr.z) == 0x344);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotCurr.w) == 0x346);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotPrev.x) == 0x348);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotPrev.y) == 0x34a);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotPrev.z) == 0x34c);
+CTR_STATIC_ASSERT(offsetof(struct Driver, rotPrev.w) == 0x34e);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.MaskGrab.AngleAxis_NormalVec) == 0x618);
+CTR_STATIC_ASSERT(offsetof(struct Driver, botData) == 0x630);
+CTR_STATIC_ASSERT(offsetof(struct Driver, ghostTape) == 0x6d8);
+CTR_STATIC_ASSERT(offsetof(struct Driver, ghostPadding_0x636) == 0x6e6);
+CTR_STATIC_ASSERT(sizeof(struct Driver) == 0x6e8);
+#endif
 
 #endif

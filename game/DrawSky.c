@@ -81,9 +81,9 @@ static void DrawSky_EmitPrimitive(u32 **primCursor, uint32_t *ot)
 static u32 *DrawSky_Piece(struct Skybox *skybox, struct DrawSkyContext *ctx, int faceIndex, int countIndex, u32 *prim)
 {
 	u32 numFaces = (u16)skybox->numFaces[countIndex];
-	const struct SkyboxFace *face = skybox->ptrFaces[faceIndex];
+	const struct SkyboxFace *face = Skybox_GetFaces(skybox, (size_t)faceIndex, "DrawSky faces");
 
-	if (numFaces == 0)
+	if ((numFaces == 0) || (face == NULL))
 	{
 		return prim;
 	}
@@ -145,7 +145,11 @@ void DrawSky_Full(void *skybox, struct PushBuffer *pb, struct PrimMem *primMem)
 		scratch->baseFaceOffset = baseFaceOffset;
 		scratch->baseCountOffset = baseCountOffset;
 
-		ctx.verts = sky->ptrVertex;
+		ctx.verts = Skybox_GetVertices(sky, "DrawSky vertices");
+		if (ctx.verts == NULL)
+		{
+			return;
+		}
 		ctx.ot = &pb->ptrOT[0x3ff];
 		ctx.screenBounds = DrawSky_ReadWord(pb, 0x20);
 

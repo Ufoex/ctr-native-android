@@ -47,6 +47,12 @@ typedef struct
 } GrVertex;
 #pragma pack(pop)
 
+CTR_STATIC_ASSERT(sizeof(GrVertex) == 20);
+CTR_STATIC_ASSERT(offsetof(GrVertex, x) == 0);
+CTR_STATIC_ASSERT(offsetof(GrVertex, u) == 8);
+CTR_STATIC_ASSERT(offsetof(GrVertex, r) == 12);
+CTR_STATIC_ASSERT(offsetof(GrVertex, tcx) == 16);
+
 typedef enum
 {
 	a_position,

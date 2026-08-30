@@ -14,8 +14,9 @@ struct RenderBucketQueueState
 	uint32_t *otCurr;
 	uint32_t *otEndMinusOne;
 };
-CTR_STATIC_ASSERT(sizeof(struct RenderBucketEntry) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketEntry, inst) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct RenderBucketEntry) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketEntry, instPlayerBase) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct Item, next) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct Item, prev) == 0x4);
@@ -23,6 +24,18 @@ CTR_STATIC_ASSERT(sizeof(struct Item) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct CameraDC, visInstSrc) == 0x28);
 #if BUILD >= UsaRetail
 CTR_STATIC_ASSERT(sizeof(struct CameraDC) == 0xdc);
+#endif
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct RenderBucketEntry) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct RenderBucketEntry, instPlayerBase) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct Item, next) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct Item, prev) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct Item) == 0x10);
+CTR_STATIC_ASSERT(offsetof(struct CameraDC, visInstSrc) == 0x38);
+#if BUILD >= UsaRetail
+CTR_STATIC_ASSERT(sizeof(struct CameraDC) == 0x110);
+#endif
 #endif
 CTR_STATIC_ASSERT(CTR_OFFSET_OF_2D_ARRAY(MATRIX, m, 0, 0) == 0x0);
 CTR_STATIC_ASSERT(CTR_OFFSET_OF_2D_ARRAY(MATRIX, m, 0, 2) == 0x4);
@@ -38,8 +51,13 @@ CTR_STATIC_ASSERT(offsetof(struct ModelFrame, pos.y) == 0x2);
 CTR_STATIC_ASSERT(offsetof(struct ModelFrame, pos.z) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct ModelFrame, vertexOffset) == 0x18);
 CTR_STATIC_ASSERT(sizeof(struct ModelFrame) == 0x1c);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(offsetof(struct Thread, object) == 0x30);
 CTR_STATIC_ASSERT(offsetof(struct Driver, driverID) == 0x4a);
+#else
+CTR_STATIC_ASSERT(offsetof(struct Thread, object) == 0x58);
+CTR_STATIC_ASSERT(offsetof(struct Driver, driverID) == 0x66);
+#endif
 CTR_STATIC_ASSERT(offsetof(struct Model, numHeaders) == 0x12);
 CTR_STATIC_ASSERT(offsetof(struct Model, headers) == 0x14);
 CTR_STATIC_ASSERT(offsetof(struct ModelHeader, maxDistanceLOD) == 0x14);
@@ -137,7 +155,7 @@ struct RenderBucketExecuteScratch
 	u8 pad_046[0x02];
 	u8 splitInstanceSpecLightX;
 	u8 pad_049[0x03];
-	u32 splitFunc3Ptr32;
+	u32 splitReflectionRGBA;
 	u8 pad_050[0x08];
 	u32 setupDrawClear;
 	u8 pad_05c[0x38];
@@ -173,7 +191,7 @@ CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, instFlags) == 0x24
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, frameOrigin) == 0x30);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitLinePrimary) == 0x44);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitInstanceSpecLightX) == 0x48);
-CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitFunc3Ptr32) == 0x4c);
+CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitReflectionRGBA) == 0x4c);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, setupDrawClear) == 0x58);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, setupDispatch) == 0x94);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, rawView) == 0xb4);
@@ -581,7 +599,7 @@ static struct ModelAnim *RenderBucket_GetAnim(struct Instance *inst, struct Mode
 	}
 #endif
 
-	return mh->ptrAnimations[inst->animIndex];
+	return ModelHeader_GetAnimation(mh, inst->animIndex, "render animation");
 }
 
 static u32 RenderBucket_PackXY(int x, int y)
@@ -815,14 +833,9 @@ static s32 RenderBucket_MipsAdd(int lhs, int rhs)
 	return (s32)((u32)lhs + (u32)rhs);
 }
 
-static int RenderBucket_AddressSub(const void *lhs, const void *rhs)
+static ptrdiff_t RenderBucket_AddressSub(const void *lhs, const void *rhs)
 {
-	return RenderBucket_MipsSub((int)(u32)(uintptr_t)lhs, (int)(u32)(uintptr_t)rhs);
-}
-
-static int RenderBucket_AddressSubOffset(const void *lhs, int rhs)
-{
-	return RenderBucket_MipsSub((int)(u32)(uintptr_t)lhs, rhs);
+	return (const u8 *)lhs - (const u8 *)rhs;
 }
 
 static int RenderBucket_HasSplitOutput(const struct RenderBucketSplitState *split)
@@ -1262,7 +1275,11 @@ static struct ModelHeader *RenderBucket_SelectModelHeader(struct Instance *inst,
 
 	// NOTE(aalhendi): Retail keeps the low 32 bits of this product before dividing by GTE H.
 	projectedDistance = (int)(u32)((s64)(pb->rect.w >> 1) * viewDepth) / pb->distanceToScreen_PREV;
-	mh = inst->model->headers;
+	mh = Model_GetHeaders(inst->model, "render model headers");
+	if (mh == NULL)
+	{
+		return 0;
+	}
 	headersRemaining = inst->model->numHeaders;
 	lodIndex = 0;
 
@@ -1655,8 +1672,8 @@ static struct RenderBucketSplitState RenderBucket_BuildSplitState(struct Instanc
 	return split;
 }
 
-static int RenderBucket_AllocateOTRange(struct RenderBucketQueueState *queueState, struct PushBuffer *pb, int minDepth, int maxDepth, int viewDepth,
-                                        int depthBias, int usePushBuffer)
+static uint32_t *RenderBucket_AllocateOTRange(struct RenderBucketQueueState *queueState, struct PushBuffer *pb, int minDepth, int maxDepth, int viewDepth,
+					     int depthBias, int usePushBuffer)
 {
 	uint32_t *rangeStart;
 	uint32_t *rangeEnd;
@@ -1737,7 +1754,7 @@ static int RenderBucket_AllocateOTRange(struct RenderBucketQueueState *queueStat
 		entry[1] = RenderBucket_OTAddress(entry);
 	}
 
-	return RenderBucket_AddressSubOffset(rangeStart, RenderBucket_MipsSll(minDepth, 2));
+	return (uint32_t *)((u8 *)rangeStart - RenderBucket_MipsSll(minDepth, 2));
 }
 
 static void RenderBucket_UpdatePushBufferMetadata(struct PushBuffer *pb, const struct RenderBucketBounds *bounds, u32 *instFlags)
@@ -1795,8 +1812,8 @@ static int RenderBucket_BuildDepthRange(struct Instance *inst, struct ModelFrame
 {
 	(void)inst;
 	struct RenderBucketBounds bounds;
-	int primaryRange;
-	int secondaryRange;
+	uint32_t *primaryRange;
+	uint32_t *secondaryRange;
 	int geomScreenHalf;
 	int minDepth;
 	int maxDepth;
@@ -1816,7 +1833,7 @@ static int RenderBucket_BuildDepthRange(struct Instance *inst, struct ModelFrame
 		// value from the cull path, which is still the unsigned viewport height.
 		if ((*instFlags & (SPLIT_LINE | REFLECTIVE)) != 0)
 		{
-			idpp->otRangeSecondary = (u16)pb->rect.h;
+			idpp->otRangeSecondary = NULL;
 		}
 		return 1;
 	}
@@ -1929,7 +1946,7 @@ static void RenderBucket_AdvanceInstanceAnimWord(struct Instance *inst, int game
 	RenderBucket_StoreInstanceAnimWord(inst, frame);
 }
 
-static struct ModelFrame *RenderBucket_GetFrame(struct Instance *inst, struct ModelHeader *mh, struct ModelFrame **nextFrameOut, int *deltaArrayOut,
+static struct ModelFrame *RenderBucket_GetFrame(struct Instance *inst, struct ModelHeader *mh, struct ModelFrame **nextFrameOut, u32 **deltaArrayOut,
                                                 int *lastFrameAdvanceOut)
 {
 	struct ModelAnim *anim;
@@ -1944,10 +1961,11 @@ static struct ModelFrame *RenderBucket_GetFrame(struct Instance *inst, struct Mo
 	*deltaArrayOut = 0;
 	*lastFrameAdvanceOut = -1;
 
-	if (mh->ptrAnimations == 0)
+	if (mh->ptrAnimations.bits == 0)
 	{
-		*deltaArrayOut = mh->unk3;
-		return mh->ptrFrameData;
+		CtrAssetRef_ResolveOptional(mh->unk3, sizeof(**deltaArrayOut), _Alignof(u32), (void **)deltaArrayOut,
+		                            "unanimated model delta array");
+		return ModelHeader_GetFrameData(mh, "unanimated model frame");
 	}
 
 	anim = RenderBucket_GetAnim(inst, mh);
@@ -1968,7 +1986,7 @@ static struct ModelFrame *RenderBucket_GetFrame(struct Instance *inst, struct Mo
 	// NOTE(aalhendi): Retail 0x80070ca0-0x80070dfc checks ptrAnimations first,
 	// then carries current/next frame through s6/s1 plus ptrDeltaArray through
 	// IDPP 0xd4. Native keeps those values as explicit return values.
-	*deltaArrayOut = (int)anim->ptrDeltaArray;
+	*deltaArrayOut = ModelAnim_GetDeltaArray(anim, "animated model delta array");
 	frameIndex = (u16)inst->animFrame;
 	lastFrame = (anim->numFrames & 0x7fff) - 1;
 	*lastFrameAdvanceOut = lastFrame;
@@ -2011,7 +2029,7 @@ static struct RenderBucketEntry *RenderBucket_QueueDraw(struct Instance *inst, s
 	struct RenderBucketSplitState split;
 	MATRIX projectionMvp;
 	u32 queuedFlags;
-	int deltaArray;
+	u32 *deltaArray;
 	int lastFrameAdvance;
 	int lodIndex;
 	int lodExhausted;
@@ -2039,10 +2057,6 @@ static struct RenderBucketEntry *RenderBucket_QueueDraw(struct Instance *inst, s
 		return rbi;
 	}
 
-	if (inst->model->headers == 0)
-	{
-		return rbi;
-	}
 #endif
 
 	queuedFlags = inst->flags;
@@ -2135,9 +2149,11 @@ static struct RenderBucketEntry *RenderBucket_QueueDraw(struct Instance *inst, s
 	idpp->unkEC = drawFunc;
 	idpp->unkF0 = uncompressFunc;
 	RenderBucket_WriteInstanceCallbackLabels(inst, queuedFlags);
-	idpp->ptrCommandList = mh->ptrCommandList;
-	idpp->ptrTexLayout = mh->ptrTexLayout;
-	idpp->ptrColorLayout = (u32)mh->ptrColors;
+	idpp->ptrCommandList = NULL;
+	CtrAssetRef_ResolveOptional(mh->ptrCommandList, sizeof(*idpp->ptrCommandList), _Alignof(u32), (void **)&idpp->ptrCommandList,
+	                            "render command list");
+	idpp->ptrTexLayout = ModelHeader_GetTextureLayoutRefs(mh, 1, "render texture table");
+	idpp->ptrColorLayout = ModelHeader_GetColors(mh, "render color table");
 	idpp->instFlags = queuedFlags;
 	return rbi + 1;
 }
@@ -2163,16 +2179,20 @@ void *RenderBucket_QueueLevInstances(struct CameraDC *cDC, struct OTMem *otState
 
 	for (int player = count - 1; player >= 0; player--)
 	{
-		struct Instance **visInstSrc = cDC[player].visInstSrc;
+		struct CtrAssetRef32 *visInstSrc = cDC[player].visInstSrc;
 
 		if (visInstSrc == 0)
 		{
 			continue;
 		}
 
-		for (; *visInstSrc != 0; visInstSrc++)
+		for (; visInstSrc->bits != 0; visInstSrc++)
 		{
-			entry = RenderBucket_QueueDraw(*visInstSrc, entry, player, lodMask, gameMode1, &queueState);
+			struct Instance *instance = InstDefRef_GetInstance(*visInstSrc, "RenderBucket visible level instance");
+			if (instance != NULL)
+			{
+				entry = RenderBucket_QueueDraw(instance, entry, player, lodMask, gameMode1, &queueState);
+			}
 		}
 	}
 
@@ -2293,8 +2313,8 @@ static struct RenderBucketPackedVertex RenderBucket_CacheInterpolatedPackedVerte
 static void RenderBucket_CopyScratchColorCache(struct RenderBucketDrawContext *ctx)
 {
 	u32 *scratchColor = RenderBucket_ColorCacheScratch();
-	u32 *commandList = (u32 *)ctx->idpp->ptrCommandList;
-	u32 *colorLayout = (u32 *)ctx->idpp->ptrColorLayout;
+	u32 *commandList = ctx->idpp->ptrCommandList;
+	u32 *colorLayout = ctx->idpp->ptrColorLayout;
 	u32 count = commandList[0];
 
 	// NOTE(aalhendi): Retail Execute copies ptrColorLayout to scratchpad 0x140
@@ -2308,7 +2328,7 @@ static void RenderBucket_CopyScratchColorCache(struct RenderBucketDrawContext *c
 
 static int RenderBucket_GetCommandColor(struct RenderBucketDrawContext *ctx, u32 command)
 {
-	u32 *colorLayout = (u32 *)ctx->idpp->ptrColorLayout;
+	u32 *colorLayout = ctx->idpp->ptrColorLayout;
 	u32 colorOffset = (command >> 7) & 0x1fc;
 
 	if ((s32)(command << 4) < 0)
@@ -2371,7 +2391,7 @@ static void RenderBucket_ReadNextFrameDeltaComponent(struct RenderBucketDrawCont
 struct RenderBucketUncompressResult RenderBucket_UncompressAnimationFrame(struct RenderBucketDrawContext *ctx, u32 command, u16 stackIndex)
 {
 	struct RenderBucketUncompressResult result;
-	u32 *deltaArray = (u32 *)ctx->idpp->ptrDeltaArray;
+	u32 *deltaArray = ctx->idpp->ptrDeltaArray;
 	u8 flags = (command >> 24) & 0xff;
 
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006a8e0-0x8006aaa8.
@@ -2423,7 +2443,7 @@ struct RenderBucketUncompressResult RenderBucket_UncompressAnimationFrame(struct
 static struct RenderBucketUncompressResult RenderBucket_UncompressAnimationFrame_NextFrame(struct RenderBucketDrawContext *ctx, u32 command, u16 stackIndex)
 {
 	struct RenderBucketUncompressResult result;
-	u32 *deltaArray = (u32 *)ctx->idpp->ptrDeltaArray;
+	u32 *deltaArray = ctx->idpp->ptrDeltaArray;
 	u8 flags = (command >> 24) & 0xff;
 	RenderBucketVertex nextVertex;
 
@@ -2545,7 +2565,7 @@ static struct RenderBucketUncompressResult RenderBucket_DispatchUncompressAnimat
 	}
 }
 
-static uint32_t *RenderBucket_GetNormalOTEntry(int activeRange, int depthMac0)
+static uint32_t *RenderBucket_GetNormalOTEntry(uint32_t *activeRange, int depthMac0)
 {
 	int depthBin = (int)((u32)depthMac0 >> 17);
 
@@ -2558,10 +2578,10 @@ static uint32_t *RenderBucket_GetNormalOTEntry(int activeRange, int depthMac0)
 	// (MAC0 >> 17) OT lookup at 0x8006ad88-0x8006ad98. Retail trusts QueueDraw's
 	// range producer here; native intentionally does not clamp to depthOffset
 	// because that would mask producer/consumer depth mismatches.
-	return (uint32_t *)activeRange + depthBin;
+	return activeRange + depthBin;
 }
 
-static uint32_t *RenderBucket_GetClampedOTEntry(struct RenderBucketDrawContext *ctx, int activeRange, int depthMac0)
+static uint32_t *RenderBucket_GetClampedOTEntry(struct RenderBucketDrawContext *ctx, uint32_t *activeRange, int depthMac0)
 {
 	int depthBin = (int)((u32)depthMac0 >> 17);
 
@@ -2579,7 +2599,7 @@ static uint32_t *RenderBucket_GetClampedOTEntry(struct RenderBucketDrawContext *
 		depthBin = ctx->idpp->depthOffset[1];
 	}
 
-	return (uint32_t *)activeRange + depthBin;
+	return activeRange + depthBin;
 }
 
 static int RenderBucket_TriangleInScreenWindow(struct RenderBucketDrawContext *ctx)
@@ -2775,6 +2795,8 @@ static int RenderBucket_ProjectPrim_Split(struct RenderBucketDrawContext *ctx, u
 static struct TextureLayout *RenderBucket_GetCommandTexture(struct RenderBucketDrawContext *ctx, u32 command, int *isValid)
 {
 	u16 texIndex = command & 0x1ff;
+	struct CtrAssetRef32 *textureReferences;
+	struct TextureLayout *texture = NULL;
 
 	*isValid = 1;
 
@@ -2783,7 +2805,8 @@ static struct TextureLayout *RenderBucket_GetCommandTexture(struct RenderBucketD
 		return 0;
 	}
 
-	if (ctx->idpp->ptrTexLayout == 0)
+	textureReferences = ModelHeader_GetTextureLayoutRefs(ctx->mh, texIndex, "render command texture table");
+	if (textureReferences == NULL)
 	{
 		*isValid = 0;
 		return 0;
@@ -2792,7 +2815,14 @@ static struct TextureLayout *RenderBucket_GetCommandTexture(struct RenderBucketD
 	// NOTE(aalhendi): Retail only uses texture index zero as the explicit G3
 	// path, but a null texture-table entry also reaches DrawInstPrim_Normal as
 	// `a2 == 0` and emits G3. Do not reject that case here.
-	return ctx->idpp->ptrTexLayout[texIndex - 1];
+	if (!CtrAssetRef_ResolveOptional(textureReferences[texIndex - 1], sizeof(*texture), _Alignof(struct TextureLayout), (void **)&texture,
+	                                 "render command texture"))
+	{
+		*isValid = 0;
+		return 0;
+	}
+
+	return texture;
 }
 
 static int RenderBucket_OTEntryPassesDpctGate(const uint32_t *otEntry)
@@ -2885,15 +2915,16 @@ static int RenderBucket_DrawInstPrim_NormalAtOTEntry(struct RenderBucketDrawCont
 	return 0;
 }
 
-static int RenderBucket_DrawInstPrim_NormalAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange, int depthMac0)
+static int RenderBucket_DrawInstPrim_NormalAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, uint32_t *activeRange,
+						   int depthMac0)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006ad88-0x8006ae74 body; native passes
 	// the retail scratch/register inputs as explicit context and depth state.
 	return RenderBucket_DrawInstPrim_NormalAtOTEntry(ctx, command, tex, RenderBucket_GetNormalOTEntry(activeRange, depthMac0));
 }
 
-static int RenderBucket_DrawInstPrim_KeyRelicTokenAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                          int depthMac0)
+static int RenderBucket_DrawInstPrim_KeyRelicTokenAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+							  uint32_t *activeRange, int depthMac0)
 {
 	uint32_t *otEntry;
 	int signedTest;
@@ -3013,7 +3044,7 @@ int RenderBucket_DrawInstPrim_Normal(struct RenderBucketDrawContext *ctx, u32 co
 static int RenderBucket_DrawInstPrim_SelectRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int depthMac0)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006ad6c-0x8006ad88.
-	int activeRange = ((s32)(command << 6) > 0) ? ctx->idpp->otRangeNormal : ctx->idpp->otRangeSecondary;
+	uint32_t *activeRange = ((s32)(command << 6) > 0) ? ctx->idpp->otRangeNormal : ctx->idpp->otRangeSecondary;
 
 	return RenderBucket_DrawInstPrim_NormalAtRange(ctx, command, tex, activeRange, depthMac0);
 }
@@ -3041,8 +3072,8 @@ static u32 RenderBucket_DepthFadeColor(u32 color, int sz)
 	return (u32)MFC2(22);
 }
 
-static int RenderBucket_DrawInstPrim_DepthFadeAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                      int depthMac0)
+static int RenderBucket_DrawInstPrim_DepthFadeAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+						      uint32_t *activeRange, int depthMac0)
 {
 	(void)command;
 	uint32_t *otEntry;
@@ -3100,8 +3131,8 @@ static int RenderBucket_DrawInstPrim_DepthFade(struct RenderBucketDrawContext *c
 	return RenderBucket_DrawInstPrim_DepthFadeAtRange(ctx, command, tex, ctx->idpp->otRangeNormal, depthMac0);
 }
 
-static int RenderBucket_DrawInstPrim_ClampDepthAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                       int depthMac0)
+static int RenderBucket_DrawInstPrim_ClampDepthAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+						       uint32_t *activeRange, int depthMac0)
 {
 	// NOTE(aalhendi): ASM-verified retail 0x8006bad0-0x8006bbc0. Native passes
 	// the scratch active range and MAC0-derived depth as explicit arguments.
@@ -3113,8 +3144,8 @@ static int RenderBucket_DrawInstPrim_ClampDepth(struct RenderBucketDrawContext *
 	return RenderBucket_DrawInstPrim_ClampDepthAtRange(ctx, command, tex, ctx->idpp->otRangeNormal, depthMac0);
 }
 
-static int RenderBucket_DrawInstPrim_LitTextureAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                       int depthMac0)
+static int RenderBucket_DrawInstPrim_LitTextureAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+						       uint32_t *activeRange, int depthMac0)
 {
 	uint32_t *otEntry;
 	int signedTest;
@@ -3219,7 +3250,7 @@ static int RenderBucket_DrawInstPrim_LitTextureAtRange(struct RenderBucketDrawCo
 	}
 	else if (signedTest < 0)
 	{
-		codeWord = 0x24000000;
+		codeWord = 0x26000000;
 		tpageMask = 0x00400000;
 	}
 	else
@@ -3245,7 +3276,8 @@ static int RenderBucket_DrawInstPrim_LitTexture(struct RenderBucketDrawContext *
 	return RenderBucket_DrawInstPrim_LitTextureAtRange(ctx, command, tex, ctx->idpp->otRangeNormal, depthMac0);
 }
 
-static int RenderBucket_DrawInstPrim_GhostAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange, int depthMac0)
+static int RenderBucket_DrawInstPrim_GhostAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, uint32_t *activeRange,
+						  int depthMac0)
 {
 	uint32_t *otEntry;
 	int alpha = ctx->idpp->alphaScale;
@@ -3328,7 +3360,8 @@ static int RenderBucket_DrawInstPrim_Ghost(struct RenderBucketDrawContext *ctx, 
 	return RenderBucket_DrawInstPrim_GhostAtRange(ctx, command, tex, ctx->idpp->otRangeNormal, depthMac0);
 }
 
-static int RenderBucket_DispatchDrawInstPrimAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange, int depthMac0)
+static int RenderBucket_DispatchDrawInstPrimAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+						    uint32_t *activeRange, int depthMac0)
 {
 	switch ((u32)(uintptr_t)ctx->inst->funcPtr[1])
 	{
@@ -3392,7 +3425,7 @@ static int RenderBucket_DispatchDrawInstPrim(struct RenderBucketDrawContext *ctx
 	}
 }
 
-static int RenderBucket_SelectPrimitiveActiveRange(struct RenderBucketDrawContext *ctx, u32 command)
+static uint32_t *RenderBucket_SelectPrimitiveActiveRange(struct RenderBucketDrawContext *ctx, u32 command)
 {
 	if ((u32)(uintptr_t)ctx->inst->funcPtr[1] == RB_RETAIL_INST_PRIM_SELECT_RANGE)
 	{
@@ -3586,9 +3619,10 @@ static void RenderBucket_WriteSplitFT3(POLY_FT3 *p, const struct RenderBucketSpl
 	CtrGpu_WritePackedUVWord(&p->u2, texWord2);
 }
 
-static int RenderBucket_DrawSplitPrimitiveDepthFadeAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                           int depthMac0, const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
-                                                           const struct RenderBucketSplitVertex *v2)
+static int RenderBucket_DrawSplitPrimitiveDepthFadeAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+							   uint32_t *activeRange, int depthMac0,
+							   const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
+							   const struct RenderBucketSplitVertex *v2)
 {
 	(void)command;
 	uint32_t *otEntry;
@@ -3646,9 +3680,10 @@ static int RenderBucket_DrawSplitPrimitiveDepthFadeAtRange(struct RenderBucketDr
 	return 0;
 }
 
-static int RenderBucket_DrawSplitPrimitiveGhostAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                       int depthMac0, const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
-                                                       const struct RenderBucketSplitVertex *v2)
+static int RenderBucket_DrawSplitPrimitiveGhostAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+						       uint32_t *activeRange, int depthMac0,
+						       const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
+						       const struct RenderBucketSplitVertex *v2)
 {
 	uint32_t *otEntry;
 	int alpha = ctx->idpp->alphaScale;
@@ -3728,9 +3763,11 @@ static int RenderBucket_DrawSplitPrimitiveGhostAtRange(struct RenderBucketDrawCo
 	return 0;
 }
 
-static int RenderBucket_DrawSplitPrimitiveKeyRelicTokenAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                               int depthMac0, const struct RenderBucketSplitVertex *v0,
-                                                               const struct RenderBucketSplitVertex *v1, const struct RenderBucketSplitVertex *v2)
+static int RenderBucket_DrawSplitPrimitiveKeyRelicTokenAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+							       uint32_t *activeRange, int depthMac0,
+							       const struct RenderBucketSplitVertex *v0,
+							       const struct RenderBucketSplitVertex *v1,
+							       const struct RenderBucketSplitVertex *v2)
 {
 	uint32_t *otEntry;
 	int signedTest;
@@ -3788,9 +3825,10 @@ static int RenderBucket_DrawSplitPrimitiveKeyRelicTokenAtRange(struct RenderBuck
 	return 0;
 }
 
-static int RenderBucket_DrawSplitPrimitiveLitTextureAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange,
-                                                            int depthMac0, const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
-                                                            const struct RenderBucketSplitVertex *v2)
+static int RenderBucket_DrawSplitPrimitiveLitTextureAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex,
+							    uint32_t *activeRange, int depthMac0,
+							    const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
+							    const struct RenderBucketSplitVertex *v2)
 {
 	uint32_t *otEntry;
 	int signedTest;
@@ -3843,7 +3881,7 @@ static int RenderBucket_DrawSplitPrimitiveLitTextureAtRange(struct RenderBucketD
 	}
 	else if (signedTest < 0)
 	{
-		codeWord = 0x24000000;
+		codeWord = 0x26000000;
 		tpageMask = 0x00400000;
 	}
 	else
@@ -3863,9 +3901,9 @@ static int RenderBucket_DrawSplitPrimitiveLitTextureAtRange(struct RenderBucketD
 	return 0;
 }
 
-static int RenderBucket_DrawSplitPrimitiveAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange, int depthMac0,
-                                                  const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
-                                                  const struct RenderBucketSplitVertex *v2)
+static int RenderBucket_DrawSplitPrimitiveAtRange(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, uint32_t *activeRange,
+						  int depthMac0, const struct RenderBucketSplitVertex *v0,
+						  const struct RenderBucketSplitVertex *v1, const struct RenderBucketSplitVertex *v2)
 {
 	u32 prim = (u32)(uintptr_t)ctx->inst->funcPtr[1];
 
@@ -3923,7 +3961,7 @@ static void RenderBucket_BuildDepthSplitIntersection(struct RenderBucketDrawCont
 	RenderBucket_ProjectSplitVertex(ctx, dst);
 }
 
-static int RenderBucket_SelectDepthSplitHelperRange(struct RenderBucketDrawContext *ctx, u32 command, int helperRange)
+static uint32_t *RenderBucket_SelectDepthSplitHelperRange(struct RenderBucketDrawContext *ctx, u32 command, uint32_t *helperRange)
 {
 	if ((u32)(uintptr_t)ctx->inst->funcPtr[1] == RB_RETAIL_INST_PRIM_SELECT_RANGE)
 	{
@@ -3933,9 +3971,10 @@ static int RenderBucket_SelectDepthSplitHelperRange(struct RenderBucketDrawConte
 	return helperRange;
 }
 
-static int RenderBucket_DrawDepthSplitCandidate(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange, int depthMac0,
-                                                const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
-                                                const struct RenderBucketSplitVertex *v2, int guardDist)
+static int RenderBucket_DrawDepthSplitCandidate(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, uint32_t *activeRange,
+						int depthMac0, const struct RenderBucketSplitVertex *v0,
+						const struct RenderBucketSplitVertex *v1, const struct RenderBucketSplitVertex *v2,
+						int guardDist)
 {
 	if (guardDist >= 0)
 	{
@@ -3957,8 +3996,8 @@ static int RenderBucket_DrawSplitClipped(struct RenderBucketDrawContext *ctx, u3
 	struct RenderBucketSplitVertex bc;
 	struct RenderBucketSplitVertex cb;
 	int hasTexture = tex != 0;
-	int primaryRange;
-	int secondaryRange;
+	uint32_t *primaryRange;
+	uint32_t *secondaryRange;
 	int signMask = 0;
 
 	RenderBucket_AssignSplitUvs(ctx, tex);
@@ -4101,7 +4140,7 @@ static void RenderBucket_BuildWaterSplitIntersection(struct RenderBucketDrawCont
 	RenderBucket_ProjectSplitVertex(ctx, dst);
 }
 
-static int RenderBucket_SelectWaterSplitHelperRange(struct RenderBucketDrawContext *ctx, u32 command, int helperRange)
+static uint32_t *RenderBucket_SelectWaterSplitHelperRange(struct RenderBucketDrawContext *ctx, u32 command, uint32_t *helperRange)
 {
 	if ((u32)(uintptr_t)ctx->inst->funcPtr[1] == RB_RETAIL_INST_PRIM_SELECT_RANGE)
 	{
@@ -4182,9 +4221,10 @@ static int RenderBucket_ApplyWaterSplitSideSelector(struct RenderBucketDrawConte
 	return guardDist < 0;
 }
 
-static int RenderBucket_DrawWaterSplitCandidate(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, int activeRange, int depthMac0,
-                                                const struct RenderBucketSplitVertex *v0, const struct RenderBucketSplitVertex *v1,
-                                                const struct RenderBucketSplitVertex *v2, int guardDist)
+static int RenderBucket_DrawWaterSplitCandidate(struct RenderBucketDrawContext *ctx, u32 command, struct TextureLayout *tex, uint32_t *activeRange,
+						int depthMac0, const struct RenderBucketSplitVertex *v0,
+						const struct RenderBucketSplitVertex *v1, const struct RenderBucketSplitVertex *v2,
+						int guardDist)
 {
 	struct RenderBucketSplitVertex out0 = *v0;
 	struct RenderBucketSplitVertex out1 = *v1;
@@ -4210,8 +4250,8 @@ static int RenderBucket_DrawWaterSplitClipped(struct RenderBucketDrawContext *ct
 	struct RenderBucketSplitVertex bc;
 	struct RenderBucketSplitVertex cb;
 	int hasTexture = tex != 0;
-	int primaryRange;
-	int secondaryRange;
+	uint32_t *primaryRange;
+	uint32_t *secondaryRange;
 	int signMask = 0;
 
 	RenderBucket_AssignSplitUvs(ctx, tex);
@@ -4353,7 +4393,7 @@ void RenderBucket_DrawFunc_Normal(struct RenderBucketDrawContext *ctx)
 
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006a52c-0x8006a8e0;
 	// native uses the accepted explicit RenderBucketDrawContext command/FIFO ABI.
-	pCmd = (u32 *)ctx->idpp->ptrCommandList;
+	pCmd = ctx->idpp->ptrCommandList;
 	pCmd++;
 
 	while (*pCmd != 0xffffffff)
@@ -4572,7 +4612,7 @@ static int RenderBucket_DrawSpecialPrimitive(struct RenderBucketDrawContext *ctx
 
 static void RenderBucket_SwapActiveRanges(struct RenderBucketDrawContext *ctx)
 {
-	int range = ctx->idpp->otRangeNormal;
+	uint32_t *range = ctx->idpp->otRangeNormal;
 
 	ctx->idpp->otRangeNormal = ctx->idpp->otRangeSecondary;
 	ctx->idpp->otRangeSecondary = range;
@@ -4640,7 +4680,7 @@ static int RenderBucket_DrawReflectionPrimitive(struct RenderBucketDrawContext *
 
 static void RenderBucket_DrawFunc_Special(struct RenderBucketDrawContext *ctx)
 {
-	u32 *pCmd = (u32 *)ctx->idpp->ptrCommandList;
+	u32 *pCmd = ctx->idpp->ptrCommandList;
 
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006bbc0-0x8006bf30;
 	// native uses the accepted explicit RenderBucketDrawContext mirrored FIFO ABI.
@@ -4737,7 +4777,7 @@ static void RenderBucket_DrawFunc_Special(struct RenderBucketDrawContext *ctx)
 
 static void RenderBucket_DrawFunc_Reflection(struct RenderBucketDrawContext *ctx)
 {
-	u32 *pCmd = (u32 *)ctx->idpp->ptrCommandList;
+	u32 *pCmd = ctx->idpp->ptrCommandList;
 
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006c9c4-0x8006cdec;
 	// native uses the accepted explicit RenderBucketDrawContext split/FIFO ABI.
@@ -4839,7 +4879,7 @@ static void RenderBucket_DrawFunc_Reflection(struct RenderBucketDrawContext *ctx
 
 static void RenderBucket_DrawFunc_Split(struct RenderBucketDrawContext *ctx)
 {
-	u32 *pCmd = (u32 *)ctx->idpp->ptrCommandList;
+	u32 *pCmd = ctx->idpp->ptrCommandList;
 
 	// NOTE(aalhendi): ASM-verified against NTSC-U 926 0x8006b030-0x8006b24c.
 	// The called water split helper at 0x8006d094 is audited separately.
@@ -4950,7 +4990,7 @@ static void RenderBucket_DrawFunc_Split(struct RenderBucketDrawContext *ctx)
 
 static void RenderBucket_DrawFunc_NormalAlt(struct RenderBucketDrawContext *ctx)
 {
-	u32 *pCmd = (u32 *)ctx->idpp->ptrCommandList;
+	u32 *pCmd = ctx->idpp->ptrCommandList;
 
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 alternate entry
 	// 0x8006a6b8-0x8006a8e0 inside RenderBucket_DrawFunc_Normal; native uses
@@ -5210,7 +5250,7 @@ static int RenderBucket_PrepareDrawContext(struct RenderBucketDrawContext *ctx, 
 		return 0;
 	}
 
-	if ((mh->ptrCommandList == 0) || (mh->ptrColors == 0))
+	if ((mh->ptrCommandList.bits == 0) || (mh->ptrColors.bits == 0))
 	{
 		return 0;
 	}
@@ -5259,7 +5299,7 @@ static int RenderBucket_PrepareDrawContext(struct RenderBucketDrawContext *ctx, 
 		scratch->split.splitLineSecondary = idpp->splitLine;
 		scratch->split.splitLineTertiary = idpp->splitLine;
 		scratch->splitInstanceSpecLightX = (u8)inst->specLightX;
-		scratch->splitFunc3Ptr32 = (u32)(uintptr_t)inst->funcPtr[3];
+		scratch->splitReflectionRGBA = inst->reflectionRGBA;
 		scratch->split.splitFixedLine = ((u32)(s32)idpp->splitLine) << 17;
 		scratch->split.splitCounterPrimary = 0;
 		scratch->split.splitCounterSecondary = 0;

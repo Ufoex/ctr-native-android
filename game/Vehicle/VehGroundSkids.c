@@ -55,7 +55,7 @@ static u16 VehGroundSkids_ReadTexHalf(const struct TextureLayout *layout, size_t
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005c120-0x8005c278.
-void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroundSkidsScratch *scratch)
+void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroundSkidsScratch *scratch, struct PushBuffer *pb)
 {
 	struct GameTracker *gGT = sdata->gGT;
 	struct DB *backBuffer = gGT->backBuffer;
@@ -96,7 +96,6 @@ void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroun
 	CtrGpu_WritePackedUV(&poly->u2, VehGroundSkids_ReadTexHalf(&icon->texLayout, offsetof(struct TextureLayout, u2)));
 	CtrGpu_WritePackedUV(&poly->u3, VehGroundSkids_ReadTexHalf(&icon->texLayout, offsetof(struct TextureLayout, u3)));
 
-	struct PushBuffer *pb = scratch->pushBuffer;
 	u32 *ot = pb->ptrOT + ((s32)depth >> VEH_GROUND_SKIDS_OT_DEPTH_SHIFT);
 	CtrGpu_LinkPacket24(ot, &poly->tag, poly, VEH_GROUND_SKIDS_GPU_TAG_POLY_GT4);
 }
@@ -209,8 +208,8 @@ static void VehGroundSkids_ProjectFrame(struct VehGroundSkidsScratch *scratch, c
 	gte_stsz3(&depth[6], &depth[7], &depth[8]);
 }
 
-static void VehGroundSkids_TryEmitSegment(struct VehGroundSkidsScratch *scratch, u32 *currXY, u32 *prevXY, s32 *currDepth, s32 *prevDepth, u32 flags,
-                                          u32 prevFlags, int bit, const union VehEmitterSkidmark *mark, int pointIndex)
+static void VehGroundSkids_TryEmitSegment(struct VehGroundSkidsScratch *scratch, struct PushBuffer *pb, u32 *currXY, u32 *prevXY, s32 *currDepth,
+                                          s32 *prevDepth, u32 flags, u32 prevFlags, int bit, const union VehEmitterSkidmark *mark, int pointIndex)
 {
 	if ((flags & prevFlags & bit) == 0)
 	{
@@ -227,7 +226,7 @@ static void VehGroundSkids_TryEmitSegment(struct VehGroundSkidsScratch *scratch,
 
 	scratch->segmentFlagsLow = mark->flags;
 	int depth = (currDepth[pointIndex] >> VEH_GROUND_SKIDS_DEPTH_SHIFT) + (mark->color << VEH_GROUND_SKIDS_OT_DEPTH_SHIFT);
-	VehGroundSkids_Subset1(&currXY[pointIndex], &prevXY[pointIndex], depth, scratch);
+	VehGroundSkids_Subset1(&currXY[pointIndex], &prevXY[pointIndex], depth, scratch, pb);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005c354-0x8005ca24.
@@ -238,7 +237,11 @@ void VehGroundSkids_Main(struct Thread *thread, struct PushBuffer *pb)
 
 	struct VehGroundSkidsScratch *scratch = CTR_SCRATCHPAD_PTR(struct VehGroundSkidsScratch, 0x0);
 
-	scratch->pushBuffer = pb;
+#if UINTPTR_MAX == UINT32_MAX
+	scratch->pushBufferPtr32 = (u32)(uintptr_t)pb;
+#else
+	scratch->pushBufferPtr32 = 0;
+#endif
 	scratch->origin.x = 0;
 	scratch->origin.y = 0;
 	scratch->origin.z = 0;
@@ -288,13 +291,13 @@ void VehGroundSkids_Main(struct Thread *thread, struct PushBuffer *pb)
 							framePoints = &frame[0].edge[0];
 							VehGroundSkids_ProjectFrame(scratch, framePoints, currXY, currDepth);
 
-							VehGroundSkids_TryEmitSegment(scratch, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_BACK_LEFT,
+							VehGroundSkids_TryEmitSegment(scratch, pb, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_BACK_LEFT,
 							                              &frame[0], 0);
-							VehGroundSkids_TryEmitSegment(scratch, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_BACK_RIGHT,
+							VehGroundSkids_TryEmitSegment(scratch, pb, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_BACK_RIGHT,
 							                              &frame[1], 2);
-							VehGroundSkids_TryEmitSegment(scratch, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_FRONT_LEFT,
+							VehGroundSkids_TryEmitSegment(scratch, pb, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_FRONT_LEFT,
 							                              &frame[2], 4);
-							VehGroundSkids_TryEmitSegment(scratch, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_FRONT_RIGHT,
+							VehGroundSkids_TryEmitSegment(scratch, pb, currXY, prevXY, currDepth, prevDepth, currFlags, prevFlags, DRIVER_SKIDMARK_FRONT_RIGHT,
 							                              &frame[3], 6);
 						}
 

@@ -5,6 +5,8 @@
 
 int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int fullscreen);
 int NativeRenderer_InitialisePSX(void);
+int NativeRenderer_RunDialectSelfTest(void);
+int NativeRenderer_RunPixelSelfTest(void);
 void NativeRenderer_Shutdown(void);
 void NativeRenderer_ResetDevice(void);
 void NativeRenderer_BeginScene(void);
@@ -18,8 +20,10 @@ void NativeRenderer_EndCompanionTarget(int vramX, int vramY);
 void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int panelX, int panelY, int panelW, int panelH);
 void NativeRenderer_PresentVRAMRectToViewport(int x, int y, int w, int h, int viewportW, int viewportH);
 void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h);
+void NativeRenderer_PresentMainRenderTarget(void);
 void NativeRenderer_PresentVRAMDisplay(void);
 void NativeRenderer_PresentVRAMRect(int x, int y, int w, int h);
+int NativeRenderer_CapturePresentedRGBA(u8 *dst, int width, int height);
 void NativeRenderer_SaveVRAM(const char *outputFileName, int x, int y, int width, int height, int readFromFramebuffer);
 void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b);
 void NativeRenderer_ClearVRAM(int x, int y, int w, int h, u8 r, u8 g, u8 b);
@@ -39,8 +43,10 @@ void NativeRenderer_SetupClipMode(const RECT16 *clipRect, const DISPENV *display
 void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat);
 void NativeRenderer_SetOverrideTextureSize(int width, int height);
 void NativeRenderer_SetPSXTextureSemiTransPass(int pass);
+void NativeRenderer_SetPSXFramebufferFetchBlendMode(int blendMode);
 void NativeRenderer_SetPSXTextureOutputSTP(int enabled);
 void NativeRenderer_SetPSXDrawMaskSet(int maskSet);
+int NativeRenderer_UsesFramebufferFetch(void);
 void NativeRenderer_UpdateVertexBuffer(const GrVertex *vertices, int count);
 void NativeRenderer_DrawTriangles(int startVertex, int triangles);
 void NativeRenderer_PushDebugLabel(const char *label);

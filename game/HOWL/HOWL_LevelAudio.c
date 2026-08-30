@@ -257,16 +257,18 @@ void Level_AmbientSound(void)
 
 		if (spawnIndex < level->numSpawnType2)
 		{
-			struct SpawnType2 *spawn = &level->ptrSpawnType2[spawnIndex];
+			struct SpawnType2 *spawns = Level_GetSpawnType2(level, "level-audio spawn table");
+			struct SpawnType2 *spawn = (spawns == NULL) ? NULL : &spawns[spawnIndex];
+			SVec3 *positions = SpawnType2_GetPositions(spawn, "level-audio positions");
 
-			if (spawn->numCoords > 9)
+			if ((spawn == NULL) || (positions == NULL) || (spawn->numCoords > 9))
 			{
 				goto invalidSpawn;
 			}
 
 			for (int coordIndex = 0; coordIndex < spawn->numCoords; coordIndex++)
 			{
-				SVec3 *coord = &spawn->positions[coordIndex];
+				SVec3 *coord = &positions[coordIndex];
 
 				for (int playerIndex = 0; playerIndex < gGT->numPlyrCurrGame; playerIndex++)
 				{

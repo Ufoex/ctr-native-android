@@ -122,7 +122,14 @@ struct BossGarageDoor
 	// 0x14 bytes large
 };
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct BossGarageDoor) == 0x14);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct BossGarageDoor, garageTopInst) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct BossGarageDoor, rot) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct BossGarageDoor) == 0x18);
+#endif
 
 #if 0
 struct AdvPause {
@@ -195,7 +202,14 @@ struct WoodDoor
 	// 0x38 bytes large
 };
 
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct WoodDoor) == 0x38);
+#else
+CTR_STATIC_ASSERT(offsetof(struct WoodDoor, keyInst) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct WoodDoor, doorRot) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct WoodDoor, doorID) == 0x48);
+CTR_STATIC_ASSERT(sizeof(struct WoodDoor) == 0x50);
+#endif
 
 enum WarpPadInstanceSet
 {
@@ -354,14 +368,22 @@ struct PauseObject
 	// 0xe4 -- size
 };
 
-CTR_STATIC_ASSERT(sizeof(struct AHPauseMember) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct AHPauseMember, iconIndex) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct AHPauseMember, unlockFlags) == 0x2);
 CTR_STATIC_ASSERT(offsetof(struct AHPauseMember, rot) == 0x4);
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct AHPauseMember) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct AHPauseMember, inst) == 0xc);
 CTR_STATIC_ASSERT(sizeof(struct PauseObject) == 0xe4);
 CTR_STATIC_ASSERT(offsetof(struct PauseObject, members) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct PauseObject, t) == 0xe0);
+#else
+CTR_STATIC_ASSERT(offsetof(struct AHPauseMember, inst) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct AHPauseMember) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct PauseObject, members) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct PauseObject, t) == 0x150);
+CTR_STATIC_ASSERT(sizeof(struct PauseObject) == 0x158);
+#endif
 
 struct AHPausePage
 {
@@ -514,7 +536,12 @@ CTR_STATIC_ASSERT(AH_SAVEOBJ_SCAN_SFX_NEAR_DIST == 300);
 CTR_STATIC_ASSERT(AH_SAVEOBJ_SCAN_SFX_FAR_DIST == 6000);
 CTR_STATIC_ASSERT(AH_SAVEOBJ_SCAN_DEPTH_BIAS == 0xf8);
 CTR_STATIC_ASSERT(sizeof(AHSaveObjFlagSet) == 0x2);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(sizeof(struct SaveObj) == 0xc);
+#else
+CTR_STATIC_ASSERT(offsetof(struct SaveObj, flags) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct SaveObj) == 0x10);
+#endif
 
 enum AHMaskHintOffsetSlot
 {
@@ -803,6 +830,8 @@ struct OverlayDATA_232
 
 #define OFFSETOF_D232(ELEMENT) ((u32)0x800b4ddc + OFFSETOF(struct OverlayDATA_232, ELEMENT))
 
+#if UINTPTR_MAX == UINT32_MAX
+CTR_STATIC_ASSERT(sizeof(struct OverlayDATA_232) == 0x898);
 CTR_STATIC_ASSERT(OFFSETOF_D232(saveObjCameraOffset) == 0x800b4ea4);
 CTR_STATIC_ASSERT(OFFSETOF_D232(loadSavePrimOffset) == 0x800b4eac);
 CTR_STATIC_ASSERT(OFFSETOF_D232(hubArrowPrimOffset) == 0x800b4ec0);
@@ -816,6 +845,25 @@ CTR_STATIC_ASSERT(OFFSETOF_D232(maskWarppadDelayFrames) == 0x800b5570);
 CTR_STATIC_ASSERT(OFFSETOF_D232(maskWarppadBoolInterrupt) == 0x800b5574);
 CTR_STATIC_ASSERT(OFFSETOF_D232(ptrPauseObject) == 0x800b5578);
 CTR_STATIC_ASSERT(OFFSETOF_D232(pauseObject) == 0x800b557c);
+#else
+// Native checkpoints size and relocate this resident object using the current
+// host layout; retail byte offsets remain an explicit ILP32 contract above.
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(sizeof(struct OverlayDATA_232) == 0xa50);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, saveObjCameraOffset) == 0xe0);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, loadSavePrimOffset) == 0xe8);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, hubArrowPrimOffset) == 0xfc);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, hubArrowInnerOffset) == 0x200);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, hubArrowOuterOffset) == 0x20c);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, loadSavePos) == 0x21c);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, hubArrowPos) == 0x23c);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, fiveArrowPos) == 0x420);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, maskHintOffsets) == 0x468);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, maskWarppadDelayFrames) == 0x8cc);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, maskWarppadBoolInterrupt) == 0x8d0);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, ptrPauseObject) == 0x8d8);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_232, pauseObject) == 0x8e0);
+#endif
 
 extern struct OverlayRDATA_232 R232;
 extern struct OverlayDATA_232 D232;

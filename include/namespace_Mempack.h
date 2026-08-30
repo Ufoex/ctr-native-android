@@ -5,7 +5,7 @@ enum MempackConstants
 {
 	MEMPACK_BOOKMARK_COUNT = 0x10,
 
-	MEMPACK_ALIGNMENT = 4,
+	MEMPACK_ALIGNMENT = sizeof(void *),
 	MEMPACK_ALIGNMENT_MASK = MEMPACK_ALIGNMENT - 1,
 	MEMPACK_ALIGNMENT_CLEAR_MASK = -MEMPACK_ALIGNMENT,
 
@@ -51,6 +51,7 @@ struct Mempack
 };
 
 CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, packSize) == 0x0);
+#if UINTPTR_MAX == UINT32_MAX
 CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, start) == 0x4);
 CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, lastFreeByte) == 0x8);
 CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, endOfAllocator) == 0xc);
@@ -60,5 +61,17 @@ CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, sizeOfPrevAllocation) == 0x18);
 CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, numBookmarks) == 0x1c);
 CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, bookmarks) == 0x20);
 CTR_STATIC_ASSERT(sizeof(struct Mempack) == 0x60);
+#else
+CTR_STATIC_ASSERT(sizeof(void *) == 0x8);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, start) == 0x8);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, lastFreeByte) == 0x10);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, endOfAllocator) == 0x18);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, endOfMemory) == 0x20);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, firstFreeByte) == 0x28);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, sizeOfPrevAllocation) == 0x30);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, numBookmarks) == 0x34);
+CTR_STATIC_ASSERT(OFFSETOF(struct Mempack, bookmarks) == 0x38);
+CTR_STATIC_ASSERT(sizeof(struct Mempack) == 0xb8);
+#endif
 
 #endif

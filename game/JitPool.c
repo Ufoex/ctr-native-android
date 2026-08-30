@@ -27,15 +27,15 @@ void JitPool_Init(struct JitPool *AP, int maxItems, int itemSize, char *name)
 
 	memset(AP, 0, sizeof(struct JitPool));
 	AP->maxItems = maxItems;
-	AP->itemSize = itemSize;
-	AP->poolSize = maxItems * itemSize;
+	AP->itemSize = JITPOOL_ALIGN_ITEM_STRIDE(itemSize);
+	AP->poolSize = maxItems * AP->itemSize;
 	AP->ptrPoolData = MEMPACK_AllocMem(AP->poolSize);
 	JitPool_Clear(AP);
 }
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800310d4-0x8003112c.
-int JitPool_Add(struct JitPool *AP)
+struct Item *JitPool_Add(struct JitPool *AP)
 {
 	struct Item *item = AP->free.first;
 
@@ -45,7 +45,7 @@ int JitPool_Add(struct JitPool *AP)
 		LIST_AddFront(&AP->taken, item);
 	}
 
-	return (s32)item;
+	return item;
 }
 
 

@@ -24,7 +24,7 @@ void LOAD_GlobalModelPtrs_MPK()
 
 	if (sdata->PLYROBJECTLIST != 0)
 	{
-		LibraryOfModels_Store(gGT, -1, (struct Model **)sdata->PLYROBJECTLIST);
+		LibraryOfModels_Store(gGT, UINT32_MAX, sdata->PLYROBJECTLIST);
 	}
 }
 

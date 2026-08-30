@@ -74,7 +74,11 @@ enum DrawLevelOvr1PGridSlotMode
 #define DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE UINT32_C(0xffffffff)
 static int sDrawLevelOvr1P_FullDynamicInheritedOtIndex;
 static struct QuadBlock **sDrawLevelOvr1P_RenderedOverflowBase;
+static struct QuadBlock **sDrawLevelOvr1P_RenderedListCursor;
 static u8 *sDrawLevelOvr1P_ClipRecordStart;
+static u8 *sDrawLevelOvr1P_ClipRecordCursor;
+static const u32 *sDrawLevelOvr1P_VisibilityWordCursor;
+static const struct TextureLayout *sDrawLevelOvr1P_WaterEnvMap;
 static u32 sDrawLevelOvr1P_PrimReserveBias;
 static u32 sDrawLevelOvr1P_MosaicReloadSpanOverride;
 static int sDrawLevelOvr1P_ListHandlersSeedRenderedCursor;
@@ -346,24 +350,9 @@ static u32 DrawLevelOvr1P_GetGridFaceSlotWord(const struct DrawLevelOvr1PScratch
 	return DrawLevelOvr1P_ReadPackedWord((const u8 *)projected + 0xb4);
 }
 
-static struct TextureLayout *DrawLevelOvr1P_ResolveTexturePointer(uintptr_t texturePtr)
-{
-	if (texturePtr == 0)
-	{
-		return NULL;
-	}
-
-	if ((texturePtr & 1) != 0)
-	{
-		return *(struct TextureLayout **)(texturePtr - 1);
-	}
-
-	return (struct TextureLayout *)texturePtr;
-}
-
 static struct TextureLayout *DrawLevelOvr1P_ResolveMidTexture(const struct QuadBlock *block, int faceIndex)
 {
-	return DrawLevelOvr1P_ResolveTexturePointer((uintptr_t)block->ptr_texture_mid[faceIndex]);
+	return QuadBlock_GetTextureMid(block, (size_t)faceIndex, "DrawLevel mid texture");
 }
 
 static int DrawLevelOvr1P_IsPlausibleTextureLayout(const struct TextureLayout *texture)
@@ -464,22 +453,59 @@ static int DrawLevelOvr1P_IsNativeLevelSpan(uintptr_t ptr, uintptr_t size)
 
 #endif
 
-static int DrawLevelOvr1P_IsNativeLevelTexturePointer(u32 value)
+static int DrawLevelOvr1P_ResolveNativeLevelWord(u32 value, size_t accessSize, const u8 **hostPointerOut)
 {
 #ifdef CTR_NATIVE
-	// NOTE(aalhendi): Native classifies host-rebased level texture pointers at
-	// the data boundary; renderer control flow still follows retail sign tests.
-	uintptr_t ptr = (uintptr_t)value;
+	struct CtrAssetRef32 reference = {value};
+	void *hostPointer = NULL;
 
-	if (!DrawLevelOvr1P_IsNativeLevelSpan(ptr, sizeof(struct TextureLayout)))
+	if ((hostPointerOut == NULL) || (accessSize == 0) ||
+	    !CtrAssetRef_ResolveRequired(reference, accessSize, 1, &hostPointer, "DrawLevel mosaic texture word") ||
+	    !DrawLevelOvr1P_IsNativeLevelSpan((uintptr_t)hostPointer, accessSize))
 	{
 		return 0;
 	}
 
-	return DrawLevelOvr1P_IsPlausibleTextureLayout((const struct TextureLayout *)ptr);
+	*hostPointerOut = hostPointer;
+	return 1;
+#else
+	(void)value;
+	(void)accessSize;
+	(void)hostPointerOut;
+	return 0;
+#endif
+}
+
+static int DrawLevelOvr1P_IsNativeLevelTexturePointer(u32 value)
+{
+#ifdef CTR_NATIVE
+	const u8 *hostPointer = NULL;
+
+	// NOTE(aalhendi): On i686 relocated level words are native 32-bit
+	// pointers. LP64 stores fixed-width guest references instead. Resolve
+	// either representation before applying the retail pointer-shaped branch.
+	return DrawLevelOvr1P_ResolveNativeLevelWord(value, sizeof(struct TextureLayout), &hostPointer) &&
+	       DrawLevelOvr1P_IsPlausibleTextureLayout((const struct TextureLayout *)hostPointer);
 #else
 	(void)value;
 	return 0;
+#endif
+}
+
+static const u8 *DrawLevelOvr1P_ResolveNativeMosaicSource(u32 mosaicBase, u32 sourceOffset)
+{
+#ifdef CTR_NATIVE
+	const u8 *source = NULL;
+
+	if (sourceOffset > UINT32_MAX - mosaicBase ||
+	    !DrawLevelOvr1P_ResolveNativeLevelWord(mosaicBase + sourceOffset, 3u * sizeof(u32), &source))
+	{
+		return NULL;
+	}
+
+	return source;
+#else
+	return (const u8 *)(uintptr_t)(mosaicBase + sourceOffset);
 #endif
 }
 
@@ -506,11 +532,10 @@ static u32 DrawLevelOvr1P_GetProjectedOtSlotWord(const struct DrawLevelOvr1PScra
 }
 
 #ifdef CTR_NATIVE
-static int DrawLevelOvr1P_TryConvertNativeMempackPointerToPsxWord(u32 hostWord, u32 *psxWord)
+static int DrawLevelOvr1P_TryConvertNativeMempackPointerToPsxWord(uintptr_t hostPtr, u32 *psxWord)
 {
 	const u32 psxRamBase = 0x80000000u;
 	const uintptr_t psxRamSize = 0x200000u;
-	uintptr_t hostPtr = (uintptr_t)hostWord;
 	const struct Mempack *pack = DrawLevelOvr1P_FindMempackContaining(hostPtr);
 	if (pack == NULL || pack->endOfMemory == NULL)
 	{
@@ -534,56 +559,25 @@ static int DrawLevelOvr1P_TryConvertNativeMempackPointerToPsxWord(u32 hostWord, 
 }
 #endif
 
-static struct TextureLayout *DrawLevelOvr1P_ResolveTexturePointerChecked(uintptr_t texturePtr)
-{
-#ifdef CTR_NATIVE
-	struct TextureLayout *texture;
-
-	if (texturePtr == 0)
-	{
-		return NULL;
-	}
-
-	if ((texturePtr & 1) != 0)
-	{
-		uintptr_t activePtrSlot = texturePtr - 1;
-
-		if (!DrawLevelOvr1P_IsNativeLevelSpan(activePtrSlot, sizeof(texture)))
-		{
-			return NULL;
-		}
-
-		texture = *(struct TextureLayout **)activePtrSlot;
-	}
-	else
-	{
-		texture = (struct TextureLayout *)texturePtr;
-	}
-
-	if (!DrawLevelOvr1P_IsNativeLevelSpan((uintptr_t)texture, sizeof(*texture)))
-	{
-		return NULL;
-	}
-
-	return DrawLevelOvr1P_IsPlausibleTextureLayout(texture) ? texture : NULL;
-#else
-	return DrawLevelOvr1P_ResolveTexturePointer(texturePtr);
-#endif
-}
-
 static s8 DrawLevelOvr1P_ReadRetailQuadBlockByte(const struct QuadBlock *block, u32 byteOffset)
 {
 #ifdef CTR_NATIVE
 	if (byteOffset >= 0x1c && byteOffset < 0x2c)
 	{
-		u32 pointerWordOffset = byteOffset & ~3u;
-		u32 hostWord = DrawLevelOvr1P_ReadPackedWord((const u8 *)block + pointerWordOffset);
+		const size_t textureIndex = (size_t)((byteOffset - 0x1cu) >> 2u);
+		struct CtrAssetRef32 reference = block->ptr_texture_mid[textureIndex];
+		const u32 flags = reference.bits & 3u;
+		void *hostPointer = NULL;
 		u32 psxWord;
 
 		// NOTE(aalhendi): Retail reads raw post-ptrmap PSX pointer bytes here;
-		// native level pointer words are host-rebased, so reconstruct that byte.
-		if (DrawLevelOvr1P_TryConvertNativeMempackPointerToPsxWord(hostWord, &psxWord))
+		// resolve the fixed-width native guest reference, reconstruct the PSX
+		// address, then restore the retail low tag bits before selecting a byte.
+		reference.bits &= ~3u;
+		if (CtrAssetRef_ResolveRequired(reference, 1, 1, &hostPointer, "DrawLevel raw texture word") &&
+		    DrawLevelOvr1P_TryConvertNativeMempackPointerToPsxWord((uintptr_t)hostPointer, &psxWord))
 		{
+			psxWord |= flags;
 			return (s8)((psxWord >> ((byteOffset & 3u) * 8)) & 0xff);
 		}
 	}
@@ -607,7 +601,7 @@ static struct TextureLayout *DrawLevelOvr1P_ResolveProjectedMidTexture(const str
 
 	// NOTE(aalhendi): Retail selector bodies load raw `quad+0x1c+slot`.
 	// Native validates the host-rebased word before following it.
-	return DrawLevelOvr1P_ResolveTexturePointerChecked((uintptr_t)*(void *const *)((const u8 *)block + 0x1c + slotWord));
+	return QuadBlock_GetTextureMid(block, slotWord >> 2, "DrawLevel projected mid texture");
 }
 
 static struct TextureLayout *DrawLevelOvr1P_GetProjectedMidTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
@@ -862,7 +856,12 @@ static void DrawLevelOvr1P_PrepareDeepestMosaicUv(const struct DrawLevelOvr1PScr
 	}
 	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_BIAS_OFFSET);
 
-	const u8 *source = (const u8 *)(uintptr_t)(mosaicBase + sourceOffset);
+	const u8 *source = DrawLevelOvr1P_ResolveNativeMosaicSource(mosaicBase, sourceOffset);
+	if (source == NULL)
+	{
+		DrawLevelOvr1P_RestoreProjectedUvScratch();
+		return;
+	}
 	u32 uv0 = DrawLevelOvr1P_ReadPackedWord(source + 0);
 	u32 uv1 = DrawLevelOvr1P_ReadPackedWord(source + 4);
 
@@ -927,11 +926,12 @@ static s32 DrawLevelOvr1P_GetDepthClipThreshold(void)
 
 static u8 *DrawLevelOvr1P_GetClipRecordCursor(void)
 {
-	return (u8 *)(uintptr_t)DrawLevelOvr1P_Scratch()->clipCursorPtr32;
+	return sDrawLevelOvr1P_ClipRecordCursor;
 }
 
 static void DrawLevelOvr1P_SetClipRecordCursor(u8 *cursor)
 {
+	sDrawLevelOvr1P_ClipRecordCursor = cursor;
 	DrawLevelOvr1P_Scratch()->clipCursorPtr32 = (u32)(uintptr_t)cursor;
 }
 
@@ -1077,7 +1077,7 @@ static void Ovr226_800a0f78_ProjectFullDynamicLowQuad(struct LevVertex *vertices
 
 static void Ovr226_800a0d20_SeedEntryScratchPointers(struct DrawLevelOvr1PRenderList *renderList, struct PushBuffer *pb)
 {
-	DrawLevelOvr1P_Scratch()->clipCursorPtr32 = (u32)(uintptr_t)data.PtrClipBuffer[0];
+	DrawLevelOvr1P_SetClipRecordCursor(data.PtrClipBuffer[0]);
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[0] = (u32)(uintptr_t)pb;
 	DrawLevelOvr1P_Scratch()->renderListPtr32 = (u32)(uintptr_t)renderList;
 }
@@ -3113,10 +3113,33 @@ static int DrawLevelOvr1P_EmitClipRecordGT4Table(struct PushBuffer *pb, struct P
 	return Ovr226_800aaf70_DispatchGT4ClipRecordLabel(pb, primMem, otEntry, work, record, handlerAddress);
 }
 
+static uint32_t *DrawLevelOvr1P_ResolveClipRecordOtEntry(struct PushBuffer *pb, const struct DrawLevelOvr1PClipRecord *record)
+{
+	uintptr_t otBase = (uintptr_t)pb->ptrOT;
+	u32 byteOffset = record->otEntry - (u32)otBase;
+	u32 otByteSize = (DRAW_LEVEL_OVR1P_MAX_OT_INDEX + 1u) * (u32)sizeof(pb->ptrOT[0]);
+
+	// A retail clip record carries the absolute 32-bit OT address. On LP64 the
+	// record must stay byte-identical, so recover the host pointer as a bounded
+	// offset from this viewport's full-width OT base instead of dereferencing the
+	// truncated word. Unsigned subtraction intentionally handles a low-word wrap.
+	if (((byteOffset & (sizeof(pb->ptrOT[0]) - 1u)) != 0) || (byteOffset >= otByteSize))
+	{
+		return NULL;
+	}
+
+	return (uint32_t *)((u8 *)pb->ptrOT + byteOffset);
+}
+
 static int Ovr226_800aaed4_ProjectFourthClipRecordAndDispatchGT4(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
                                                                  const struct DrawLevelOvr1PClipRecord *record)
 {
-	uint32_t *otEntry = (uint32_t *)(uintptr_t)record->otEntry;
+	uint32_t *otEntry = DrawLevelOvr1P_ResolveClipRecordOtEntry(pb, record);
+
+	if (otEntry == NULL)
+	{
+		return 0;
+	}
 
 	Ovr226_800aa858_ProjectClipRecordRawVertex(&projected[3], &record->vertex[3]);
 	DrawLevelOvr1P_PrepareClipRecordDepthScratchRange(projected, 4);
@@ -3161,7 +3184,12 @@ static int Ovr226_800aa848_ProjectFirstThreeClipRecordsAndDispatch(struct PushBu
 	DrawLevelOvr1P_PrepareClipRecordDepthScratchRange(projected, 3);
 	// NOTE(aalhendi): Retail 0x800aa934..0x800aa968 dispatches through scratch
 	// 0x240; native keeps the handler bodies as C cases keyed by copied addresses.
-	return DrawLevelOvr1P_EmitClipRecordGT3Table(pb, primMem, (uint32_t *)(uintptr_t)record->otEntry, projected, record);
+	uint32_t *otEntry = DrawLevelOvr1P_ResolveClipRecordOtEntry(pb, record);
+	if (otEntry == NULL)
+	{
+		return 0;
+	}
+	return DrawLevelOvr1P_EmitClipRecordGT3Table(pb, primMem, otEntry, projected, record);
 }
 
 static int Ovr226_800aa790_TerminalPreamble(struct PushBuffer *pb, const u8 *cursor, const u8 *end)
@@ -4529,7 +4557,12 @@ static void Ovr226_800a3f74_PrepareGround4x1DeepestUv(const struct DrawLevelOvr1
 	}
 	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_BIAS_OFFSET);
 
-	const u8 *source = (const u8 *)(uintptr_t)(mosaicBase + sourceOffset);
+	const u8 *source = DrawLevelOvr1P_ResolveNativeMosaicSource(mosaicBase, sourceOffset);
+	if (source == NULL)
+	{
+		DrawLevelOvr1P_RestoreProjectedUvScratch();
+		return;
+	}
 	u32 uv0 = DrawLevelOvr1P_ReadPackedWord(source + 0);
 	u32 uv1 = DrawLevelOvr1P_ReadPackedWord(source + 4);
 
@@ -4858,7 +4891,12 @@ static void Ovr226_800a4b54_PrepareGround4x1RenderedDeepestUv(const struct DrawL
 	}
 	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_BIAS_OFFSET);
 
-	const u8 *source = (const u8 *)(uintptr_t)(mosaicBase + sourceOffset);
+	const u8 *source = DrawLevelOvr1P_ResolveNativeMosaicSource(mosaicBase, sourceOffset);
+	if (source == NULL)
+	{
+		DrawLevelOvr1P_RestoreProjectedUvScratch();
+		return;
+	}
 	u32 uv0 = DrawLevelOvr1P_ReadPackedWord(source + 0);
 	u32 uv1 = DrawLevelOvr1P_ReadPackedWord(source + 4);
 
@@ -7320,6 +7358,7 @@ static int DrawLevelOvr1P_Emit4x1ListSelectedFace(struct PushBuffer *pb, struct 
 
 static void DrawLevelOvr1P_SetRenderedListCursor(struct QuadBlock **renderedList)
 {
+	sDrawLevelOvr1P_RenderedListCursor = renderedList;
 	DrawLevelOvr1P_Scratch()->renderedOverflowPtr32 = (u32)(uintptr_t)renderedList;
 }
 
@@ -7371,7 +7410,7 @@ static struct QuadBlock **DrawLevelOvr1P_GetRenderedOverflowBase(void)
 
 static struct QuadBlock **DrawLevelOvr1P_GetRenderedListCursor(void)
 {
-	return (struct QuadBlock **)(uintptr_t)DrawLevelOvr1P_Scratch()->renderedOverflowPtr32;
+	return sDrawLevelOvr1P_RenderedListCursor;
 }
 
 static void DrawLevelOvr1P_AppendRenderedQuadBlock(struct QuadBlock *block)
@@ -7400,7 +7439,11 @@ static void DrawLevelOvr1P_TerminateRenderedListCursor(void)
 static struct TextureLayout *Ovr226_800a1058_PrepareFullDynamicLowUv(struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
 {
 	const int *indices = sDrawLevelOvr1PFullDynamicLowIndices;
-	struct TextureLayout *texture = block->ptr_texture_low;
+	struct TextureLayout *texture = QuadBlock_GetTextureLow(block, "DrawLevel low texture");
+	if (texture == NULL)
+	{
+		return NULL;
+	}
 
 	// NOTE(aalhendi): Retail full-dynamic 0x800a0ef4 seeds low-LOD UVs before
 	// choosing either the direct low quad or the near/transition helper table.
@@ -8001,6 +8044,7 @@ static void Ovr226_800a0f0c_SeedFullDynamicVisibilityScratch(const int *visFaceL
 	u32 blockID = (u16)block->blockID;
 	const u32 *word = (const u32 *)((const u8 *)visFaceList + ((blockID >> 3) & 0x1fc));
 
+	sDrawLevelOvr1P_VisibilityWordCursor = word;
 	DrawLevelOvr1P_Scratch()->visibilityWordPtr32 = (u32)(uintptr_t)word;
 	DrawLevelOvr1P_Scratch()->visibilityBitIndex = blockID & 0x1f;
 	DrawLevelOvr1P_Scratch()->visibilityWord = *word;
@@ -8014,11 +8058,12 @@ static int Ovr226_800a0f34_ConsumeFullDynamicVisibilityBit(void)
 
 	if (bitIndex < 0)
 	{
-		u32 *wordPtr = (u32 *)(uintptr_t)DrawLevelOvr1P_Scratch()->visibilityWordPtr32;
+		const u32 *wordPtr = sDrawLevelOvr1P_VisibilityWordCursor;
 
 		bitIndex = 0x1f;
 		word = wordPtr[1];
 		wordPtr++;
+		sDrawLevelOvr1P_VisibilityWordCursor = wordPtr;
 		DrawLevelOvr1P_Scratch()->visibilityWordPtr32 = (u32)(uintptr_t)wordPtr;
 		DrawLevelOvr1P_Scratch()->visibilityWord = word;
 	}
@@ -8031,12 +8076,12 @@ static int Ovr226_800a0f34_ConsumeFullDynamicVisibilityBit(void)
 static int Ovr226_800a0ef4_DrawFullDynamicBspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                                   const int *visFaceList)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel full-dynamic vertices");
 
 	while (slot != NULL)
 	{
 		struct BSP *bsp = slot->bsp;
-		struct QuadBlock *block = bsp->data.leaf.ptrQuadBlockArray;
+		struct QuadBlock *block = BSP_GetLeafQuadBlocks(bsp, "DrawLevel full-dynamic quad blocks");
 		s32 quadCount = bsp->data.leaf.numQuads;
 
 		DrawLevelOvr1P_Scratch()->quadCount = quadCount;
@@ -8107,7 +8152,7 @@ static int DrawLevelOvr1P_ProjectSplitGroundListATransitionGrid(struct LevVertex
 
 static int DrawLevelOvr1P_EmitSplitGroundListAQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel split-ground vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectSplitGroundListALowGrid(vertices, block, projected))
@@ -8143,7 +8188,7 @@ static int DrawLevelOvr1P_DrawSplitGroundListABspList(struct VisMemBspListNode *
 	while (slot != NULL)
 	{
 		struct BSP *bsp = slot->bsp;
-		struct QuadBlock *block = bsp->data.leaf.ptrQuadBlockArray;
+		struct QuadBlock *block = BSP_GetLeafQuadBlocks(bsp, "DrawLevel split-ground quad blocks");
 		s32 quadCount = bsp->data.leaf.numQuads;
 
 		DrawLevelOvr1P_Scratch()->quadCount = quadCount;
@@ -8178,7 +8223,7 @@ static int DrawLevelOvr1P_DrawSplitGroundListABspList(struct VisMemBspListNode *
 
 static int Ovr226_800a3738_EmitGround4x1ListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel ground 4x1 vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
@@ -8263,7 +8308,7 @@ static int DrawLevelOvr1P_NonWaterRenderedSelectorNearGate(struct PushBuffer *pb
 static int DrawLevelOvr1P_DrawNonWaterRenderedList(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                                    int role)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel non-water vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 	u32 reserve = DrawLevelOvr1P_GetNonWaterRenderedListReserve(role);
 	enum DrawLevelOvr1PGridSlotMode slotMode = DrawLevelOvr1P_GetNonWaterRenderedListSlotMode(role);
@@ -8304,7 +8349,7 @@ static int DrawLevelOvr1P_DrawNonWaterRenderedList(struct QuadBlock **renderedLi
 
 static int Ovr226_800a5030_EmitGround4x2ListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel ground 4x2 vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
@@ -8326,7 +8371,7 @@ static int Ovr226_800a5030_EmitGround4x2ListQuadBlock(struct PushBuffer *pb, str
 
 static int Ovr226_800a6fd0_EmitDynamicListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel dynamic vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_WORD))
@@ -8348,7 +8393,7 @@ static int Ovr226_800a6fd0_EmitDynamicListQuadBlock(struct PushBuffer *pb, struc
 
 static int Ovr226_800a8bf0_EmitWideDynamicQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel wide-dynamic vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_WORD))
@@ -8399,7 +8444,7 @@ static int DrawLevelOvr1P_DrawBspListQuadBlocks(struct VisMemBspListNode *slot, 
 	while (slot != NULL)
 	{
 		struct BSP *bsp = slot->bsp;
-		struct QuadBlock *block = bsp->data.leaf.ptrQuadBlockArray;
+		struct QuadBlock *block = BSP_GetLeafQuadBlocks(bsp, "DrawLevel BSP-list quad blocks");
 		s32 quadCount = bsp->data.leaf.numQuads;
 
 		DrawLevelOvr1P_Scratch()->quadCount = quadCount;
@@ -9030,7 +9075,7 @@ static int Ovr226_800a25d0_WaterListFaceGate(struct PushBuffer *pb, struct PrimM
 
 static void Ovr226_800a1e30_SeedWaterListState(void)
 {
-	const struct TextureLayout *waterEnvMap = (const struct TextureLayout *)(uintptr_t)DrawLevelOvr1P_Scratch()->waterEnvMapPtr32;
+	const struct TextureLayout *waterEnvMap = sDrawLevelOvr1P_WaterEnvMap;
 
 	// NOTE(aalhendi): Retail 0x800a1e30 uses the global 1P retry list, not the
 	// current render-list field, before walking the water BSP list.
@@ -9045,6 +9090,12 @@ static void Ovr226_800a1e30_SeedWaterListState(void)
 	DrawLevelOvr1P_Scratch()->uv.uv1 = DrawLevelOvr1P_ReadPackedWord((const u8 *)waterEnvMap + 4);
 }
 
+static void DrawLevelOvr1P_SetWaterEnvMap(const struct TextureLayout *waterEnvMap)
+{
+	sDrawLevelOvr1P_WaterEnvMap = waterEnvMap;
+	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
+}
+
 static void Ovr226_800a1e74_SeedWaterVisibilityScratch(const int *visFaceList, const struct QuadBlock *block)
 {
 	Ovr226_800a0f0c_SeedFullDynamicVisibilityScratch(visFaceList, block);
@@ -9057,7 +9108,7 @@ static int Ovr226_800a1eb0_ConsumeWaterVisibilityBit(void)
 
 static int Ovr226_800a1ee0_EmitWaterListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel water-list vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
@@ -9080,7 +9131,7 @@ static int Ovr226_800a1e30_DrawWaterBspList(struct VisMemBspListNode *slot, stru
 	while (slot != NULL)
 	{
 		struct BSP *bsp = slot->bsp;
-		struct QuadBlock *block = bsp->data.leaf.ptrQuadBlockArray;
+		struct QuadBlock *block = BSP_GetLeafQuadBlocks(bsp, "DrawLevel water-list quad blocks");
 		s32 quadCount = bsp->data.leaf.numQuads;
 
 		DrawLevelOvr1P_Scratch()->quadCount = quadCount;
@@ -9545,7 +9596,7 @@ static int Ovr226_800a30f0_WaterRenderedFaceGate(struct PushBuffer *pb, struct P
 static int DrawLevelOvr1P_DrawRenderedWaterQuadBlockWithDefaultHandler(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh,
                                                                        struct QuadBlock *block, DrawLevelOvrRetailLabel defaultHandlerAddress)
 {
-	struct LevVertex *vertices = mesh->ptrVertexArray;
+	struct LevVertex *vertices = MeshInfo_GetVertices(mesh, "DrawLevel rendered-water vertices");
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	DrawLevelOvr1P_ProjectRenderedGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_NONE);
@@ -9726,15 +9777,18 @@ static int Ovr226_800a0e78_DispatchBucketHandler(u32 handlerAddress, void *bucke
 static int Ovr226_800a0e10_DispatchBucketTable(struct DrawLevelOvr1PRenderList *renderList, struct PushBuffer *pb, struct mesh_info *mesh,
                                                struct PrimMem *primMem, const int *visFaceList)
 {
-	for (s32 renderListOffset = DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
+	// Retail's render list is an array of 32-bit words, so its byte offset divided
+	// by four is also the setup/handler-table index. Host pointers widen the
+	// named render-list fields on LP64; keep dispatch identity in the canonical
+	// bucket index and use bucket->renderListOffset only to select the host field.
+	for (s32 bucketIndex = OVR226_BUCKET_COUNT - 1; bucketIndex >= 0; bucketIndex--)
 	{
-		u32 bucketIndex = (u32)renderListOffset / sizeof(u32);
 		const struct DrawLevelOvr1PBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
 		void *bucketValue = DrawLevelOvr1P_GetRenderListBucketValue(renderList, bucket);
 		u32 setupAddress = R226.bucketSetupAddresses[bucketIndex];
 		u32 handlerAddress = R226.bucketHandlerAddresses[bucketIndex];
 
-		DrawLevelOvr1P_Scratch()->currentBucketOffset = (u32)renderListOffset;
+		DrawLevelOvr1P_Scratch()->currentBucketOffset = (u32)bucketIndex * sizeof(u32);
 
 		if (bucketValue == NULL)
 		{
@@ -9776,9 +9830,9 @@ void DrawLevelOvr1P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspL
 		return;
 	}
 
-	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
+	DrawLevelOvr1P_SetWaterEnvMap(waterEnvMap);
 
-	if (mesh->ptrQuadBlockArray == NULL)
+	if (MeshInfo_GetQuadBlocks(mesh, "DrawLevel entry quad blocks") == NULL)
 	{
 		return;
 	}

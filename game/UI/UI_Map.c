@@ -84,10 +84,11 @@ void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s16 posX, s16 p
 		transparency = 0;
 	}
 
-	if (gGT->level1->ptrSpawnType1 != 0)
+	struct SpawnType1 *spawn = Level_GetSpawnType1(gGT->level1, "UI_Map spawn table");
+	if ((spawn != NULL) && (spawn->count != 0))
 	{
-		void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
-		mapMetadata = pointers[ST1_MAP];
+		mapMetadata =
+		    SpawnType1_GetPointer(spawn, ST1_MAP, sizeof(*mapMetadata), _Alignof(struct UIMapSpawnMetadata), "UI_Map metadata");
 	}
 
 	// position of the bottom margin of the primitive for the bottom half of the minimap
@@ -286,9 +287,8 @@ void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], int iconID, in
 
 	ptrColor = data.ptrColor[colorID];
 
-	struct Icon **iconPtrArray = ICONGROUP_GETICONS(sdata->gGT->iconGroup[UI_MAP_ICON_GROUP]);
-
-	DecalHUD_DrawPolyGT4(iconPtrArray[iconID], posX, posY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ptrColor[0], ptrColor[1], ptrColor[2],
+	DecalHUD_DrawPolyGT4(IconGroup_GetIcon(sdata->gGT->iconGroup[UI_MAP_ICON_GROUP], (size_t)iconID, "map icon"), posX, posY,
+			     &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ptrColor[0], ptrColor[1], ptrColor[2],
 	                     ptrColor[3], 0, (int)scale);
 
 	return;
@@ -302,15 +302,14 @@ void UI_Map_DrawDrivers(struct UIMap *map, struct Thread *bucket, s16 *driverIco
 	struct Driver *d;
 	struct GameTracker *gGT = sdata->gGT;
 
-	// if 2P or 4P
-	if ((gGT->numPlyrCurrGame & 1) == 0)
-	{
-		// quit, no map drawn
-		return;
-	}
-
 	for (/* bucket */; bucket != 0; bucket = bucket->siblingThread, *driverIconCounter = *driverIconCounter + 1)
 	{
+		// if 2P or 4P
+		if ((gGT->numPlyrCurrGame & 1) == 0)
+		{
+			continue;
+		}
+
 		// Player structure
 		d = bucket->object;
 

@@ -1,9 +1,207 @@
 #include <common.h>
 
+#if defined(CTR_NATIVE)
+#include "platform/native_memory.h"
+#include "platform/native_log.h"
+
+enum
+{
+	NATIVE_RENDER_BUCKET_MAX_RETAIL_BYTES = 0x1000,
+	NATIVE_RENDER_BUCKET_RETAIL_ENTRY_BYTES = 0x8,
+	NATIVE_RENDER_BUCKET_MAX_ENTRIES =
+	    NATIVE_RENDER_BUCKET_MAX_RETAIL_BYTES / NATIVE_RENDER_BUCKET_RETAIL_ENTRY_BYTES + 1,
+};
+
+struct NativeRenderBucketEntryStorage
+{
+	void *word[2];
+};
+
+static struct NativeRenderBucketEntryStorage
+    s_nativeRenderBucketStorage[NATIVE_RENDER_BUCKET_MAX_ENTRIES];
+
+#if UINTPTR_MAX > UINT32_MAX
+// The retail stack-pool strides only accommodate retail-width objects. Keep
+// the retail item counts, but widen each LP64 slot for the largest object that
+// can be requested from that pool. PROC_BirthWithObject deliberately requires
+// the request to be smaller than the usable slot, hence the extra byte before
+// alignment.
+#define NATIVE_STACK_POOL_ITEM_SIZE(maxObjectType) \
+	JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct Item) + sizeof(maxObjectType) + 1u)
+
+enum
+{
+	NATIVE_SMALL_STACK_ITEM_SIZE = NATIVE_STACK_POOL_ITEM_SIZE(struct WoodDoor),
+	NATIVE_MEDIUM_STACK_ITEM_SIZE = NATIVE_STACK_POOL_ITEM_SIZE(struct WarpPad),
+	NATIVE_RETAIL_THREAD_ITEM_SIZE = 0x48,
+	NATIVE_RETAIL_INSTANCE_ITEM_SIZE = 0x74,
+	NATIVE_RETAIL_INSTANCE_DRAW_PLAYER_SIZE = 0x88,
+	NATIVE_RETAIL_SMALL_STACK_ITEM_SIZE = 0x48,
+	NATIVE_RETAIL_MEDIUM_STACK_ITEM_SIZE = 0x88,
+	NATIVE_RETAIL_LARGE_STACK_ITEM_SIZE = 0x670,
+	NATIVE_RETAIL_PARTICLE_ITEM_SIZE = 0x7c,
+	NATIVE_RETAIL_RAIN_ITEM_SIZE = 0x28,
+};
+
+#define NATIVE_STACK_POOL_ASSERT_FITS(itemSize, objectType) \
+	CTR_STATIC_ASSERT(sizeof(objectType) < (itemSize) - sizeof(struct Item))
+
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct WoodDoor);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct MineWeapon);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct UiElement3D);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct Baron);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct Seal);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct Follower);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct SelectProfileLoadSaveObj);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct MaskHeadWeapon);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct Turbo);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct RainCloud);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct SaveObj);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct BossGarageDoor);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, struct CsPodiumCameraThreadObj);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_SMALL_STACK_ITEM_SIZE, void *[3]);
+
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_MEDIUM_STACK_ITEM_SIZE, struct WarpPad);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_MEDIUM_STACK_ITEM_SIZE, struct CutsceneObj);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_MEDIUM_STACK_ITEM_SIZE, struct TrackerWeapon);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_MEDIUM_STACK_ITEM_SIZE, struct Title);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_MEDIUM_STACK_ITEM_SIZE, struct Shield);
+NATIVE_STACK_POOL_ASSERT_FITS(NATIVE_MEDIUM_STACK_ITEM_SIZE, struct Prize);
+
+#undef NATIVE_STACK_POOL_ASSERT_FITS
+
+#define NATIVE_POOL_MAX_OVERHEAD(count, nativeSize, retailSize) \
+	((count) * ((nativeSize) - (retailSize)))
+
+CTR_STATIC_ASSERT(
+    NATIVE_POOL_MAX_OVERHEAD(0x60, JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct Thread)), NATIVE_RETAIL_THREAD_ITEM_SIZE) +
+        NATIVE_POOL_MAX_OVERHEAD(
+            0x80, JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct Instance) + 4u * sizeof(struct InstDrawPerPlayer)),
+            NATIVE_RETAIL_INSTANCE_ITEM_SIZE + 4u * NATIVE_RETAIL_INSTANCE_DRAW_PLAYER_SIZE) +
+        NATIVE_POOL_MAX_OVERHEAD(0x64, NATIVE_SMALL_STACK_ITEM_SIZE, NATIVE_RETAIL_SMALL_STACK_ITEM_SIZE) +
+        NATIVE_POOL_MAX_OVERHEAD(0x20, NATIVE_MEDIUM_STACK_ITEM_SIZE, NATIVE_RETAIL_MEDIUM_STACK_ITEM_SIZE) +
+        NATIVE_POOL_MAX_OVERHEAD(0x8, DRIVER_LARGE_STACK_ITEM_SIZE, NATIVE_RETAIL_LARGE_STACK_ITEM_SIZE) +
+        NATIVE_POOL_MAX_OVERHEAD(0x80, JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct Particle)), NATIVE_RETAIL_PARTICLE_ITEM_SIZE) +
+        NATIVE_POOL_MAX_OVERHEAD(0x8, JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct RainLocal)), NATIVE_RETAIL_RAIN_ITEM_SIZE) ==
+    CTR_NATIVE_MEMPACK_LP64_POOL_OVERHEAD_MAX);
+
+#undef NATIVE_POOL_MAX_OVERHEAD
+
+static u32 MainInit_NativeJitPoolOverhead(u32 gameMode, int renderBucketSize, int poolScale, int numPlayers)
+{
+	const int threadCount = (renderBucketSize * 3) >> 7;
+	const int instanceCount = renderBucketSize >> 5;
+	const int smallStackCount = (poolScale * 0x19) >> 10;
+	const int mediumStackCount = poolScale >> 7;
+	const int driverCount = ((gameMode & MAIN_MENU) != 0) ? 4 : poolScale >> 9;
+	const int particleCount = poolScale >> 5;
+	const int rainCount = poolScale >> 9;
+	const int nativeInstanceSize =
+	    JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct Instance) + sizeof(struct InstDrawPerPlayer) * (u32)numPlayers);
+	const int retailInstanceSize =
+	    NATIVE_RETAIL_INSTANCE_ITEM_SIZE + NATIVE_RETAIL_INSTANCE_DRAW_PLAYER_SIZE * numPlayers;
+	u32 overhead = 0;
+
+	overhead += (u32)threadCount *
+	            (JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct Thread)) - NATIVE_RETAIL_THREAD_ITEM_SIZE);
+	overhead += (u32)instanceCount * (u32)(nativeInstanceSize - retailInstanceSize);
+	overhead += (u32)smallStackCount *
+	            (NATIVE_SMALL_STACK_ITEM_SIZE - NATIVE_RETAIL_SMALL_STACK_ITEM_SIZE);
+	overhead += (u32)mediumStackCount *
+	            (NATIVE_MEDIUM_STACK_ITEM_SIZE - NATIVE_RETAIL_MEDIUM_STACK_ITEM_SIZE);
+	overhead += (u32)driverCount *
+	            (DRIVER_LARGE_STACK_ITEM_SIZE - NATIVE_RETAIL_LARGE_STACK_ITEM_SIZE);
+	overhead += (u32)particleCount *
+	            (JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct Particle)) - NATIVE_RETAIL_PARTICLE_ITEM_SIZE);
+	overhead += (u32)rainCount *
+	            (JITPOOL_ALIGN_ITEM_STRIDE(sizeof(struct RainLocal)) - NATIVE_RETAIL_RAIN_ITEM_SIZE);
+	return overhead;
+}
+
+static void MainInit_ReserveUnusedNativeJitPoolOverhead(u32 gameMode, int renderBucketSize, int poolScale, int numPlayers)
+{
+	const u32 overhead = MainInit_NativeJitPoolOverhead(gameMode, renderBucketSize, poolScale, numPlayers);
+
+	if (overhead > CTR_NATIVE_MEMPACK_LP64_POOL_OVERHEAD_MAX)
+	{
+		CTR_ErrorScreen(0xff, 0, 0);
+		return;
+	}
+
+	if (overhead < CTR_NATIVE_MEMPACK_LP64_POOL_OVERHEAD_MAX)
+	{
+		MEMPACK_AllocMem((int)(CTR_NATIVE_MEMPACK_LP64_POOL_OVERHEAD_MAX - overhead));
+	}
+}
+#endif
+#endif
+
+void MainInit_RebindNativeRuntimeStorage(struct GameTracker *gGT)
+{
+#if defined(CTR_NATIVE)
+	if (gGT != NULL)
+	{
+		gGT->ptrRenderBucketInstance = s_nativeRenderBucketStorage;
+	}
+#else
+	(void)gGT;
+#endif
+}
+
 #ifdef CTR_NATIVE
+static int MainInit_VisMemHasActivePlayerLists(const struct GameTracker *gGT, const struct VisMem *visMem,
+					      const struct mesh_info *mesh)
+{
+	if ((gGT == NULL) || (gGT->level1 == NULL) || (visMem == NULL) || (mesh == NULL) ||
+	    (gGT->numPlyrCurrGame > 4))
+	{
+		return 0;
+	}
+
+	for (int playerIndex = 0; playerIndex < gGT->numPlyrCurrGame; playerIndex++)
+	{
+		const char *missingList = NULL;
+
+		if ((mesh->numBspNodes > 0) && (visMem->visLeafList[playerIndex] == NULL))
+		{
+			missingList = "leaf";
+		}
+		else if ((mesh->numQuadBlock > 0) && (visMem->visFaceList[playerIndex] == NULL))
+		{
+			missingList = "face";
+		}
+		else if (((gGT->level1->configFlags & 4) == 0) && (gGT->level1->numWaterVertices > 0) &&
+			 (visMem->visOVertList[playerIndex] == NULL))
+		{
+			missingList = "ocean-vertex";
+		}
+		else if (((gGT->level1->configFlags & 4) != 0) && (gGT->level1->numSCVert > 0) &&
+			 (visMem->visSCVertList[playerIndex] == NULL))
+		{
+			missingList = "scenery-vertex";
+		}
+		else if ((mesh->numBspNodes > 0) && (visMem->bspList[playerIndex] == NULL))
+		{
+			missingList = "BSP";
+		}
+
+		if (missingList != NULL)
+		{
+			Platform_LogError("[CTR AssetRef] active level visibility list missing: player=%d players=%d list=%s level=%p mesh=%p\n",
+					  playerIndex, gGT->numPlyrCurrGame, missingList, (const void *)gGT->level1,
+					  (const void *)mesh);
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
 static void MainInit_InitVisMemBspListNodes(struct VisMem *visMem, struct mesh_info *mesh)
 {
-	if (mesh == NULL || mesh->bspRoot == NULL)
+	struct BSP *bspRoot = MeshInfo_GetBspRoot(mesh, "MainInit visibility BSP root");
+
+	if (bspRoot == NULL)
 	{
 		return;
 	}
@@ -21,7 +219,7 @@ static void MainInit_InitVisMemBspListNodes(struct VisMem *visMem, struct mesh_i
 		{
 			// NOTE(aalhendi): Native 226 reads the retained BSP pointer; RenderLists only rewrites the link word.
 			bspList[bspIndex].next = NULL;
-			bspList[bspIndex].bsp = &mesh->bspRoot[bspIndex];
+			bspList[bspIndex].bsp = &bspRoot[bspIndex];
 		}
 	}
 }
@@ -30,7 +228,15 @@ static void MainInit_InitVisMemBspListNodes(struct VisMem *visMem, struct mesh_i
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003af84-0x8003b008 for the retail path.
 void MainInit_VisMem(struct GameTracker *gGT)
 {
-	struct VisMem *visMem = gGT->level1->visMem;
+	struct VisMem *visMem = Level_GetVisMem(gGT->level1, "MainInit visibility memory");
+#ifdef CTR_NATIVE
+	struct mesh_info *mesh = Level_GetMeshInfo(gGT->level1, "MainInit visibility mesh");
+
+	if (!MainInit_VisMemHasActivePlayerLists(gGT, visMem, mesh))
+	{
+		visMem = NULL;
+	}
+#endif
 	gGT->visMem1 = visMem;
 
 	if (visMem == NULL)
@@ -47,7 +253,7 @@ void MainInit_VisMem(struct GameTracker *gGT)
 	}
 
 #ifdef CTR_NATIVE
-	MainInit_InitVisMemBspListNodes(visMem, gGT->level1->ptr_mesh_info);
+	MainInit_InitVisMemBspListNodes(visMem, mesh);
 #endif
 }
 
@@ -245,18 +451,27 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 
 	MEMPACK_PushState();
 
+#if defined(CTR_NATIVE) && UINTPTR_MAX > UINT32_MAX
+	MainInit_ReserveUnusedNativeJitPoolOverhead(gameMode, renderBucketSize, poolScale, gGT->numPlyrCurrGame);
+#endif
+
 	JitPool_Init(&gGT->JitPools.thread, (renderBucketSize * 3) >> 7, sizeof(struct Thread), rdata.s_ThreadPool);
 	JitPool_Init(&gGT->JitPools.instance, renderBucketSize >> 5, sizeof(struct Instance) + (sizeof(struct InstDrawPerPlayer) * gGT->numPlyrCurrGame),
 	             rdata.s_InstancePool);
-	JitPool_Init(&gGT->JitPools.smallStack, (poolScale * 0x19) >> 10, 0x48, rdata.s_SmallStackPool);
-	JitPool_Init(&gGT->JitPools.mediumStack, poolScale >> 7, 0x88, rdata.s_MediumStackPool);
+#if defined(CTR_NATIVE) && UINTPTR_MAX > UINT32_MAX
+	JitPool_Init(&gGT->JitPools.smallStack, (poolScale * 0x19) >> 10, NATIVE_SMALL_STACK_ITEM_SIZE, rdata.s_SmallStackPool);
+	JitPool_Init(&gGT->JitPools.mediumStack, poolScale >> 7, NATIVE_MEDIUM_STACK_ITEM_SIZE, rdata.s_MediumStackPool);
+#else
+	JitPool_Init(&gGT->JitPools.smallStack, (poolScale * 0x19) >> 10, PROC_STACK_ITEM_SIZE(0x48), rdata.s_SmallStackPool);
+	JitPool_Init(&gGT->JitPools.mediumStack, poolScale >> 7, PROC_STACK_ITEM_SIZE(0x88), rdata.s_MediumStackPool);
+#endif
 
 	int numDriver = poolScale >> 9;
 	if ((gameMode & MAIN_MENU) != 0)
 	{
 		numDriver = 4;
 	}
-	JitPool_Init(&gGT->JitPools.largeStack, numDriver, 0x670, rdata.s_LargeStackPool);
+	JitPool_Init(&gGT->JitPools.largeStack, numDriver, DRIVER_LARGE_STACK_ITEM_SIZE, rdata.s_LargeStackPool);
 
 	int numParticle = poolScale >> 5;
 	JitPool_Init(&gGT->JitPools.particle, numParticle, sizeof(struct Particle), rdata.s_ParticlePool);
@@ -266,18 +481,21 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 #ifndef CTR_NATIVE
 	gGT->ptrRenderBucketInstance = MEMPACK_AllocMem(renderBucketSize);
 #else
-	// NOTE(aalhendi): Native reuses static RDATA scratch for existing PC memory headroom.
-	gGT->ptrRenderBucketInstance = (void *)((uintptr_t)&rdata.s_STATIC_GNORMALZ[0] + 148);
+	// Retail budgets eight bytes per entry. Native entries contain two host
+	// pointers, so keep the same entry capacity in aligned host-width storage
+	// without consuming the retail-pressure mempack.
+	gGT->ptrRenderBucketInstance = s_nativeRenderBucketStorage;
 #endif
 
 	for (int i = 0; i < 3; i++)
 	{
 		struct JitPool *pool = (struct JitPool *)((char *)&gGT->JitPools.smallStack + (sizeof(struct JitPool) * i));
-		int *pointer = (int *)pool->free.first;
-		while (pointer != (int *)0x0)
+		struct Item *item = pool->free.first;
+		while (item != NULL)
 		{
-			*(int **)(pointer + 2) = pointer + 2;
-			pointer = (int *)*pointer;
+			void **objectSlot = (void **)((u8 *)item + sizeof(struct Item));
+			*objectSlot = objectSlot;
+			item = item->next;
 		}
 	}
 
@@ -433,11 +651,11 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	gGT->pushBuffer[0].distanceToScreen_PREV = 0x100;
 	gGT->pushBuffer[0].distanceToScreen_CURR = 0x100;
 
-	// reset root thread for each bucket
-	for (int i = 0; i < NUM_BUCKETS; i++)
-	{
-		gGT->threadBuckets[i].thread = 0;
-	}
+	memset(gGT->threadBuckets, 0, sizeof(gGT->threadBuckets));
+	gGT->threadBuckets[STATIC].boolCantPause = 1;
+	gGT->threadBuckets[WARPPAD].boolCantPause = 1;
+	gGT->threadBuckets[CAMERA].boolCantPause = 1;
+	gGT->threadBuckets[HUD].boolCantPause = 1;
 
 	// particles
 	gGT->particleList_ordinary = NULL;
@@ -462,13 +680,12 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 
 	lev1 = gGT->level1;
 
-#if defined(CTR_NATIVE)
+	struct CheckpointNode *restartPoints = Level_GetRestartPoints(lev1, "MainInit restart points");
 	// NOTE(aalhendi): Native menu LEVs may publish no restart table.
-	if (lev1->ptr_restart_points != NULL)
-#endif
+	if (restartPoints != NULL)
 	// 0x1d7c
 	{
-		gGT->trackLength_x_numLaps_x_8 = lev1->ptr_restart_points[0].distToFinish * gGT->numLaps * 8;
+		gGT->trackLength_x_numLaps_x_8 = restartPoints[0].distToFinish * gGT->numLaps * 8;
 	}
 
 	MainInit_Drivers(gGT);
@@ -545,7 +762,7 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	}
 
 	// copy InstDef to InstancePool
-	INSTANCE_LevInitAll(lev1->ptrInstDefs, lev1->numInstances);
+	INSTANCE_LevInitAll(Level_GetInstDefs(lev1, "MainInit instance definitions"), lev1->numInstances);
 
 	// Debug_ToggleNormalSpawn == normal spawn
 	if (gGT->Debug_ToggleNormalSpawn != 0)
@@ -591,9 +808,10 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 
 	if (lev1 != NULL)
 	{
-		if (lev1->ptr_mesh_info != NULL)
+		struct mesh_info *mesh = Level_GetMeshInfo(lev1, "MainInit level mesh");
+		if (mesh != NULL)
 		{
-			LevInstDef_UnPack(lev1->ptr_mesh_info);
+			LevInstDef_UnPack(mesh);
 		}
 	}
 
@@ -602,7 +820,8 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	MainInit_RainBuffer(gGT);
 
 	// animates water, 1P mode
-	AnimateWater1P(gGT->timer, lev1->numWaterVertices, lev1->ptr_water, lev1->ptr_tex_waterEnvMap, lev1->visOVertSrc);
+	AnimateWater1P(gGT->timer, lev1->numWaterVertices, Level_GetWater(lev1, "MainInit water"),
+		       Level_GetWaterEnvMap(lev1, "MainInit water environment map"), Level_GetVisOVertSrc(lev1, "MainInit ocean visibility"));
 
 	gGT->pushBuffer_UI.fadeFromBlack_desiredResult = 0x1000;
 	gGT->pushBuffer_UI.fade_step = 0x200;
@@ -616,7 +835,7 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	gGT->stars.distance = lev1->stars.distance;
 
 	// confetti
-	gGT->confetti.numParticles_curr = 0;
+	gGT->confetti.numParticles_currWord = 0;
 	gGT->confetti.numParticles_max = 0;
 	gGT->confetti.vanishRate = 0;
 	gGT->confetti.velY = -10;

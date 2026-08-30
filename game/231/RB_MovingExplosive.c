@@ -255,7 +255,7 @@ LAB_800adc08:;
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES | COLL_SEARCH_HIGH_LOD | COLL_SEARCH_FORCE_INSTANCE_HIT;
 	}
 
-	sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+	COLL_Scratch_SetMeshInfo(sps, Level_GetMeshInfo(gGT->level1, "RB_MovingExplosive collision mesh"));
 
 	COLL_SearchBSP_CallbackQUADBLK(&posA, &posB, sps, 0);
 
@@ -343,14 +343,15 @@ LAB_800adc08:;
 		if (ret == 1)
 		{
 			struct InstDef *instDef;
-			struct BSP *bspHitbox = sps->bspHitbox;
+			struct BSP *bspHitbox = COLL_Scratch_GetHost(sps)->bspHitbox;
 
 			// copy/paste from Potion_InAir
-			if ((((bspHitbox->flag & 0x80) != 0) && (instDef = bspHitbox->data.hitbox.instDef, instDef != 0)) &&
+			if ((((bspHitbox->flag & 0x80) != 0) &&
+			     (instDef = BSP_GetInstDef(bspHitbox, "RB_MovingExplosive teeth InstDef"), instDef != 0)) &&
 
-			    (((instDef->ptrInstance != 0) && (instDef->modelID == STATIC_TEETH))))
+			    (((InstDef_GetInstance(instDef) != 0) && (instDef->modelID == STATIC_TEETH))))
 			{
-				RB_Teeth_OpenDoor(instDef->ptrInstance);
+				RB_Teeth_OpenDoor(InstDef_GetInstance(instDef));
 			}
 			goto LAB_800ae42c;
 		}

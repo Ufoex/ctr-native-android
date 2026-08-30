@@ -36,8 +36,6 @@ void UI_DrawNumWumpa(s16 posX, s16 posY, struct Driver *d)
 	{
 		s8 currWumpa = d->numWumpas;
 		int currWumpa10s = (currWumpa / UI_DRAWNUM_DECIMAL_BASE) * UI_DRAWNUM_SIGN_EXTEND_BYTE_MUL >> UI_DRAWNUM_SIGN_EXTEND_BYTE_SHIFT;
-		struct Icon **iconPtrArray = ICONGROUP_GETICONS(gGT->iconGroup[UI_DRAWNUM_DIGIT_ICON_GROUP]);
-
 		for (int digitIndex = 0; digitIndex < UI_DRAWNUM_WUMPA_DIGIT_COUNT; digitIndex++)
 		{
 			int iconID = currWumpa10s;
@@ -46,7 +44,8 @@ void UI_DrawNumWumpa(s16 posX, s16 posY, struct Driver *d)
 				iconID = currWumpa + currWumpa10s * -UI_DRAWNUM_DECIMAL_BASE;
 			}
 
-			DecalHUD_DrawPolyGT4(iconPtrArray[iconID], posX + UI_DRAWNUM_WUMPA_DIGIT_SPACING_X * digitIndex, posY, &gGT->backBuffer->primMem,
+			DecalHUD_DrawPolyGT4(IconGroup_GetIcon(gGT->iconGroup[UI_DRAWNUM_DIGIT_ICON_GROUP], (size_t)iconID, "HUD number icon"),
+					     posX + UI_DRAWNUM_WUMPA_DIGIT_SPACING_X * digitIndex, posY, &gGT->backBuffer->primMem,
 			                     gGT->pushBuffer_UI.ptrOT, data.ptrColor[ORANGE][0], data.ptrColor[ORANGE][1], data.ptrColor[ORANGE][2],
 			                     data.ptrColor[ORANGE][3], 0, FP(1.0));
 		}

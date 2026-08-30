@@ -138,7 +138,7 @@ void RB_Armadillo_LInB(struct Instance *inst)
 	struct Armadillo *armObj;
 	SVECTOR rot;
 	s16 *metaArray;
-	void **pointers;
+	struct SpawnType1 *spawn;
 	struct Thread *t;
 
 	if (inst->thread != 0)
@@ -186,13 +186,17 @@ void RB_Armadillo_LInB(struct Instance *inst)
 	armObj->velX = inst->matrix.m[0][2] >> 7;
 	armObj->velZ = inst->matrix.m[2][2] >> 7;
 
-	if (sdata->gGT->level1->ptrSpawnType1->count <= 0)
+	spawn = Level_GetSpawnType1(sdata->gGT->level1, "RB_Armadillo spawn table");
+	if ((spawn == NULL) || (spawn->count <= 0))
 	{
 		return;
 	}
 
 	// puts armadillos on separate cycles
-	pointers = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
-	metaArray = (s16 *)pointers[ST1_SPAWN];
+	metaArray = SpawnType1_GetPointer(spawn, ST1_SPAWN, sizeof(*metaArray), _Alignof(s16), "RB_Armadillo spawn metadata");
+	if (metaArray == NULL)
+	{
+		return;
+	}
 	armObj->timeAtEdge = metaArray[inst->name[strlen(inst->name) - 1] - '0'];
 }

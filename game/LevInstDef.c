@@ -4,88 +4,46 @@
 void LevInstDef_UnPack(struct mesh_info *ptr_mesh_info)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003116c-0x80031268.
-	int i;
-	int numQuadBlock;
-	struct QuadBlock *ptrQuadBlockArray;
-	struct QuadBlock *qbCurr;
-	struct InstDef **visInstSrc;
-	struct Level *level1;
-
-	numQuadBlock = ptr_mesh_info->numQuadBlock;
-	ptrQuadBlockArray = ptr_mesh_info->ptrQuadBlockArray;
-
-	// loop through all quadblocks
-	for (i = 0; i < numQuadBlock; i++)
-	{
-		qbCurr = &ptrQuadBlockArray[i];
-
-		if ((qbCurr->pvs != 0) && (qbCurr->pvs->visInstSrc != 0))
-		{
-			// loop through all instance pointers visible on quadblock
-			for (visInstSrc = (struct InstDef **)qbCurr->pvs->visInstSrc; visInstSrc[0] != NULL; visInstSrc++)
-			{
-				//ND BUG: This operation is not idempotent. The outer for loop means we will do this operation multiple times
-				//on the same pointer, so we keep switching it from an InstDef pointer to an Instance pointer and back again.
-				//This is not a problem in the original game because LEVs were designed with this in mind (odd numbers of
-				//quadblocks), but we need to keep this in mind. The easiest solution I can think of is to keep track of which
-				//InstDefs have been unpacked and only unpack them once, but that requires a lot of extra bookkeeping and wouldn't.
-				//be "vanilla".
-				visInstSrc[0] = (struct InstDef *)visInstSrc[0]->ptrInstance;
-			}
-		}
-	}
-
-	level1 = sdata->gGT->level1;
-
-	if (level1->ptrInstDefPtrArray != 0)
-	{
-		// loop through all instDef pointers in the LEV
-		for (visInstSrc = level1->ptrInstDefPtrArray; visInstSrc[0] != 0; visInstSrc++)
-		{
-			visInstSrc[0] = (struct InstDef *)visInstSrc[0]->ptrInstance;
-		}
-	}
+	/*
+	 * Retail rewrites four-byte InstDef references into four-byte Instance
+	 * pointers in place. Native retains the immutable InstDef references and
+	 * resolves ptrInstance through InstDef_GetInstance at each consumer.
+	 */
+	(void)ptr_mesh_info;
 }
 
 
 void LevInstDef_RePack(struct mesh_info *ptr_mesh_info, b32 boolAdvHub)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031268-0x800313c8.
-	int i;
-	int numQuadBlock;
-	struct QuadBlock *ptrQuadBlockArray;
-	struct QuadBlock *qbCurr;
-	struct Instance **visInstSrc;
 	struct Level *level1;
 	struct Thread *th;
 
-	numQuadBlock = ptr_mesh_info->numQuadBlock;
-	ptrQuadBlockArray = ptr_mesh_info->ptrQuadBlockArray;
-
-	// loop through all quadblocks
-	for (i = 0; i < numQuadBlock; i++)
-	{
-		qbCurr = &ptrQuadBlockArray[i];
-
-		if ((qbCurr->pvs != 0) && (qbCurr->pvs->visInstSrc != 0))
-		{
-			// loop through all instance pointers visible on quadblock
-			for (visInstSrc = qbCurr->pvs->visInstSrc; visInstSrc[0] != NULL; visInstSrc++)
-			{
-				visInstSrc[0] = (struct Instance *)visInstSrc[0]->instDef; // maybe `visInstSrc[0]->instDef->ptrInstance`?
-			}
-		}
-	}
+	(void)ptr_mesh_info;
 
 	level1 = sdata->gGT->level1;
 
-	if (level1->ptrInstDefPtrArray != 0)
+	if ((level1 != NULL) && (level1->numInstances != 0))
 	{
-		// loop through all instDef pointers in the LEV
-		for (visInstSrc = (struct Instance **)level1->ptrInstDefPtrArray; visInstSrc[0] != NULL; visInstSrc++)
+		struct CtrAssetRef32 *references =
+		    Level_GetInstDefRefs(level1, (size_t)level1->numInstances + 1u, "LevInstDef_RePack instance references");
+
+		for (u32 index = 0; (references != NULL) && (index <= level1->numInstances) && (references[index].bits != 0); index++)
 		{
-			struct Instance *inst = visInstSrc[0];
-			struct InstDef *instDef = inst->instDef;
+			struct InstDef *instDef = NULL;
+			struct Instance *inst;
+
+			if (!CtrAssetRef_ResolveRequired(references[index], sizeof(*instDef), _Alignof(struct InstDef), (void **)&instDef,
+							"LevInstDef_RePack InstDef"))
+			{
+				break;
+			}
+
+			inst = InstDef_GetInstance(instDef);
+			if (inst == NULL)
+			{
+				continue;
+			}
 
 			// if on adv hub
 			if (boolAdvHub != 0)
@@ -99,9 +57,6 @@ void LevInstDef_RePack(struct mesh_info *ptr_mesh_info, b32 boolAdvHub)
 				// erase instance in pool
 				LIST_AddFront(&sdata->gGT->JitPools.instance.free, (struct Item *)inst);
 			}
-
-			// go back to instDef
-			visInstSrc[0] = (struct Instance *)instDef;
 		}
 	}
 

@@ -218,11 +218,9 @@ void Particle_FuncPtr_ExhaustUnderwater(struct Particle *p)
 
 		if (icon != NULL)
 		{
-			struct Icon **ptrIconArray = ICONGROUP_GETICONS(icon);
-
 			// actually the first icon pointer in the array,
 			// not the pointer to the array itself
-			p->ptrIconArray = ptrIconArray[0];
+			p->ptrIconArray = IconGroup_GetIcon(icon, 0, "Particle first icon");
 		}
 
 		p->axis[PARTICLE_AXIS_ROT_Y_OR_LINE_PREV_Z].startVal = MixRNG_Scramble() & PARTICLE_EXHAUST_ROTATION_RANDOM_MASK;
@@ -661,7 +659,7 @@ struct ParticleRenderListScratch
 		};
 	};
 	u8 pad_14[0x0c];
-	uint32_t *ot;
+	u32 otPtr32;
 	s32 cameraOffset[3];
 	s32 depth;
 };
@@ -669,7 +667,7 @@ struct ParticleRenderListScratch
 CTR_STATIC_ASSERT(offsetof(struct ParticleRenderListScratch, viewProjWords) == 0x00);
 CTR_STATIC_ASSERT(offsetof(struct ParticleRenderListScratch, viewProjR33Low) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct ParticleRenderListScratch, viewProjR33ScratchResidue) == 0x12);
-CTR_STATIC_ASSERT(offsetof(struct ParticleRenderListScratch, ot) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct ParticleRenderListScratch, otPtr32) == 0x20);
 CTR_STATIC_ASSERT(offsetof(struct ParticleRenderListScratch, cameraOffset) == 0x24);
 CTR_STATIC_ASSERT(offsetof(struct ParticleRenderListScratch, depth) == 0x30);
 
@@ -761,7 +759,7 @@ static void Particle_RenderList_LinkAndAdvance(u32 **primCursor, u32 **payloadCu
 			otIndex = (u16)idpp->depthOffset[1];
 		}
 
-		otBase = (uint32_t *)(uintptr_t)idpp->otRangeNormal;
+		otBase = idpp->otRangeNormal;
 	}
 	else
 	{
@@ -1123,6 +1121,7 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 	struct ParticleRenderListScratch *scratch = CTR_SCRATCHPAD_PTR(struct ParticleRenderListScratch, 0x00);
 	u32 *prim = (u32 *)primMem->cursor;
 	u32 *primPayload = prim + 8;
+	u32 *defaultOT = pb->ptrOT;
 	s8 cameraID;
 
 	PushBuffer_SetPsyqGeom(pb);
@@ -1139,7 +1138,11 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 	CTC2(scratch->viewProjWords[3], 11);
 	CTC2(scratch->viewProjWords[4], 12);
 
-	scratch->ot = pb->ptrOT;
+#if UINTPTR_MAX == UINT32_MAX
+	scratch->otPtr32 = (u32)(uintptr_t)defaultOT;
+#else
+	scratch->otPtr32 = 0;
+#endif
 	cameraID = (s8)pb->cameraID;
 	scratch->cameraOffset[0] = CTR_MipsSll(pb->matrix_Camera.t[0], 2);
 	scratch->cameraOffset[1] = CTR_MipsSll(pb->matrix_Camera.t[1], 2);
@@ -1207,7 +1210,7 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 					goto next_particle;
 				}
 
-				icon = ((struct Icon **)ICONGROUP_GETICONS(iconGroup))[frame];
+				icon = IconGroup_GetIcon(iconGroup, (size_t)frame, "Particle animated icon");
 				particle->ptrIconArray = icon;
 			}
 
@@ -1289,7 +1292,7 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 			if ((flagsSetColor & PARTICLE_SET_COLOR_FLAG_SPECIAL_LINE) != 0)
 			{
 				Particle_RenderList_WriteSpecialPrimitive((struct ParticleSpecialPacket *)prim, particle, flagsAxis, flagsSetColor, color, scratch);
-				Particle_RenderList_LinkAndAdvance(&primCursor, &payloadCursor, particle, idpp, flagsSetColor, scratch->depth, scratch->ot);
+				Particle_RenderList_LinkAndAdvance(&primCursor, &payloadCursor, particle, idpp, flagsSetColor, scratch->depth, defaultOT);
 				prim = primCursor;
 				goto next_particle;
 			}
@@ -1297,7 +1300,7 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 			struct ParticleRenderListMatrix matrix = Particle_RenderList_BuildNormalMatrix(particle, flagsAxis);
 
 			Particle_RenderList_WriteNormalPrimitive((POLY_FT4 *)prim, icon, flagsAxis, flagsSetColor, color, &matrix, &scratch->depth);
-			Particle_RenderList_LinkAndAdvance(&primCursor, &payloadCursor, particle, idpp, flagsSetColor, scratch->depth, scratch->ot);
+			Particle_RenderList_LinkAndAdvance(&primCursor, &payloadCursor, particle, idpp, flagsSetColor, scratch->depth, defaultOT);
 			prim = primCursor;
 
 		next_particle:
@@ -1486,7 +1489,7 @@ static void Particle_LinkOscillators(struct Particle *p, struct ParticleOscillat
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80040308-0x80040850
-struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, struct ParticleEmitter *emSet)
+struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, const struct ParticleEmitter *emSet)
 {
 	struct GameTracker *gGT = sdata->gGT;
 	struct Particle *p;
@@ -1518,7 +1521,7 @@ struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, struct Particl
 	p->ptrIconGroup = ig;
 	if (ig != NULL && ig->numIcons != 0 && ig->numIcons > 0)
 	{
-		p->ptrIconArray = ((struct Icon **)ICONGROUP_GETICONS(ig))[0];
+		p->ptrIconArray = IconGroup_GetIcon(ig, 0, "ParticleEmitter first icon");
 	}
 	else
 	{

@@ -19,7 +19,10 @@ void Voiceline_PoolInit(void)
 	LIST_Clear(&sdata->channelFree);
 	LIST_Clear(&sdata->channelTaken);
 
-	LIST_Init(&sdata->channelFree, &sdata->channelStatsPrev[0].item, 0x20, 0x18);
+	// ChannelStats widens from the retail 0x20-byte stride to 0x28 on LP64
+	// because its intrusive list links are native pointers.
+	LIST_Init(&sdata->channelFree, &sdata->channelStatsPrev[0].item,
+	          sizeof(struct ChannelStats), len(sdata->channelStatsPrev));
 
 	SpuSetReverbVoice(0, 0xffffff);
 
@@ -39,7 +42,7 @@ void Voiceline_PoolInit(void)
 
 		struct ChannelAttr *curr = &sdata->channelAttrCur[index];
 
-		curr->spuStartAddr = (void *)-1;
+		curr->spuStartAddr = UINT32_MAX;
 
 		curr->ad = 0x80ff;
 		curr->sr = 0x1fc2;
@@ -417,6 +420,7 @@ void Voiceline_EmptyFunc(void)
 void Voiceline_SetDefaults(void)
 {
 	sdata->audioState = AUDIO_NONE;
+	sdata->desiredXA_FinalLapIndex = 0;
 	sdata->desiredXA_RaceIntroIndex = 0;
 
 	sdata->WrongWayDirection_bool = false;

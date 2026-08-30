@@ -360,10 +360,10 @@ void DrawLevelOvr3P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspL
 		return;
 	}
 
-	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
+	DrawLevelOvr1P_SetWaterEnvMap(waterEnvMap);
 	DrawLevelOvr1P_Scratch()->primMemEndPtr32 = (u32)(uintptr_t)primMem->end;
 
-	if (mesh->ptrQuadBlockArray == NULL)
+	if (MeshInfo_GetQuadBlocks(mesh, "DrawLevel 3P quad blocks") == NULL)
 	{
 		return;
 	}

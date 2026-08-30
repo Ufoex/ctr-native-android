@@ -73,6 +73,7 @@ void CS_Credits_DestroyCreditGhost(void)
 	for (int i = 0; i < CS_CREDITS_GHOST_COUNT; i++)
 	{
 		INSTANCE_Death(creditsBSS.creditsObj.creditGhostInst[i]);
+		Model_ClearRuntimeHeaders(&creditsBSS.creditsObj.creditGhostModelCopies[i]);
 	}
 
 	MEMPACK_ClearHighMem();
@@ -95,7 +96,7 @@ void CS_Credits_AnimateCreditGhost(struct Instance *dst, struct Instance *src, i
 	dst->scale.z = scale;
 
 	dst->flags &= ~HIDE_MODEL;
-	if ((int)dst->model == 0)
+	if (dst->model == NULL)
 	{
 		dst->flags |= HIDE_MODEL;
 	}
@@ -106,44 +107,32 @@ void CS_Credits_AnimateCreditGhost(struct Instance *dst, struct Instance *src, i
 	dst->model = localModel;
 
 	struct Model *srcModel = src->model;
-	int *dstModelInts = (int *)localModel;
-	int *srcModelInts = (int *)srcModel;
-	dstModelInts[0] = srcModelInts[0];
-	dstModelInts[1] = srcModelInts[1];
-	dstModelInts[2] = srcModelInts[2];
-	dstModelInts[3] = srcModelInts[3];
-	dstModelInts[4] = srcModelInts[4];
-	dstModelInts[5] = srcModelInts[5];
+	if (srcModel == NULL)
+	{
+		dst->flags |= HIDE_MODEL;
+		return;
+	}
 
-	localModel->headers = co->creditGhostHeaders[index];
+	memcpy(localModel, srcModel, sizeof(*localModel));
+	Model_ClearRuntimeHeaders(localModel);
 
 	s16 srcNumHeaders = srcModel->numHeaders;
+	if (srcNumHeaders > (s16)len(co->creditGhostHeaders[index]))
+	{
+		srcNumHeaders = (s16)len(co->creditGhostHeaders[index]);
+	}
+	localModel->numHeaders = srcNumHeaders;
+
 	if (srcNumHeaders > 0)
 	{
-		struct ModelHeader *dstHeaders = localModel->headers;
-		struct ModelHeader *srcHeaders = srcModel->headers;
-
-		for (int i = 0; i < srcNumHeaders; i++)
+		struct ModelHeader *srcHeaders = Model_GetHeaders(srcModel, "credits source model headers");
+		if ((srcHeaders == NULL) || !Model_SetRuntimeHeaders(localModel, co->creditGhostHeaders[index]))
 		{
-			int *d = (int *)&dstHeaders[i];
-			int *s = (int *)&srcHeaders[i];
-			d[0] = s[0];
-			d[1] = s[1];
-			d[2] = s[2];
-			d[3] = s[3];
-			d[4] = s[4];
-			d[5] = s[5];
-			d[6] = s[6];
-			d[7] = s[7];
-			d[8] = s[8];
-			d[9] = s[9];
-			d[10] = s[10];
-			d[11] = s[11];
-			d[12] = s[12];
-			d[13] = s[13];
-			d[14] = s[14];
-			d[15] = s[15];
+			dst->flags |= HIDE_MODEL;
+			return;
 		}
+
+		memcpy(co->creditGhostHeaders[index], srcHeaders, (size_t)srcNumHeaders * sizeof(*srcHeaders));
 	}
 }
 
@@ -179,8 +168,8 @@ void CS_Credits_Init(void)
 	advProg = &sdata->advProgress;
 	creditsObj = &creditsBSS.creditsObj;
 
-	void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
-	CLH = pointers[ST1_CREDITS];
+	CLH = SpawnType1_GetPointer(Level_GetSpawnType1(gGT->level1, "credits spawn table"), ST1_CREDITS, sizeof(*CLH),
+				    _Alignof(struct CreditsLevHeader), "credits level header");
 
 	creditsBSS.dancerThread = 0;
 
@@ -242,18 +231,53 @@ void CS_Credits_Init(void)
 
 	creditsBSS.dancerInst_invisible = NULL;
 
-	creditsDst = MEMPACK_AllocHighMem(CLH->size /* "credits strings" */);
+	if ((CLH->size < (int)sizeof(*CLH)) || (CLH->numStrings < 0) ||
+	    ((u64)sizeof(*CLH) + (u64)(u16)CLH->numStrings * sizeof(u32) > (u32)CLH->size))
+	{
+		return;
+	}
+
+	int creditsAllocationSize = CLH->size;
+
+#if UINTPTR_MAX > UINT32_MAX
+	// Keep the copied credits blob byte-identical and materialize its packed
+	// u32 string offsets into a host-width table after the blob.
+	size_t creditsHostTableOffset = ((size_t)CLH->size + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
+	creditsAllocationSize = (int)(creditsHostTableOffset + (size_t)(u16)CLH->numStrings * sizeof(char *));
+#endif
+
+	creditsDst = MEMPACK_AllocHighMem(creditsAllocationSize /* "credits strings" */);
 
 	memcpy(creditsDst, CLH, CLH->size);
 
 	creditsBSS.numStrings = creditsDst->numStrings;
 
-	char **ptrStrings = (char **)CREDITSHEADER_GETSTRINGS(creditsDst);
+	u32 *serializedOffsets = (u32 *)(void *)CREDITSHEADER_GETSTRINGS(creditsDst);
+
+	if ((creditsBSS.numStrings < 0) ||
+	    ((u64)sizeof(struct CreditsLevHeader) + (u64)(u16)creditsBSS.numStrings * sizeof(u32) > (u32)creditsDst->size))
+	{
+		return;
+	}
+
+	for (i = 0; i < creditsBSS.numStrings; i++)
+	{
+		if (CTR_ReadU32LE(&serializedOffsets[i]) >= (u32)creditsDst->size)
+		{
+			return;
+		}
+	}
+
+#if UINTPTR_MAX > UINT32_MAX
+	char **ptrStrings = (char **)((u8 *)creditsDst + creditsHostTableOffset);
+#else
+	char **ptrStrings = (char **)(void *)serializedOffsets;
+#endif
 	creditsBSS.ptrStrings = ptrStrings;
 
 	for (i = 0; i < creditsBSS.numStrings; i++)
 	{
-		ptrStrings[i] = (char *)((u32)ptrStrings[i] + (u32)creditsDst);
+		ptrStrings[i] = (char *)((u8 *)creditsDst + CTR_ReadU32LE(&serializedOffsets[i]));
 	}
 
 	creditsObj->creditsPosY = CS_CREDITS_NAME_START_Y;
@@ -589,8 +613,10 @@ void CS_Credits_DrawEpilogue(struct CreditsObj *co)
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b8dc8-0x800b8f8c
-void CS_Credits_ThTick(void)
+void CS_Credits_ThTick(struct Thread *thread)
 {
+	(void)thread;
+
 	struct CreditsObj *co = &creditsBSS.creditsObj;
 	struct Instance *danceInst = creditsBSS.dancerInst_invisible;
 

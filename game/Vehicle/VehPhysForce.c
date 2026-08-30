@@ -255,10 +255,13 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 
 	TerrainFlags terrainFlags = driver->terrainMeta1->flags;
 	int terminalVelocity = driver->const_TerminalVelocity;
-	if ((localY < 0) && ((terrainFlags & TERRAIN_FLAG_MUD_PHYSICS) != 0) && (originalLocalY < -VEH_PHYS_FORCE_MUD_TERMINAL_SPEED))
+	if ((localY < 0) && ((terrainFlags & TERRAIN_FLAG_MUD_PHYSICS) != 0))
 	{
 		terminalVelocity = VEH_PHYS_FORCE_MUD_TERMINAL_SPEED;
-		originalLocalY = -VEH_PHYS_FORCE_MUD_TERMINAL_SPEED;
+		if (originalLocalY < -VEH_PHYS_FORCE_MUD_TERMINAL_SPEED)
+		{
+			originalLocalY = -VEH_PHYS_FORCE_MUD_TERMINAL_SPEED;
+		}
 	}
 
 	int clampedLocalY = localY;
@@ -725,7 +728,7 @@ static Vec3 VehPhysForce_TranslateMatrix_RotateVector(const MATRIX *m, s16 vx, s
 
 static struct MatrixND *VehPhysForce_TranslateMatrix_GetBakedEntry(u8 matrixArray, u8 matrixIndex)
 {
-	return &((struct MatrixND *)data.bakedGteMath[matrixArray].physEntry)[matrixIndex];
+	return &data.bakedGteMath[matrixArray].physEntry[matrixIndex];
 }
 
 static u8 VehPhysForce_TranslateMatrix_RemapIndex(u8 matrixIndex, int fromArray, int toArray)

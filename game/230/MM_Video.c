@@ -50,7 +50,7 @@ void MM_Video_KickCD(CdlLOC *location)
 	int cdlMode;
 	u8 mode[4];
 
-	if ((location != NULL) && (V230.ptrCdLoc != &V230.cdLocation2))
+	if ((location != NULL) && (V230.ptrCdLoc != &V230.cdLocation1))
 	{
 		V230.cdKickState = 0;
 		V230.ptrCdLoc = location;
@@ -414,10 +414,10 @@ void MM_Video_AllocMem(u32 width, u16 height, u32 flags, int ringSectorCount, in
 	V230.flags = flags;
 
 	V230.out_Buf[0] = MEMPACK_AllocMem(V230.dctOutSliceSize << 3); //, OVR_230.s_SliceBuf);
-	V230.out_Buf[1] = (uint32_t *)(((int)V230.out_Buf[0]) + V230.dctOutSliceSize * 4);
+	V230.out_Buf[1] = (uint32_t *)((u8 *)V230.out_Buf[0] + V230.dctOutSliceSize * 4);
 
 	V230.in_Buf[0] = MEMPACK_AllocMem(V230.vlcBufferSize << 3); //, OVR_230.s_VlcBuf);
-	V230.in_Buf[1] = (uint32_t *)(((int)V230.in_Buf[0]) + V230.vlcBufferSize * 4);
+	V230.in_Buf[1] = (uint32_t *)((u8 *)V230.in_Buf[0] + V230.vlcBufferSize * 4);
 
 	V230.out_Buf[2] = MEMPACK_AllocMem(V230.ringSectorCount << LOAD_CD_DATA_SECTOR_SHIFT); //, OVR_230.s_RingBuf);
 
