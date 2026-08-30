@@ -62,7 +62,12 @@ final class CTRDSSettings {
     static final Option[] OPTIONS = new Option[] {
         new Option("internal_scale", "Resolution",
                 new int[] { 1, 2, 3, 4, 5, 6, 7, 8 },
-                new String[] { "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x" }, 4),
+                // The PSX frame is 240 lines, so a step is 240 of them. Naming
+                // the height says what the setting buys far better than a
+                // multiplier does -- and it makes it obvious where the panel is
+                // passed, after which it is supersampling rather than detail.
+                new String[] { "240p (1x)", "480p (2x)", "720p (3x)", "960p (4x)",
+                        "1200p (5x)", "1440p (6x)", "1680p (7x)", "1920p (8x)" }, 4),
 
         new Option("target_fps", "Frame cap",
                 new int[] { 30, 60, 90, 120, 480 },

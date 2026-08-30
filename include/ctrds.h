@@ -245,7 +245,8 @@ struct CtrdsLayout
 	int aspectW;
 	int aspectH;
 
-	// Internal render resolution multiplier, 1..4. Geometry is drawn at this
+	// Internal render resolution multiplier, 1..CTR_NATIVE_MAX_INTERNAL_SCALE.
+	// Geometry is drawn at this
 	// multiple of the PS1 display size; textures stay native.
 	int internalScale;
 

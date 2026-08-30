@@ -449,7 +449,10 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 		switch (row)
 		{
 		case CTRDS_SET_RESOLUTION:
-			snprintf(line, sizeof(line), "%s RESOLUTION  %dX", marker, g_ctrds.internalScale);
+			// A step is one PSX frame of 240 lines, so the height is the
+			// useful number; the multiplier stays for anyone who thinks in it.
+			snprintf(line, sizeof(line), "%s RESOLUTION  %dP (%dX)", marker, g_ctrds.internalScale * 240,
+			    g_ctrds.internalScale);
 			break;
 		case CTRDS_SET_FPS:
 			if (g_ctrds.targetFps >= CTRDS_FPS_UNLIMITED)
@@ -963,8 +966,17 @@ void Ctrds_LoadConfig(void)
 
 	fclose(f);
 
-	Platform_Log("[CTR-DS] ctrds.cfg: fxaa=%d crt=%d swapFaceButtons=%d widescreen=%d\n", g_ctrds.fxaa, g_ctrds.crt, g_ctrds.swapFaceButtons,
-	        g_ctrds.widescreen);
+	// The aspect is what the view is actually drawn at, so the flag has to
+	// follow it. Toggling aspect on the panel recomputed this and loading a
+	// config did not, so a saved 4:3 came back with widescreen still set: the
+	// view was 4:3 while every path that asks this question was told otherwise.
+	if (g_ctrds.aspectMode == 0)
+	{
+		g_ctrds.widescreen = 0;
+	}
+
+	Platform_Log("[CTR-DS] ctrds.cfg: fxaa=%d crt=%d swapFaceButtons=%d widescreen=%d aspectMode=%d\n", g_ctrds.fxaa,
+	        g_ctrds.crt, g_ctrds.swapFaceButtons, g_ctrds.widescreen, g_ctrds.aspectMode);
 }
 
 void Ctrds_DisableSecondScreen(void)
