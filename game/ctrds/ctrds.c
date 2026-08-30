@@ -632,14 +632,11 @@ int Ctrds_InRace(void)
 
 int Ctrds_VsyncsPerFlip(void)
 {
-	// Retail pairs a 60Hz VBlank with a flip every second one. That is still the
-	// right answer whenever the cap is the retail 30fps-worth of frames, and it
-	// is what a device without a companion screen used to get unconditionally --
-	// which at a 120 cap ran the menus at 60 rather than 30.
-	if (!Ctrds_PacingActive())
-	{
-		return 2;
-	}
+	// VBlanks are emitted at the cap, not at retail's 60Hz, so a flip every
+	// second one is only right when the cap is 60. At a cap of 30 it halved the
+	// game to 15fps, which is what "cap 30, 2 vblanks per flip" read in the log.
+	// The two branches below already answer this correctly for every cap: a race
+	// flips every VBlank, a menu every cap/30 of them.
 
 	if (Ctrds_InRace())
 	{
