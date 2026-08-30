@@ -451,7 +451,21 @@ void NativeRenderer_BeginScene(void)
 	NativeRenderer_UpdateVRAM();
 	if (!activeDrawEnv.isbg)
 	{
-		NativeRenderer_LoadRenderTargetFromVRAM(&s_mainRenderTarget, activeDispEnv.disp.x, activeDispEnv.disp.y);
+		// NOTE(ctrds): restoring the previous frame is what the hardware does --
+		// the game covers the screen with sky and geometry, so nothing stale
+		// shows. A widened field of view breaks that assumption: the sky no
+		// longer reaches the top corners, and whatever the last frame left there
+		// stays visible as a smeared copy of the game. Start from black instead
+		// when widescreen is on, so an uncovered corner is simply black.
+		if (Ctrds_Widescreen())
+		{
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		}
+		else
+		{
+			NativeRenderer_LoadRenderTargetFromVRAM(&s_mainRenderTarget, activeDispEnv.disp.x, activeDispEnv.disp.y);
+		}
 	}
 	else
 	{

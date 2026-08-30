@@ -259,7 +259,10 @@ void UI_Weapon_DrawBG(s16 posX, s16 posY, s16 scale, struct Driver *d)
 		    // Entry 3 rather than the base: the ordering table is drawn from the
 		    // highest entry down, so a higher index lands behind. At the base the
 		    // shine covered the fruit and the weapon it is meant to sit behind.
-		    Ctrds_Enabled() ? &gGT->pushBuffer_UI.ptrOT[3] : gGT->pushBuffer[d->driverID].ptrOT,
+		    // Entry 4 is the head of the UI walk, so it is drawn first and lands
+		    // behind everything else in the HUD -- including the fruit and the
+		    // weapon the shine belongs to. Entry 3 was still in front of them.
+		    Ctrds_Enabled() ? &gGT->pushBuffer_UI.ptrOT[4] : gGT->pushBuffer[d->driverID].ptrOT,
 #else
 		    gGT->pushBuffer[d->driverID].ptrOT,
 #endif

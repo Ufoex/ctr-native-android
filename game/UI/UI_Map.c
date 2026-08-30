@@ -347,7 +347,18 @@ void UI_Map_DrawDrivers(struct UIMap *map, struct Thread *bucket, s16 *driverIco
 			iconID = UI_MAP_PLAYER_ICON_HUMAN;
 		}
 
-		UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], iconID, (s16)kartColor, 0, Ctrds_MapIconScale());
+#if defined(CTR_NATIVE)
+		// The panel has room for the driver's face rather than a coloured dot,
+		// which makes the map readable at a glance.
+		if (Ctrds_Enabled())
+		{
+			Ctrds_DrawMapPortrait(map, &bucket->inst->matrix.t[0], d, iconID == UI_MAP_PLAYER_ICON_HUMAN);
+		}
+		else
+#endif
+		{
+			UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], iconID, (s16)kartColor, 0, Ctrds_MapIconScale());
+		}
 	}
 	return;
 }

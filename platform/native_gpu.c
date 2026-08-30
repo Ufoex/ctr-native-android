@@ -296,6 +296,48 @@ void MakeLineArray(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1)
 	} // TODO diagonal line alignment
 }
 
+// NOTE(ctrds): the PSX GPU refuses to draw a primitive spanning more than 1023
+// pixels horizontally or 511 vertically, and games rely on that: a vertex that
+// projects far off-screen produces a huge bogus polygon which the hardware
+// simply discards. Nothing here enforced that, so those polygons were drawn --
+// stray wedges cutting across the sky and the scene edges. Widescreen makes it
+// more common, because the wider frustum admits geometry closer to the camera
+// at the edges, where projections blow up.
+//
+// Collapsing the primitive to a point is the cheapest way to drop it: it keeps
+// the packet walk and the vertex counting exactly as they were, and a zero-area
+// primitive rasterises nothing.
+#define PSX_PRIM_MAX_W 1023.0f
+#define PSX_PRIM_MAX_H 511.0f
+
+internal void RejectOversizedPrimitive(GrVertex *vertex, int count)
+{
+	float minX = vertex[0].x;
+	float maxX = vertex[0].x;
+	float minY = vertex[0].y;
+	float maxY = vertex[0].y;
+	int i;
+
+	for (i = 1; i < count; i++)
+	{
+		if (vertex[i].x < minX) { minX = vertex[i].x; }
+		if (vertex[i].x > maxX) { maxX = vertex[i].x; }
+		if (vertex[i].y < minY) { minY = vertex[i].y; }
+		if (vertex[i].y > maxY) { maxY = vertex[i].y; }
+	}
+
+	if (((maxX - minX) <= PSX_PRIM_MAX_W) && ((maxY - minY) <= PSX_PRIM_MAX_H))
+	{
+		return;
+	}
+
+	for (i = 1; i < count; i++)
+	{
+		vertex[i].x = vertex[0].x;
+		vertex[i].y = vertex[0].y;
+	}
+}
+
 void MakeVertexTriangle(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2)
 {
 	assert(p0);
@@ -315,6 +357,8 @@ void MakeVertexTriangle(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *
 
 	vertex[2].x = p2[0] + ofsX;
 	vertex[2].y = p2[1] + ofsY;
+
+	RejectOversizedPrimitive(vertex, 3);
 }
 
 void MakeVertexQuad(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2, VERTTYPE *p3)
@@ -340,6 +384,8 @@ void MakeVertexQuad(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2, 
 
 	vertex[3].x = p3[0] + ofsX;
 	vertex[3].y = p3[1] + ofsY;
+
+	RejectOversizedPrimitive(vertex, 4);
 }
 
 void MakeVertexRect(GrVertex *vertex, VERTTYPE *p0, s16 w, s16 h)

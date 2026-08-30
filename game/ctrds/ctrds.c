@@ -83,7 +83,7 @@ struct CtrdsLayout g_ctrds = {
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
 // (battle, relic, adventure rewards) keep their retail values.
 #define CTRDS_HUD_BLOCK                                                                                          \
-    /* 0x00 WEAPON           */ {200, 10, 0, 4096},                                                              \
+    /* 0x00 WEAPON           */ {200, 10, 0, 6144},                                                              \
     /* 0x01 LAP_COUNT        */ {466, 10, 0, 0},                                                                 \
     /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 5530},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
@@ -94,7 +94,7 @@ struct CtrdsLayout g_ctrds = {
     /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
     /* 0x09 SPEEDOMETER      */ {398, 60, 0, 4096},                                             \
     /* 0x0a (unused)         */ {20, 57, 0, 4096},                                                               \
-    /* 0x0b BATTLE_WEAPON_BG */ {200 - 23, 10 - 10, 0, 4096},                                                              \
+    /* 0x0b BATTLE_WEAPON_BG */ {200 - 23, 10 - 10, 0, 6144},                                                              \
     /* 0x0c RACING_WEAPON_BG */ {330 - 30, 18 - 15, 0, 2457},                                                              \
     /* 0x0d BATTLE_SCORE     */ {454, 8, 0, 0},                                                                  \
     /* 0x0e RELIC            */ {50, 24, 256, 1536},                                                             \
@@ -835,6 +835,47 @@ void Ctrds_UpdateAutoVBlank(float panelHz)
 		g_ctrds.vblankMultiplier = want;
 		Platform_Log("[CTR-DS] panel %.1fHz -> vblankMult=%d\n", (double)panelHz, want);
 	}
+}
+
+// Portraits are far bigger than the dot they replace, so they are drawn small
+// enough that eight of them bunched at one corner stay readable.
+#define CTRDS_MAP_PORTRAIT_SCALE ((CTRDS_FP_ONE * 2) / 5)
+
+// Matches UI_RANK_DAMAGE_COLOR_NEUTRAL, the value the rank list uses when a
+// driver is undamaged.
+#define CTRDS_PORTRAIT_NEUTRAL_COLOR 0x808080
+
+void Ctrds_DrawMapPortrait(struct UIMap *map, const s32 worldPos[3], struct Driver *d, int isPlayer)
+{
+	struct GameTracker *gGT = sdata->gGT;
+	struct Icon *icon;
+	int posX;
+	int posY;
+	int w;
+	int h;
+
+	icon = gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[d->driverID]].iconID];
+
+	if (icon == NULL)
+	{
+		return;
+	}
+
+	posX = worldPos[0];
+	posY = worldPos[2];
+	UI_Map_GetIconPos(map, &posX, &posY);
+
+	// UI_DrawDriverIcon places the icon by its top-left corner; the dot it
+	// replaces was centred on the position, so centre the portrait too.
+	w = FP_Mult((int)((u16)icon->texLayout.u1 - (u16)icon->texLayout.u0), CTRDS_MAP_PORTRAIT_SCALE);
+	h = FP_Mult((int)((u16)icon->texLayout.v2 - (u16)icon->texLayout.v0), CTRDS_MAP_PORTRAIT_SCALE);
+
+	// 0x808080 is the neutral vertex colour: it leaves the portrait its own
+	// colours. Feeding it a palette entry instead tinted every face orange.
+	(void)isPlayer;
+
+	UI_DrawDriverIcon(icon, (s16)(posX - (w / 2)), (s16)(posY - (h / 2)), &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, 1,
+	        CTRDS_MAP_PORTRAIT_SCALE, CTRDS_PORTRAIT_NEUTRAL_COLOR);
 }
 
 s16 Ctrds_MapScale(void)

@@ -406,6 +406,13 @@ s16 Ctrds_MapScale(void);
 // Scale for the dots drawn on the live map. Separate from the background scale
 // so the icons can stay crisp while the bitmap stretches.
 s16 Ctrds_MapIconScale(void);
+
+// Draws a driver's portrait on the live map in place of the coloured dot. The
+// map's own icon group holds only the dot art, so the portrait cannot go through
+// UI_Map_DrawRawIcon and needs its own path.
+struct UIMap;
+struct Driver;
+void Ctrds_DrawMapPortrait(struct UIMap *map, const s32 worldPos[3], struct Driver *d, int isPlayer);
 void Ctrds_BeginMapScale(void);
 void Ctrds_EndMapScale(void);
 
