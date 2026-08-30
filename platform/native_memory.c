@@ -1,3 +1,5 @@
+#include "platform/native_guest_ref.h"
+
 #include <platform.h>
 #include "ctr_scratchpad.h"
 #include "platform/native_memory.h"
@@ -64,6 +66,25 @@ const struct PlatformMempackArena *Platform_InitMempackArena(void)
 {
 	memset(s_mempackMemory, 0, sizeof(s_mempackMemory));
 	Platform_ConfigureMempackArena();
+
+#if UINTPTR_MAX > UINT32_MAX
+	// Serialized assets carry pointer maps whose entries are offsets, and on a
+	// 64-bit host those are resolved through the guest-reference registry rather
+	// than being written as addresses. The assets live in this arena, so without
+	// it registered every resolve reports host-pointer-not-found, every embedded
+	// pointer map is rejected, and models and levels load unrelocated -- which
+	// shows up as a game that reaches its 2D screens and then draws nothing.
+	{
+		struct NativeGuestRefError guestError;
+
+		NativeGuestRef_UnregisterRegion(CTR_NATIVE_GUEST_REGION_MEMPACK);
+
+		if (!NativeGuestRef_RegisterRegion(CTR_NATIVE_GUEST_REGION_MEMPACK, s_mempackMemory, sizeof(s_mempackMemory), "native MPAK", &guestError))
+		{
+			Platform_LogError("[CTR GuestRef] unable to register MPAK owner: %s\n", NativeGuestRef_StatusName(guestError.status));
+		}
+	}
+#endif
 #if defined(CTR_INTERNAL)
 	NativeCheckpoint_OnMempackArenaReset();
 #endif

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libenet.a CMakeFiles/enet.dir/externals/enet/callbacks.c.o CMakeFiles/enet.dir/externals/enet/compress.c.o CMakeFiles/enet.dir/externals/enet/host.c.o CMakeFiles/enet.dir/externals/enet/list.c.o CMakeFiles/enet.dir/externals/enet/packet.c.o CMakeFiles/enet.dir/externals/enet/peer.c.o CMakeFiles/enet.dir/externals/enet/protocol.c.o CMakeFiles/enet.dir/externals/enet/unix.c.o CMakeFiles/enet.dir/externals/enet/win32.c.o
+/usr/bin/ranlib libenet.a

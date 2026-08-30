@@ -1,0 +1,2 @@
+/usr/bin/ar qc libchdr.a CMakeFiles/chdr.dir/externals/libchdr/unity.c.o CMakeFiles/chdr.dir/externals/libchdr/src/libchdr_codec_avhuff.c.o
+/usr/bin/ranlib libchdr.a
