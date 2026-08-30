@@ -11,11 +11,27 @@
 #include <macros.h>
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+// Retail pressure reproduces the exact NTSC-U mempack window so an allocation
+// that outgrew its budget shows up as the retail out-of-memory hang rather than
+// silently fitting. That is a real check while pointers are four bytes.
+//
+// It cannot be one on LP64. Every pointer the game stores inside this arena is
+// eight bytes there, so the same level data cannot fit the same window no
+// matter how correct the code is -- MEMPACK_AllocMem reaches CTR_ErrorScreen
+// and its deliberate `for (;;)`, which is what a race load hanging on a 64-bit
+// device actually was. Measuring 64-bit data against a 32-bit budget only ever
+// reports that pointers got bigger, so the expanded arena is the honest choice
+// there and retail pressure stays where it still means something.
 #ifndef CTR_NATIVE_MEMPACK_RETAIL_PRESSURE
+#if UINTPTR_MAX > UINT32_MAX
+#define CTR_NATIVE_MEMPACK_RETAIL_PRESSURE 0
+#else
 #define CTR_NATIVE_MEMPACK_RETAIL_PRESSURE 1
+#endif
 #endif
 
 // TODO(aalhendi): Re-audit LOAD_ReadFile_ex, LOAD_DramFileCallback, LEV/PTR
