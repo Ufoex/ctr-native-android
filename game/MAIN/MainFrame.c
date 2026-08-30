@@ -256,8 +256,9 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 			gGT->elapsedEventTime = 0;
 		}
 
-		CTR_CycleTex_AllModels(UINT32_MAX, sdata->PLYROBJECTLIST, gGT->timer);
-		CTR_CycleTex_AllModels(gGT->level1->numModels, Level_GetModelRefs(gGT->level1, "MainFrame model references"), gGT->timer);
+		CTR_CycleTex_AllModels(UINT32_MAX, sdata->PLYROBJECTLIST, Ctrds_RetailTicks());
+		CTR_CycleTex_AllModels(gGT->level1->numModels, Level_GetModelRefs(gGT->level1, "MainFrame model references"),
+		                       Ctrds_RetailTicks());
 
 		psVar8 = 0;
 		psVar9 = 0;

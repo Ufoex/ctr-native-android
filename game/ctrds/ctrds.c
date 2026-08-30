@@ -176,6 +176,26 @@ int Ctrds_ScaleStep(int step30)
 
 internal int s_ctrdsGatedElapsed = 0;
 internal int s_ctrdsGatedPending = 0;
+internal int s_ctrdsRetailTicks = 0;
+
+// gGT->timer counts rendered frames, so above 30fps it runs fast -- four times
+// fast at a 120 cap. Retail used it as the clock for anything that cycles:
+// animated textures, flashing text, the countdown beep, rumble. All of those
+// then play at the cap divided by thirty, which is what "Uka Uka spins too
+// fast" was.
+//
+// This advances once per 30Hz tick instead, so it counts what gGT->timer
+// counted on hardware. Use it for animation; use gGT->timer where the frame
+// count itself is the point.
+int Ctrds_RetailTicks(void)
+{
+	if (!Ctrds_PacingActive())
+	{
+		return (int)sdata->gGT->timer;
+	}
+
+	return s_ctrdsRetailTicks;
+}
 
 void Ctrds_BeginFrameGating(void)
 {
@@ -192,6 +212,7 @@ void Ctrds_BeginFrameGating(void)
 	{
 		s_ctrdsGatedPending = s_ctrdsGatedElapsed;
 		s_ctrdsGatedElapsed = 0;
+		s_ctrdsRetailTicks++;
 	}
 }
 

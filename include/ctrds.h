@@ -519,6 +519,10 @@ int Ctrds_ScaleFrames(int frames30);
 // instead of being gated to 30 updates a second.
 int Ctrds_ScaleStep(int step30);
 
+// A frame counter that advances at retail 30Hz whatever the cap is. The clock
+// for anything that cycles or flashes; see the note on the definition.
+int Ctrds_RetailTicks(void);
+
 // Gated buckets do not run every frame, so anything delta-timed inside them
 // would otherwise see one frame's elapsed time instead of all the time that
 // passed since they last ran -- which is what made thrown weapons crawl.

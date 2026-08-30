@@ -149,7 +149,7 @@ void RR_EndEvent_DrawMenu(void)
 	// driver->numTimeCrates = gGT->timeCratesInLEV;
 
 	// change color
-	textColor = (gGT->timer & 1) ? 0xffff8000 : 0xffff8004;
+	textColor = (Ctrds_RetailTicks() & 1) ? 0xffff8000 : 0xffff8004;
 
 	rewardBit = gGT->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC;
 
@@ -545,10 +545,10 @@ void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 		if (gGT->newHighScoreIndex == rowIndex)
 		{
 			// make name color flash every odd frame
-			nameColor = (gGT->timer & RR_HIGH_SCORE_FLASH_TIMER_BIT) ? 4 : nameColor;
+			nameColor = (Ctrds_RetailTicks() & RR_HIGH_SCORE_FLASH_TIMER_BIT) ? 4 : nameColor;
 
 			// flash color of time
-			timeColor = ((gGT->timer & RR_HIGH_SCORE_FLASH_TIMER_BIT) << 1);
+			timeColor = ((Ctrds_RetailTicks() & RR_HIGH_SCORE_FLASH_TIMER_BIT) << 1);
 		}
 
 		// Make a rank on the high score list ('1', '2', '3', '4', '5')
@@ -601,7 +601,7 @@ void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 		DecalFont_DrawLine(sdata->lngStrings[LNG_BEST_LAP], startX, startY + 0x95, 1, timeColor);
 
 		// If you got a new best lap
-		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((gGT->timer & RR_HIGH_SCORE_FLASH_TIMER_BIT) != 0))
+		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((Ctrds_RetailTicks() & RR_HIGH_SCORE_FLASH_TIMER_BIT) != 0))
 		{
 			timeColor = 0xffff8004;
 		}

@@ -632,7 +632,7 @@ void CS_Credits_ThTick(struct Thread *thread)
 
 		struct GameTracker *gGT = sdata->gGT;
 
-		if ((gGT->timer & 3) == 0)
+		if ((Ctrds_RetailTicks() & 3) == 0)
 		{
 			for (int i = CS_CREDITS_GHOST_COUNT - 1; i > 0; i--)
 			{

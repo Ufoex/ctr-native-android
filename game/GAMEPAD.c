@@ -769,7 +769,7 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 
 				if (pad->shockFrameFreq != 0)
 				{
-					if ((gGT->timer & pad->shockValFreq) == 0)
+					if ((Ctrds_RetailTicks() & pad->shockValFreq) == 0)
 					{
 						pad->motorDesired[0] = 0xff;
 					}

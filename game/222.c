@@ -231,7 +231,7 @@ void AA_EndEvent_DrawMenu(void)
 				{
 					UI_Lerp2D_Linear(textPos.v, txtStartX, 0xa6, txtEndX, 0xa6, tokenAwardTextFrame, AA_TOKEN_AWARD_TEXT_FLY_FRAMES);
 
-					s32 textColor = (gGT->timer & 1) ? (JUSTIFY_CENTER | RED) : (JUSTIFY_CENTER | WHITE);
+					s32 textColor = (Ctrds_RetailTicks() & 1) ? (JUSTIFY_CENTER | RED) : (JUSTIFY_CENTER | WHITE);
 
 					DecalFont_DrawLine(sdata->lngStrings[LNG_CTR_TOKEN_AWARDED], textPos.x, textPos.y, FONT_BIG, textColor);
 				}

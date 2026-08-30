@@ -388,7 +388,7 @@ UpdateTrackerState:
 		// red
 		bgColor = UI_TRACKER_BG_RED;
 
-		if ((gGT->timer % beepRate) == 0)
+		if ((Ctrds_RetailTicks() % beepRate) == 0)
 		{
 			if ((gGT->gameMode1 & PAUSE_ALL) == 0)
 			{
