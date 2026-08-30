@@ -273,6 +273,17 @@ static inline int Ctrds_Enabled(void)
 	return g_ctrds.mode != CTRDS_DISABLED;
 }
 
+// Whether the frame-pacing compensation applies. It is not the same question as
+// whether there is a companion screen: the game is built around a 30fps VBlank
+// and everything here corrects for running it faster, which is just as true on a
+// phone with one screen as on the handheld with two. Tying it to Ctrds_Enabled
+// meant a single-screen device got VBlanks at the configured cap with none of
+// the compensation, so the game ran at the cap divided by thirty.
+static inline int Ctrds_PacingActive(void)
+{
+	return g_ctrds.targetFps > 30;
+}
+
 static inline int Ctrds_TallFramebuffer(void)
 {
 	return (g_ctrds.mode != CTRDS_DISABLED) && (g_ctrds.tallFramebuffer != 0);
