@@ -43,13 +43,34 @@ public class CTRDSPresentation extends Presentation implements SurfaceHolder.Cal
             // on the secondary display and the game stops receiving input
             // entirely -- the panel is output only.
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                    | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                    | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
             getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
             CTRNativeActivity.requestHighestRefreshRate(getWindow(), getDisplay());
         }
 
         surfaceView = new SurfaceView(getContext());
+
+        // Taps on the panel drive the settings list. The position is handed to
+        // native normalised, so the row bands are worked out with the same
+        // constants the panel is drawn with rather than duplicated here.
+        surfaceView.setOnTouchListener(new android.view.View.OnTouchListener() {
+            @Override
+            public boolean onTouch(android.view.View v, android.view.MotionEvent event) {
+                if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
+                    final int w = v.getWidth();
+                    final int h = v.getHeight();
+
+                    if ((w > 0) && (h > 0)) {
+                        try {
+                            CTRNativeActivity.nativePanelTap(event.getX() / w, event.getY() / h);
+                        } catch (UnsatisfiedLinkError e) {
+                            // native not up yet
+                        }
+                    }
+                }
+                return true;
+            }
+        });
         surfaceView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 

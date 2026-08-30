@@ -1338,6 +1338,7 @@ void RenderSubmit(struct GameTracker *gGT)
 	}
 
 	Ctrds_PollPanelInput();
+	Ctrds_DrawSettingsOnMainScreen(gGT);
 	Ctrds_OnlinePump();
 #endif
 

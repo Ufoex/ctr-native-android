@@ -409,6 +409,9 @@ public class CTRNativeActivity extends SDLActivity {
     /** 0 auto, 1 always, 2 never -- from touch_controls in ctrds.cfg. */
     public static native int nativeTouchControlsMode();
 
+    /** A tap on the bottom screen, normalised 0..1. Drives the settings list. */
+    public static native void nativePanelTap(float nx, float ny);
+
     /** Called from native. Safe to call more than once. */
     public static void startCompanionDisplay() {
         final Activity activity = (Activity) SDLActivity.getContext();

@@ -199,6 +199,10 @@ struct CtrdsLayout
 	// On-screen controls: 0 automatic (shown only with no pad), 1 always, 2 never.
 	int touchControls;
 
+	// Internal render resolution multiplier, 1..4. Geometry is drawn at this
+	// multiple of the PS1 display size; textures stay native.
+	int internalScale;
+
 };
 
 extern struct CtrdsLayout g_ctrds;
@@ -240,6 +244,18 @@ int Ctrds_TouchControlsMode(void);
 
 // Handles panel-only controls. Called once per frame from the game thread.
 void Ctrds_PollPanelInput(void);
+
+// Writes the current settings back to ctrds.cfg so panel changes persist.
+void Ctrds_SaveConfig(void);
+
+// A tap on the bottom screen, normalised 0..1 across the panel.
+void Ctrds_PanelTap(float nx, float ny);
+
+// Draws the settings list; returns the y it finished at.
+int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY);
+
+// Main-screen settings, for devices with no second screen.
+void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
 
 // VBlanks to wait between flips. Racing runs as fast as the panel allows, but
 // menus must not: menu animation is counted in frames rather than delta-timed,

@@ -46,4 +46,11 @@ void NativeRenderer_DrawTriangles(int startVertex, int triangles);
 void NativeRenderer_PushDebugLabel(const char *label);
 void NativeRenderer_PopDebugLabel(void);
 
+
+// Internal resolution: the scene is drawn at this multiple of the PS1 display
+// size. 1 is the original behaviour.
+void NativeRenderer_SetInternalScale(int scale);
+int NativeRenderer_GetInternalScale(void);
+void NativeRenderer_PresentScaledMain(void);
+
 #endif

@@ -95,6 +95,14 @@ internal void NativeCompanion_CallJavaStatic(const char *method)
 	(*env)->DeleteLocalRef(env, cls);
 }
 
+JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativePanelTap(JNIEnv *env, jclass cls, jfloat nx, jfloat ny)
+{
+	(void)env;
+	(void)cls;
+
+	Ctrds_PanelTap((float)nx, (float)ny);
+}
+
 JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeCompanionUnavailable(JNIEnv *env, jclass cls)
 {
 	(void)env;

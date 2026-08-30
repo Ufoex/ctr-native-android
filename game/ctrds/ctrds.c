@@ -73,6 +73,7 @@ struct CtrdsLayout g_ctrds = {
     .crt = 1,
     .swapFaceButtons = 1,
     .touchControls = 0,
+    .internalScale = 4,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -184,6 +185,187 @@ int Ctrds_Is30HzTick(void)
 	return ((int)sdata->gGT->timer % step) == 0;
 }
 
+// Panel settings. These live on the bottom screen because the game's own menus
+// have nowhere to put them, and the panel is idle on the main menu anyway.
+enum CtrdsSetting
+{
+	CTRDS_SET_RESOLUTION = 0,
+	CTRDS_SET_FXAA,
+	CTRDS_SET_CRT,
+	CTRDS_SET_ONLINE,
+	CTRDS_SET_COUNT
+};
+
+internal int s_ctrdsSetting = CTRDS_SET_RESOLUTION;
+
+void Ctrds_SaveConfig(void)
+{
+	char path[1024];
+	FILE *f;
+
+	const char *dir = NativeAssets_GetAssetDir();
+
+	if ((dir == NULL) || (dir[0] == '\0'))
+	{
+		return;
+	}
+
+	snprintf(path, sizeof(path), "%s/ctrds.cfg", dir);
+
+	f = fopen(path, "w");
+	if (f == NULL)
+	{
+		return;
+	}
+
+	fprintf(f, "# CTR-DS settings. Edit and restart, or change them on the panel.\n");
+	fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
+	fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
+	fprintf(f, "crt=%d\n", g_ctrds.crt);
+	fprintf(f, "widescreen=%d\n", g_ctrds.widescreen);
+	fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
+	fprintf(f, "swap_face_buttons=%d\n", g_ctrds.swapFaceButtons);
+	fprintf(f, "online=%d\n", Ctrds_OnlineEnabled() ? 1 : 0);
+	fprintf(f, "online_host=%s\n", Ctrds_OnlineConfig()->host);
+	fprintf(f, "online_port=%d\n", Ctrds_OnlineConfig()->port);
+	fprintf(f, "online_name=%s\n", Ctrds_OnlineConfig()->name);
+	fprintf(f, "online_room=%d\n", Ctrds_OnlineConfig()->room);
+
+	fclose(f);
+}
+
+internal void Ctrds_AdjustSetting(int delta)
+{
+	switch (s_ctrdsSetting)
+	{
+	case CTRDS_SET_RESOLUTION:
+	{
+		int scale = g_ctrds.internalScale + delta;
+
+		if (scale < 1)
+		{
+			scale = 1;
+		}
+		if (scale > 4)
+		{
+			scale = 4;
+		}
+
+		g_ctrds.internalScale = scale;
+		NativeRenderer_SetInternalScale(scale);
+		break;
+	}
+
+	case CTRDS_SET_FXAA:
+		g_ctrds.fxaa = !g_ctrds.fxaa;
+		break;
+
+	case CTRDS_SET_CRT:
+		g_ctrds.crt = !g_ctrds.crt;
+		break;
+
+	case CTRDS_SET_ONLINE:
+		Ctrds_OnlineToggle();
+		break;
+
+	default:
+		break;
+	}
+
+	Ctrds_SaveConfig();
+}
+
+// A tap on the panel. Rows are laid out here exactly as Ctrds_DrawIdlePanel
+// draws them, so the two cannot drift apart.
+// Draws the settings list into the given ordering table. Used by the panel and,
+// on a device with only one screen, by the main screen itself -- otherwise the
+// settings would be unreachable there.
+int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
+{
+	struct CtrdsOnlineStatus st;
+	char line[96];
+	int row;
+	int y = topY;
+
+	Ctrds_OnlineGetStatus(&st);
+
+	for (row = 0; row < CTRDS_SET_COUNT; row++)
+	{
+		const char *marker = (row == s_ctrdsSetting) ? "*" : " ";
+
+		switch (row)
+		{
+		case CTRDS_SET_RESOLUTION:
+			snprintf(line, sizeof(line), "%s RESOLUTION  %dX", marker, g_ctrds.internalScale);
+			break;
+		case CTRDS_SET_FXAA:
+			snprintf(line, sizeof(line), "%s FXAA  %s", marker, g_ctrds.fxaa ? "ON" : "OFF");
+			break;
+		case CTRDS_SET_CRT:
+			snprintf(line, sizeof(line), "%s CRT  %s", marker, g_ctrds.crt ? "ON" : "OFF");
+			break;
+		default:
+			snprintf(line, sizeof(line), "%s ONLINE  %s", marker, Ctrds_OnlineEnabled() ? "ON" : "OFF");
+			break;
+		}
+
+		DecalFont_DrawLineOT(line, centreX, y, FONT_SMALL, JUSTIFY_CENTER, head);
+		y += 15;
+	}
+
+	if (Ctrds_OnlineEnabled() && (st.message[0] != '\0'))
+	{
+		DecalFont_DrawLineOT(st.message, centreX, y + 3, FONT_SMALL, JUSTIFY_CENTER, head);
+		y += 15;
+	}
+
+	DecalFont_DrawLineOT("SELECT MOVES   L1/R1 CHANGES", centreX, y + 6, FONT_SMALL, JUSTIFY_CENTER, head);
+
+	return y;
+}
+
+// With no panel there is nothing to tap, so this is the only way in on a
+// single-screen phone.
+void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
+{
+	if (Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
+	{
+		return;
+	}
+
+	// PS1 screen coordinates: 512 wide, and low enough to sit under the menu.
+	Ctrds_DrawSettingsList(gGT->pushBuffer_UI.ptrOT, 128, 150);
+}
+
+void Ctrds_PanelTap(float nx, float ny)
+{
+	int y;
+	int row;
+
+	(void)nx;
+
+	if (!Ctrds_Enabled() || !Ctrds_OnMainMenu())
+	{
+		return;
+	}
+
+	y = (int)(ny * (float)CTRDS_PANEL_H);
+
+	for (row = 0; row < CTRDS_SET_COUNT; row++)
+	{
+		const int rowY = (g_ctrds.screenH / 2) + 6 + (row * 15);
+
+		// The drawn text sits on rowY; accept a band around it, since a
+		// fingertip is far larger than a line of this font.
+		if ((y >= rowY - 9) && (y <= rowY + 9))
+		{
+			s_ctrdsSetting = row;
+			Ctrds_AdjustSetting(1);
+			return;
+		}
+	}
+}
+
 int Ctrds_TouchControlsMode(void)
 {
 	return g_ctrds.touchControls;
@@ -202,20 +384,29 @@ void Ctrds_PollPanelInput(void)
 
 	int onMenu;
 
-	if (!Ctrds_Enabled())
-	{
-		return;
-	}
-
 	onMenu = Ctrds_OnMainMenu();
 
 	// Ignore the frame the menu opens on, so a Select press that got us here
 	// does not immediately toggle.
 	if (onMenu && s_wasOnMenu)
 	{
-		if ((sdata->gGamepads->gamepad[0].buttonsTapped & BTN_SELECT) != 0)
+		const int tapped = sdata->gGamepads->gamepad[0].buttonsTapped;
+
+		// Select moves down the list; the shoulders change the highlighted
+		// value. The d-pad is left alone because the game's own menu is using
+		// it, and Select is not bound there.
+		if ((tapped & BTN_SELECT) != 0)
 		{
-			Ctrds_OnlineToggle();
+			s_ctrdsSetting = (s_ctrdsSetting + 1) % CTRDS_SET_COUNT;
+		}
+
+		if ((tapped & BTN_R1) != 0)
+		{
+			Ctrds_AdjustSetting(1);
+		}
+		else if ((tapped & BTN_L1) != 0)
+		{
+			Ctrds_AdjustSetting(-1);
 		}
 	}
 
@@ -364,6 +555,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
 			fprintf(f, "# crt: CRT-Royale-style scanlines, phosphor mask and halation (0/1)\n");
 			fprintf(f, "crt=%d\n", g_ctrds.crt);
+			fprintf(f, "# internal_scale: render resolution multiplier, 1-4\n");
+			fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
 			fprintf(f, "# touch_controls: 0 auto (only with no pad), 1 always, 2 never\n");
 			fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
 			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
@@ -440,6 +633,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "crt", 3) == 0)
 		{
 			g_ctrds.crt = value;
+		}
+		else if (strncmp(line, "internal_scale", 14) == 0)
+		{
+			g_ctrds.internalScale = value;
 		}
 		else if (strncmp(line, "touch_controls", 14) == 0)
 		{
@@ -649,28 +846,13 @@ internal void Ctrds_DrawIdlePanel(void)
 
 	ClearOTagR(s_ctrdsIdleOT, CTRDS_IDLE_OT_LEN);
 
-	DecalFont_DrawLineOT("CTR", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 46, FONT_BIG, JUSTIFY_CENTER, head);
-	DecalFont_DrawLineOT("CRASH TEAM RACING", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 10, FONT_SMALL, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT("CTR", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 74, FONT_BIG, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT("CRASH TEAM RACING", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 38, FONT_SMALL, JUSTIFY_CENTER, head);
 
-	// Online switch, on the main menu only. The panel is otherwise idle there,
-	// so it is the natural place for a setting that has nowhere to live in the
-	// game's own menus.
+	// Settings list, on the main menu only.
 	if (Ctrds_OnMainMenu())
 	{
-		struct CtrdsOnlineStatus st;
-		char line[96];
-
-		Ctrds_OnlineGetStatus(&st);
-
-		snprintf(line, sizeof(line), "ONLINE  %s", Ctrds_OnlineEnabled() ? "ON" : "OFF");
-		DecalFont_DrawLineOT(line, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 24, FONT_SMALL, JUSTIFY_CENTER, head);
-
-		if (Ctrds_OnlineEnabled() && (st.message[0] != '\0'))
-		{
-			DecalFont_DrawLineOT(st.message, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 42, FONT_SMALL, JUSTIFY_CENTER, head);
-		}
-
-		DecalFont_DrawLineOT("SELECT TO TOGGLE", g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 62, FONT_SMALL, JUSTIFY_CENTER, head);
+		Ctrds_DrawSettingsList(head, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) + 6);
 	}
 
 	DrawOTag(head);

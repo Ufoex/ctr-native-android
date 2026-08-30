@@ -210,6 +210,7 @@ int main(int argc, char *argv[])
 
 	// After Platform_Init: the online client uses SDL threads and mutexes, so it
 	// cannot start before SDL_Init has run.
+	NativeRenderer_SetInternalScale(g_ctrds.internalScale);
 	Ctrds_OnlineInit();
 
 #if defined(CTR_INTERNAL)

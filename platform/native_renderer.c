@@ -111,6 +111,16 @@ struct NativeRenderTarget
 	s32 height;
 };
 
+// Internal resolution. The scene is drawn into s_mainRenderTarget at this
+// multiple of the PS1 display size, which sharpens polygon edges while textures
+// stay native. The projection is an ortho in PS1 units, so it needs no change --
+// only the target size and the scissor, which are in pixels.
+//
+// VRAM still receives the native-resolution pack every frame, because the game
+// textures from and reads back its own framebuffer. What changes is where the
+// picture on screen comes from: above 1x it is the scaled target, not VRAM.
+global_variable int s_internalScale = 1;
+
 global_variable struct NativeRenderTarget s_mainRenderTarget;
 global_variable struct NativeRenderTarget s_offscreenRenderTarget;
 
@@ -643,6 +653,25 @@ internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *targe
 	s_lastBoundTexture = (TextureID)-1;
 }
 
+void NativeRenderer_SetInternalScale(int scale)
+{
+	if (scale < 1)
+	{
+		scale = 1;
+	}
+	if (scale > 4)
+	{
+		scale = 4;
+	}
+
+	s_internalScale = scale;
+}
+
+int NativeRenderer_GetInternalScale(void)
+{
+	return s_internalScale;
+}
+
 internal void NativeRenderer_BindMainRenderTarget(void)
 {
 	int width = activeDispEnv.disp.w;
@@ -653,7 +682,7 @@ internal void NativeRenderer_BindMainRenderTarget(void)
 		height = activeDrawEnv.clip.h;
 	}
 
-	NativeRenderer_EnsureRenderTarget(&s_mainRenderTarget, width, height);
+	NativeRenderer_EnsureRenderTarget(&s_mainRenderTarget, width * s_internalScale, height * s_internalScale);
 	glBindFramebuffer(GL_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
 }
 
@@ -667,7 +696,10 @@ internal void NativeRenderer_DrawVRAMRegionRaw(int x, int y, int width, int heig
 	NativeRenderer_DrawTriangles(0, 2);
 }
 
-internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
+// Post chain for an already-unpacked RGBA source: optional FXAA at source
+// resolution, then the sharp-bilinear (and optional CRT) pass to the current
+// viewport. Shared by the VRAM path and the scaled-main-target path.
+internal void NativeRenderer_PostChain(GLuint sourceTexture, int width, int height)
 {
 	const int viewX = s_lastViewportX;
 	const int viewY = s_lastViewportY;
@@ -675,27 +707,11 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 	const int viewH = s_lastViewportH;
 
 	GLint previousFramebuffer = 0;
-	GLuint upscaleSource;
+	GLuint upscaleSource = sourceTexture;
 	float scaleX;
 	float scaleY;
 
-	// Nothing to gain from the second pass when the output is not larger than
-	// the source: blit straight from VRAM as before.
-	if ((width <= 0) || (height <= 0) || (viewW <= width) || (viewH <= height))
-	{
-		NativeRenderer_DrawVRAMRegionRaw(x, y, width, height);
-		return;
-	}
-
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
-
-	// Pass 1: unpack the source rectangle at its own resolution, which is small.
-	NativeRenderer_EnsureRenderTarget(&s_upscaleRenderTarget, width, height);
-	glBindFramebuffer(GL_FRAMEBUFFER, s_upscaleRenderTarget.framebuffer);
-	glViewport(0, 0, width, height);
-	NativeRenderer_DrawVRAMRegionRaw(x, y, width, height);
-
-	upscaleSource = s_upscaleRenderTarget.texture;
 
 	// Pass 1b: optional FXAA, still at source resolution.
 	if (Ctrds_Fxaa())
@@ -708,7 +724,7 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 		glUniform2f(s_fxaaInvSrcSizeLoc, 1.0f / (float)width, 1.0f / (float)height);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, s_upscaleRenderTarget.texture);
+		glBindTexture(GL_TEXTURE_2D, sourceTexture);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -724,8 +740,8 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previousFramebuffer);
 	glViewport(viewX, viewY, viewW, viewH);
 
-	scaleX = (float)viewW / (float)width;
-	scaleY = (float)viewH / (float)height;
+	scaleX = (viewW > width) ? ((float)viewW / (float)width) : 1.0f;
+	scaleY = (viewH > height) ? ((float)viewH / (float)height) : 1.0f;
 
 	glUseProgram(s_sharpUpscaleShader);
 	glUniform2f(s_sharpUpscaleSrcSizeLoc, (float)width, (float)height);
@@ -744,6 +760,47 @@ internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
 
 	s_previousShader = (ShaderID)-1;
 	s_lastBoundTexture = (TextureID)-1;
+}
+
+internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
+{
+	GLint previousFramebuffer = 0;
+
+	// Nothing to gain from the post chain when the output is no larger than the
+	// source and no effect is on: blit straight from VRAM as before.
+	if ((width <= 0) || (height <= 0)
+	    || (((s_lastViewportW <= width) && (s_lastViewportH <= height)) && !Ctrds_Fxaa() && !Ctrds_Crt()))
+	{
+		NativeRenderer_DrawVRAMRegionRaw(x, y, width, height);
+		return;
+	}
+
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+
+	// Unpack the rectangle at its own resolution, which is small, then hand the
+	// RGBA copy to the shared chain.
+	NativeRenderer_EnsureRenderTarget(&s_upscaleRenderTarget, width, height);
+	glBindFramebuffer(GL_FRAMEBUFFER, s_upscaleRenderTarget.framebuffer);
+	glViewport(0, 0, width, height);
+	NativeRenderer_DrawVRAMRegionRaw(x, y, width, height);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previousFramebuffer);
+	glViewport(s_lastViewportX, s_lastViewportY, s_lastViewportW, s_lastViewportH);
+
+	NativeRenderer_PostChain(s_upscaleRenderTarget.texture, width, height);
+}
+
+// The game view above 1x internal resolution: the scaled target already holds
+// the picture in RGBA, so there is nothing to unpack -- it goes straight into
+// the post chain, and VRAM is bypassed for display.
+void NativeRenderer_PresentScaledMain(void)
+{
+	if ((s_internalScale <= 1) || (s_mainRenderTarget.width <= 0) || (s_mainRenderTarget.height <= 0))
+	{
+		return;
+	}
+
+	NativeRenderer_PostChain(s_mainRenderTarget.texture, s_mainRenderTarget.width, s_mainRenderTarget.height);
 }
 
 internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget *target, int x, int y)
@@ -1650,8 +1707,9 @@ void NativeRenderer_SetupClipMode(const RECT16 *rect, const DISPENV *displayEnv,
 	// coordinates are introduced only by the final presentation pass.
 	const float viewportX = 0.0f;
 	const float viewportY = 0.0f;
-	const float viewportW = (float)displayEnv->disp.w;
-	const float viewportH = (float)displayEnv->disp.h;
+	const float renderScale = (float)s_internalScale;
+	const float viewportW = (float)displayEnv->disp.w * renderScale;
+	const float viewportH = (float)displayEnv->disp.h * renderScale;
 	const float flipOffset = viewportY + viewportH - clipRectH * viewportH;
 	const float crx = viewportX + clipRectX * viewportW;
 	const float cry = clipRectY * viewportH;
@@ -2487,7 +2545,17 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	NativeRenderer_EnableDepth(0);
 	NativeRenderer_SetBlendMode(BM_NONE);
 
-	NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH);
+	// Above 1x the picture lives in the scaled target; VRAM holds only the
+	// native-resolution copy the game itself reads back.
+	if (s_internalScale > 1)
+	{
+		NativeRenderer_PresentScaledMain();
+	}
+	else
+	{
+		NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH);
+	}
+
 	glBindVertexArray(0);
 
 	s_previousShader = (ShaderID)-1;
@@ -2615,7 +2683,14 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 
 	// GL viewport origin is bottom-left, so the game view takes the upper strip.
 	NativeRenderer_SetViewPort(vx + ((vw - (vw * gameW) / srcW) / 2), vy + ph, (vw * gameW) / srcW, gh);
-	NativeRenderer_DrawVRAMRegion(gameX, gameY, gameW, srcGameH);
+	if (s_internalScale > 1)
+	{
+		NativeRenderer_PresentScaledMain();
+	}
+	else
+	{
+		NativeRenderer_DrawVRAMRegion(gameX, gameY, gameW, srcGameH);
+	}
 
 	NativeRenderer_SetViewPort(vx + ((vw - (vw * panelW) / srcW) / 2), vy, (vw * panelW) / srcW, ph);
 	NativeRenderer_DrawVRAMRegion(panelX, panelY, panelW, srcPanelH);
