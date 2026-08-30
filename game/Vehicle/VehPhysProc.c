@@ -1,4 +1,5 @@
 #include <common.h>
+#include <ctrds.h>
 
 // budget: 4624
 // curr: 4380
@@ -1330,24 +1331,41 @@ void VehPhysProc_Driving_Update(struct Thread *t, struct Driver *d)
 
 	// At this point, assume driver is not touching ground.
 	// Wait until the V-shift startup guard has elapsed.
-	if ((d->vShiftStartGuardTimer == 0) &&
-
-	    // if V_Shift happened too many times,
-	    // meaning you jitter between two quadblocks
-	    // in a "V" shape
-	    (d->vShiftCount >= VEH_PHYS_PROC_VSHIFT_MAX_COUNT))
+	// vShiftCount rises once per physics frame, but the window it is judged in
+	// is counted in milliseconds. Retail ran both at 30fps, so five shifts meant
+	// five in twenty frames. At a 120 cap the same window holds eighty frames,
+	// so the same real jitter reaches five four times sooner and freezes a kart
+	// that is driving normally -- the stall that only ever happened above 30fps,
+	// held the kart still with the throttle down, and let go when another kart
+	// hit it, because the freeze exempts that collision.
+	//
+	// Scaling the threshold by the frame time keeps the test in real terms: five
+	// shifts per retail frame's worth of time, whatever the cap. At 30 it is
+	// five, at 60 ten, at 120 twenty.
 	{
-		// Stop driving, until you press X, prevents jitters
-		VehPhysProc_FreezeVShift_Init(t, d);
-	}
+		const int vShiftLimit = Ctrds_ScaleFrames(VEH_PHYS_PROC_VSHIFT_MAX_COUNT);
 
-	else
-	{
-		// If the V-shift window expires, restart the count.
-		if (d->vShiftWindowTimer == 0)
+		if ((d->vShiftStartGuardTimer == 0) && (d->vShiftCount >= vShiftLimit))
 		{
-			// wipe
-			d->vShiftCount = 0;
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+			if (d->driverID == 0)
+			{
+				Platform_Log("[CTR VShift] freeze: count %d limit %d window %d guard %d\n", (int)d->vShiftCount,
+				    vShiftLimit, (int)d->vShiftWindowTimer, (int)d->vShiftStartGuardTimer);
+			}
+#endif
+			// Stop driving, until you press X, prevents jitters
+			VehPhysProc_FreezeVShift_Init(t, d);
+		}
+
+		else
+		{
+			// If the V-shift window expires, restart the count.
+			if (d->vShiftWindowTimer == 0)
+			{
+				// wipe
+				d->vShiftCount = 0;
+			}
 		}
 	}
 }
