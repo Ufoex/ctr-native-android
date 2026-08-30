@@ -24,7 +24,16 @@ void MainDrawCb_Vsync()
 	gGT->frameTimer_VsyncCallback++;
 	if ((gGT->gameMode1 & PAUSE_ALL) == 0)
 	{
+#ifdef CTR_NATIVE
+		// Counts VBlanks, and retail's arrived sixty times a second. Ours come
+		// at the cap, so the confetti animated at cap/60 without this.
+		local_persist int confettiAccumulator = 0;
+		int confettiTicks = Ctrds_Ticks60(&confettiAccumulator);
+
+		gGT->frameTimer_Confetti = (s32)(gGT->frameTimer_Confetti + confettiTicks);
+#else
 		gGT->frameTimer_Confetti++;
+#endif
 	}
 
 	sdata->vsyncTillFlip--;

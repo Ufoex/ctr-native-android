@@ -415,6 +415,29 @@ static inline int Ctrds_TargetFps(void)
 	return (g_ctrds.targetFps > 0) ? g_ctrds.targetFps : 60;
 }
 
+// How many retail VBlanks this one is worth, given the caller's accumulator.
+//
+// Retail's VBlank arrived sixty times a second and anything counting them
+// assumed that rate. VBlanks here come at the configured cap, so a counter that
+// ticks once per VBlank runs at cap/60. This converts: at 120 it returns 1 every
+// other call, at 60 always 1, at 30 always 2. Each caller owns its accumulator,
+// because two sharing one would each consume the other's ticks.
+static inline int Ctrds_Ticks60(int *accumulator)
+{
+	const int cap = Ctrds_TargetFps();
+	int ticks = 0;
+
+	*accumulator += 60;
+	while (*accumulator >= cap)
+	{
+		*accumulator -= cap;
+		ticks++;
+	}
+
+	return ticks;
+}
+
+
 
 
 // Derives the map scale and anchor from the grid above. Call once at startup.

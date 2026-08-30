@@ -685,17 +685,7 @@ int Ctrds_AudioUpdatesThisVBlank(void)
 {
 	local_persist int accumulator = 0;
 
-	const int cap = Ctrds_TargetFps();
-	int updates = 0;
-
-	accumulator += 60;
-	while (accumulator >= cap)
-	{
-		accumulator -= cap;
-		updates++;
-	}
-
-	return updates;
+	return Ctrds_Ticks60(&accumulator);
 }
 
 int Ctrds_VsyncsPerFlip(void)

@@ -259,7 +259,7 @@ void UI_Map_DrawAdvPlayer(struct UIMap *map, const s32 worldPos[3], int unused1,
 	UI_Map_GetIconPos(map, &posX, &posY);
 
 	arrowColor = &data.playerIconAdvMap.vertCol1[0];
-	if ((sdata->gGT->timer & 2) != 0)
+	if ((Ctrds_RetailTicks() & 2) != 0)
 	{
 		arrowColor = &data.playerIconAdvMap.vertCol2[0];
 	}
@@ -327,7 +327,7 @@ void UI_Map_DrawDrivers(struct UIMap *map, struct Thread *bucket, s16 *driverIco
 		{
 			// If this is an even numbered frame
 			// ptrColors white value
-			if ((gGT->timer & 2) == 0)
+			if ((Ctrds_RetailTicks() & 2) == 0)
 			{
 				kartColor = WHITE;
 			}
@@ -385,7 +385,7 @@ void UI_Map_DrawGhosts(struct UIMap *map, struct Thread *bucket)
 			// flash red and blue
 
 			color = CORTEX_RED;
-			if ((gGT->timer & 1) != 0)
+			if ((Ctrds_RetailTicks() & 1) != 0)
 			{
 				color = CRASH_BLUE;
 			}
@@ -403,7 +403,7 @@ void UI_Map_DrawGhosts(struct UIMap *map, struct Thread *bucket)
 				// oxide flickers
 
 				color = RED;
-				if ((gGT->timer & 1) != 0)
+				if ((Ctrds_RetailTicks() & 1) != 0)
 				{
 					color = WHITE;
 				}

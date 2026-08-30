@@ -211,7 +211,7 @@ void VB_EndEvent_DrawMenu(void)
 			s32 placeTextColor = JUSTIFY_RIGHT | RED;
 			if (place == entityRank)
 			{
-				placeTextColor = (gGT->timer & 1) ? (JUSTIFY_RIGHT | RED) : (JUSTIFY_RIGHT | WHITE);
+				placeTextColor = (Ctrds_RetailTicks() & 1) ? (JUSTIFY_RIGHT | RED) : (JUSTIFY_RIGHT | WHITE);
 			}
 
 			sprintf(text, "%d%s-%2.02ld", place + 1, sdata->lngStrings[VB_STANDINGS_SUFFIX_FIRST + place],

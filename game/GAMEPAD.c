@@ -726,7 +726,7 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 							u8 jogStrength = pad->unk42;
 							bVar1 = jogStrength >> 4;
 
-							if ((((gGT->timer & bVar1) & 0xf) != 0) && (bVar1 = (jogStrength - 0x10) >> 4, (jogStrength - 0x10) < 0))
+							if ((((Ctrds_RetailTicks() & bVar1) & 0xf) != 0) && (bVar1 = (jogStrength - 0x10) >> 4, (jogStrength - 0x10) < 0))
 							{
 								bVar1 = 0;
 							}

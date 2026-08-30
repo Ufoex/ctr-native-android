@@ -554,7 +554,15 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		}
 		if (0x1e < gGT->timerEndOfRaceVS)
 		{
-			gGT->timerEndOfRaceVS--;
+#ifdef CTR_NATIVE
+			// Counted in retail frames -- 300 of them, ten seconds at 30fps.
+			// Decrementing once per rendered frame ran the whole end-of-race
+			// sequence at cap/30, four times too fast at 120.
+			if (Ctrds_Is30HzTick())
+#endif
+			{
+				gGT->timerEndOfRaceVS--;
+			}
 		}
 	}
 	else

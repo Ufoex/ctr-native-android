@@ -111,7 +111,7 @@ void TT_EndEvent_DrawMenu(void)
 
 
 		// Blink Orange/White
-		s32 textColor = (gGT->timer & 1) ? 0xffff8000 : 0xffff8004;
+		s32 textColor = (Ctrds_RetailTicks() & 1) ? 0xffff8000 : 0xffff8004;
 
 
 		// "new high score" 1 second later
@@ -344,10 +344,10 @@ void TT_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 		if (gGT->newHighScoreIndex == rowIndex)
 		{
 			// make name color flash every odd frame
-			nameColor = (gGT->timer & TT_HIGH_SCORE_FLASH_TIMER_BIT) ? WHITE : nameColor;
+			nameColor = (Ctrds_RetailTicks() & TT_HIGH_SCORE_FLASH_TIMER_BIT) ? WHITE : nameColor;
 
 			// flash color of time
-			timeColor = ((gGT->timer & TT_HIGH_SCORE_FLASH_TIMER_BIT) << 1);
+			timeColor = ((Ctrds_RetailTicks() & TT_HIGH_SCORE_FLASH_TIMER_BIT) << 1);
 		}
 
 		// Make a rank on the high score list ('1', '2', '3', '4', '5')
@@ -393,7 +393,7 @@ void TT_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 		DecalFont_DrawLine(sdata->lngStrings[LNG_BEST_LAP], startX, startY + 0x95, FONT_BIG, timeColor);
 
 		// If you got a new best lap
-		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((gGT->timer & TT_HIGH_SCORE_FLASH_TIMER_BIT) != 0))
+		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((Ctrds_RetailTicks() & TT_HIGH_SCORE_FLASH_TIMER_BIT) != 0))
 		{
 			timeColor = 0xffff8004;
 		}

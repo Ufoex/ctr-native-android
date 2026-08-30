@@ -7,9 +7,14 @@ enum
 	COLL_SCRATCH_HOST_SLOT_COUNT = 64,
 
 	// Consecutive sweep iterations that move the kart nowhere before it is
-	// treated as wedged. Ordinary wall contact clears in one or two through
-	// ScrubImpact, so this is far above anything driving produces.
-	COLL_UNWEDGE_BLOCKED_ITERATIONS = 16,
+	// treated as wedged, at the retail frame rate. Ordinary wall contact clears
+	// in one or two through ScrubImpact, so this is far above anything driving
+	// produces.
+	//
+	// Scaled by frame time where it is used: iterations accrue per frame, so a
+	// fixed count would wait four times as long at 30 as at 120. The wait is
+	// meant to be a moment either way.
+	COLL_UNWEDGE_BLOCKED_RETAIL_FRAMES = 4,
 
 	// How far to lift the kart along the surface normal when it is. posCurr is
 	// eight fractional bits, so this is one world unit -- enough to start the
@@ -2699,7 +2704,7 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 			// its first or second iteration through ScrubImpact and never gets
 			// here, so this cannot alter wall riding or shortcut lines -- it
 			// only ends a state the loop cannot otherwise leave.
-			if (++(*blockedIterations) > COLL_UNWEDGE_BLOCKED_ITERATIONS)
+			if (++(*blockedIterations) > Ctrds_ScaleFrames(COLL_UNWEDGE_BLOCKED_RETAIL_FRAMES))
 			{
 				d->posCurr.x = CTR_MipsAddLo(d->posCurr.x, CTR_MipsSra(CTR_MipsMulLo(d->spsNormalVec.x, COLL_UNWEDGE_STEP), 12));
 				d->posCurr.y = CTR_MipsAddLo(d->posCurr.y, CTR_MipsSra(CTR_MipsMulLo(d->spsNormalVec.y, COLL_UNWEDGE_STEP), 12));
