@@ -10,9 +10,11 @@ import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.io.File;
@@ -20,7 +22,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.List;
 
+/**
+ * The screen the app opens on: pick the disc, change the settings, then play.
+ *
+ * It stays rather than getting out of the way once a disc exists. Settings used
+ * to live only in ctrds.cfg or behind Select during a race, neither of which is
+ * reachable when you just want to change the resolution before starting.
+ */
 public final class CTRNativeLauncherActivity extends Activity {
     private static final int REQUEST_DISC_IMAGE = 1001;
     private static final int COPY_BUFFER_SIZE = 1024 * 1024;
@@ -28,22 +39,42 @@ public final class CTRNativeLauncherActivity extends Activity {
     private static final int PVD_LBA = 16;
     private static final int FORM1_DATA_OFFSET = 24;
 
+    private static final int COLOR_BACKGROUND = Color.rgb(18, 18, 18);
+    private static final int COLOR_PANEL = Color.rgb(30, 30, 34);
+    private static final int COLOR_MUTED = Color.rgb(150, 155, 165);
+    private static final int COLOR_ACCENT = Color.rgb(255, 150, 60);
+    private static final int COLOR_WARN = Color.rgb(255, 160, 122);
+
     private Button importButton;
     private ProgressBar importProgress;
     private TextView statusText;
+    private TextView discText;
+    private Button playButton;
     private boolean importInProgress;
+
+    private CTRDSSettings settings;
+    private final List<Button> optionButtons = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        File discImage = getImportedDiscImage();
-        if (isRetailDiscImage(discImage)) {
-            launchGame();
-            return;
-        }
+        settings = new CTRDSSettings(getConfigFile());
+        buildLauncherView();
+    }
 
-        buildImportView(discImage.exists());
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // The game rewrites this file whenever a setting is changed from the
+        // in-game menu, so coming back from a session means re-reading it rather
+        // than showing what the launcher last knew.
+        if (settings != null) {
+            settings = new CTRDSSettings(getConfigFile());
+            refreshOptionButtons();
+            refreshDiscStatus();
+        }
     }
 
     private File getStorageRoot() {
@@ -51,8 +82,16 @@ public final class CTRNativeLauncherActivity extends Activity {
         return (root != null) ? root : getFilesDir();
     }
 
+    private File getAssetDirectory() {
+        return new File(getStorageRoot(), "assets");
+    }
+
     private File getImportedDiscImage() {
-        return new File(new File(getStorageRoot(), "assets"), "ctr-u.bin");
+        return new File(getAssetDirectory(), "ctr-u.bin");
+    }
+
+    private File getConfigFile() {
+        return new File(getAssetDirectory(), "ctrds.cfg");
     }
 
     private int dp(int value) {
@@ -69,53 +108,186 @@ public final class CTRNativeLauncherActivity extends Activity {
         return view;
     }
 
-    private void buildImportView(boolean invalidExistingImage) {
+    private TextView makeSectionLabel(String text) {
+        TextView label = new TextView(this);
+        label.setText(text);
+        label.setTextColor(COLOR_ACCENT);
+        label.setTextSize(12.0f);
+        label.setLetterSpacing(0.18f);
+        label.setGravity(Gravity.START);
+        return label;
+    }
+
+    private LinearLayout makePanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackgroundColor(COLOR_PANEL);
+        panel.setPadding(dp(16), dp(14), dp(16), dp(14));
+        return panel;
+    }
+
+    private LinearLayout.LayoutParams stacked(int bottomMarginDp) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin = dp(bottomMarginDp);
+        return params;
+    }
+
+    private void buildLauncherView() {
+        ScrollView scroller = new ScrollView(this);
+        scroller.setBackgroundColor(COLOR_BACKGROUND);
+        scroller.setFillViewport(true);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER);
-        root.setPadding(dp(32), dp(24), dp(32), dp(24));
-        root.setBackgroundColor(Color.rgb(18, 18, 18));
+        root.setPadding(dp(24), dp(28), dp(24), dp(28));
 
-        TextView title = makeText(getString(R.string.setup_title), 30.0f, Color.WHITE);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.bottomMargin = dp(18);
-        root.addView(title, titleParams);
+        TextView title = makeText("CTR-DS", 32.0f, Color.WHITE);
+        title.setGravity(Gravity.START);
+        root.addView(title, stacked(2));
 
-        TextView instructions = makeText(
-                getString(R.string.setup_instructions),
-                17.0f,
-                Color.LTGRAY);
-        LinearLayout.LayoutParams instructionsParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        instructionsParams.bottomMargin = dp(20);
-        root.addView(instructions, instructionsParams);
+        TextView subtitle = makeText(getString(R.string.launcher_subtitle), 14.0f, COLOR_MUTED);
+        subtitle.setGravity(Gravity.START);
+        root.addView(subtitle, stacked(22));
 
-        statusText = makeText(
-                getString(invalidExistingImage ? R.string.setup_invalid_disc : R.string.setup_no_disc),
-                15.0f,
-                invalidExistingImage ? Color.rgb(255, 160, 122) : Color.LTGRAY);
-        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        statusParams.bottomMargin = dp(16);
-        root.addView(statusText, statusParams);
+        root.addView(makeSectionLabel(getString(R.string.launcher_disc_section)), stacked(8));
+        root.addView(buildDiscPanel(), stacked(22));
+
+        root.addView(makeSectionLabel(getString(R.string.launcher_settings_section)), stacked(8));
+        root.addView(buildSettingsPanel(), stacked(24));
+
+        playButton = new Button(this);
+        playButton.setText(R.string.launcher_play);
+        playButton.setTextSize(18.0f);
+        playButton.setOnClickListener(view -> startGame());
+        root.addView(playButton, stacked(0));
+
+        scroller.addView(root, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        setContentView(scroller);
+
+        refreshDiscStatus();
+    }
+
+    private LinearLayout buildDiscPanel() {
+        LinearLayout panel = makePanel();
+
+        discText = makeText("", 15.0f, COLOR_MUTED);
+        discText.setGravity(Gravity.START);
+        panel.addView(discText, stacked(10));
+
+        statusText = makeText(getString(R.string.setup_instructions), 13.0f, COLOR_MUTED);
+        statusText.setGravity(Gravity.START);
+        panel.addView(statusText, stacked(10));
 
         importProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         importProgress.setMax(100);
         importProgress.setVisibility(View.GONE);
-        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(dp(420), dp(12));
-        progressParams.bottomMargin = dp(18);
-        root.addView(importProgress, progressParams);
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(10));
+        progressParams.bottomMargin = dp(12);
+        panel.addView(importProgress, progressParams);
 
         importButton = new Button(this);
-        importButton.setText(invalidExistingImage ? R.string.setup_replace_disc : R.string.setup_select_disc);
         importButton.setOnClickListener(view -> selectDiscImage());
-        root.addView(importButton);
+        panel.addView(importButton);
 
-        setContentView(root);
+        return panel;
+    }
+
+    private LinearLayout buildSettingsPanel() {
+        LinearLayout panel = makePanel();
+        optionButtons.clear();
+
+        for (int i = 0; i < CTRDSSettings.OPTIONS.length; i++) {
+            final CTRDSSettings.Option option = CTRDSSettings.OPTIONS[i];
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView label = new TextView(this);
+            label.setText(option.label);
+            label.setTextColor(Color.WHITE);
+            label.setTextSize(15.0f);
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+            row.addView(label, labelParams);
+
+            final Button value = new Button(this);
+            value.setMinWidth(dp(132));
+            value.setText(settings.nameOf(option));
+
+            // Tap advances, long-press goes back -- with five resolutions and
+            // five frame caps, being able to step backwards saves a lot of
+            // cycling past the one you wanted.
+            value.setOnClickListener(view -> {
+                settings.cycle(option, 1);
+                value.setText(settings.nameOf(option));
+                settings.save();
+            });
+            value.setOnLongClickListener(view -> {
+                settings.cycle(option, -1);
+                value.setText(settings.nameOf(option));
+                settings.save();
+                return true;
+            });
+
+            row.addView(value);
+            optionButtons.add(value);
+
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            rowParams.bottomMargin = dp(i == (CTRDSSettings.OPTIONS.length - 1) ? 0 : 4);
+            panel.addView(row, rowParams);
+        }
+
+        return panel;
+    }
+
+    private void refreshOptionButtons() {
+        for (int i = 0; (i < optionButtons.size()) && (i < CTRDSSettings.OPTIONS.length); i++) {
+            optionButtons.get(i).setText(settings.nameOf(CTRDSSettings.OPTIONS[i]));
+        }
+    }
+
+    private void refreshDiscStatus() {
+        if ((discText == null) || (importButton == null) || (playButton == null)) {
+            return;
+        }
+
+        File disc = getImportedDiscImage();
+        boolean present = disc.isFile();
+        boolean valid = present && isRetailDiscImage(disc);
+
+        if (valid) {
+            discText.setText(getString(R.string.launcher_disc_ready, disc.length() / (1024L * 1024L)));
+            discText.setTextColor(Color.WHITE);
+            statusText.setText(R.string.launcher_disc_replace_hint);
+            statusText.setTextColor(COLOR_MUTED);
+            importButton.setText(R.string.setup_replace_disc);
+        } else {
+            discText.setText(getString(present ? R.string.setup_invalid_disc : R.string.setup_no_disc));
+            discText.setTextColor(present ? COLOR_WARN : COLOR_MUTED);
+            statusText.setText(R.string.setup_instructions);
+            statusText.setTextColor(COLOR_MUTED);
+            importButton.setText(present ? R.string.setup_replace_disc : R.string.setup_select_disc);
+        }
+
+        playButton.setEnabled(valid);
+        playButton.setAlpha(valid ? 1.0f : 0.4f);
+    }
+
+    private void startGame() {
+        if (importInProgress) {
+            return;
+        }
+
+        settings.save();
+        launchGame();
     }
 
     private void selectDiscImage() {
@@ -156,13 +328,14 @@ public final class CTRNativeLauncherActivity extends Activity {
     private void importDiscImage(Uri uri) {
         importInProgress = true;
         importButton.setEnabled(false);
+        playButton.setEnabled(false);
 
         long sourceSize = querySourceSize(uri);
         importProgress.setIndeterminate(sourceSize <= 0);
         importProgress.setProgress(0);
         importProgress.setVisibility(View.VISIBLE);
         statusText.setText(R.string.setup_importing_disc);
-        statusText.setTextColor(Color.LTGRAY);
+        statusText.setTextColor(COLOR_MUTED);
 
         Thread worker = new Thread(() -> copyDiscImage(uri, sourceSize), "CTR disc import");
         worker.start();
@@ -227,10 +400,7 @@ public final class CTRNativeLauncherActivity extends Activity {
                 throw new IOException("Could not finish the disc image import");
             }
 
-            runOnUiThread(() -> {
-                statusText.setText(R.string.setup_starting_game);
-                launchGame();
-            });
+            runOnUiThread(this::finishImport);
         } catch (Exception exception) {
             temporary.delete();
             String detail = exception.getMessage();
@@ -243,6 +413,18 @@ public final class CTRNativeLauncherActivity extends Activity {
         }
     }
 
+    /**
+     * Imports land back on the launcher rather than starting the game. Picking a
+     * disc is usually the first thing you do, and the settings underneath are
+     * the second -- jumping straight into the game skips past them.
+     */
+    private void finishImport() {
+        importInProgress = false;
+        importProgress.setVisibility(View.GONE);
+        importButton.setEnabled(true);
+        refreshDiscStatus();
+    }
+
     private void updateImportProgress(int progress) {
         importProgress.setProgress(progress);
         statusText.setText(getString(R.string.setup_import_progress, progress));
@@ -252,9 +434,13 @@ public final class CTRNativeLauncherActivity extends Activity {
         importInProgress = false;
         importProgress.setVisibility(View.GONE);
         importButton.setEnabled(true);
+        refreshDiscStatus();
+
+        // After refreshDiscStatus, so the reason the import failed is what stays
+        // on screen rather than the generic instructions.
         importButton.setText(R.string.setup_select_another_disc);
         statusText.setText(error);
-        statusText.setTextColor(Color.rgb(255, 160, 122));
+        statusText.setTextColor(COLOR_WARN);
     }
 
     private boolean isRetailDiscImage(File image) {
@@ -290,8 +476,8 @@ public final class CTRNativeLauncherActivity extends Activity {
     }
 
     private void launchGame() {
-        Intent intent = new Intent(this, CTRNativeActivity.class);
-        startActivity(intent);
-        finish();
+        // Deliberately not finishing: coming back from the game lands on the
+        // launcher again, which is where the settings are.
+        startActivity(new Intent(this, CTRNativeActivity.class));
     }
 }
