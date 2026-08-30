@@ -40,7 +40,19 @@ void MainDrawCb_Vsync()
 	if (sdata->criticalSectionCount == 0)
 #endif
 	{
+#ifdef CTR_NATIVE
+		// Retail's VBlank was 60Hz and this ran once per VBlank. Ours arrives at
+		// the frame cap, so the count keeps the engine at sixty updates a second
+		// whatever that cap is -- otherwise the music plays at cap/60 speed.
+		int audioUpdates = Ctrds_AudioUpdatesThisVBlank();
+
+		while (audioUpdates-- > 0)
+		{
+			howl_PlayAudio_Update();
+		}
+#else
 		howl_PlayAudio_Update();
+#endif
 	}
 
 #ifdef CTR_NATIVE

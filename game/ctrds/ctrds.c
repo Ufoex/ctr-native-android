@@ -669,6 +669,35 @@ int Ctrds_InRace(void)
 	    && ((gGT->gameMode1 & END_OF_RACE) == 0);
 }
 
+// How many 60Hz audio updates this VBlank owes.
+//
+// howl_PlayAudio_Update advances the game's own audio engine -- sequencing,
+// envelopes, the lot -- and retail called it from a VBlank that arrived sixty
+// times a second. VBlanks here come at the configured cap, so at 120 the engine
+// ran twice for every time it should have and the music played at double speed.
+// The mixer was already decoupled; this is the other clock, and the one that
+// sets tempo.
+//
+// A count rather than a yes/no, because a cap below 60 owes more than one
+// update per VBlank: at 30 it owes two, and returning a flag would have played
+// the music at half speed there instead.
+int Ctrds_AudioUpdatesThisVBlank(void)
+{
+	local_persist int accumulator = 0;
+
+	const int cap = Ctrds_TargetFps();
+	int updates = 0;
+
+	accumulator += 60;
+	while (accumulator >= cap)
+	{
+		accumulator -= cap;
+		updates++;
+	}
+
+	return updates;
+}
+
 int Ctrds_VsyncsPerFlip(void)
 {
 	// VBlanks are emitted at the cap, not at retail's 60Hz, so a flip every

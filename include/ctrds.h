@@ -405,6 +405,9 @@ void Ctrds_HdDumpTick(void);
 // on screens that are mostly static anyway.
 int Ctrds_VsyncsPerFlip(void);
 
+// 60Hz audio updates owed this VBlank; see the note on the definition.
+int Ctrds_AudioUpdatesThisVBlank(void);
+
 #define CTRDS_FPS_UNLIMITED 480
 
 static inline int Ctrds_TargetFps(void)
