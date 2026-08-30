@@ -55,4 +55,6 @@ void NativeRenderer_PresentScaledMain(void);
 
 void NativeRenderer_InvalidateStateCache(void);
 
+void NativeRenderer_BindCompanionTarget(void);
+
 #endif

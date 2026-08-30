@@ -80,6 +80,7 @@ struct CtrdsLayout g_ctrds = {
     .crt = 1,
     .swapFaceButtons = 1,
     .touchControls = 0,
+    .hdArt = 1,
     .hdLog = 0,
     .hdDump = 0,
     .internalScale = 4,
@@ -747,6 +748,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "target_fps=%d\n", g_ctrds.targetFps);
 			fprintf(f, "# internal_scale: render resolution multiplier, 1-5\n");
 			fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
+			fprintf(f, "# hd_art: use the upscaled art in hd/ instead of the original sprites\n");
+			fprintf(f, "hd_art=%d\n", g_ctrds.hdArt);
 			fprintf(f, "# hd_log: report each HUD icon index as it is drawn, to author hd/ art\n");
 			fprintf(f, "hd_log=%d\n", g_ctrds.hdLog);
 			fprintf(f, "# hd_dump: write each HUD icon out of VRAM to hd_dump/ as a PNG\n");
@@ -850,6 +853,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "internal_scale", 14) == 0)
 		{
 			g_ctrds.internalScale = value;
+		}
+		else if (strncmp(line, "hd_art", 6) == 0)
+		{
+			g_ctrds.hdArt = value;
 		}
 		else if (strncmp(line, "hd_dump", 7) == 0)
 		{
@@ -1171,6 +1178,10 @@ void Ctrds_DrawCompanionPass(struct GameTracker *gGT)
 	Platform_BeginScene();
 
 	NativeRenderer_BeginCompanionTarget(CTRDS_PANEL_W, CTRDS_PANEL_H);
+
+	// The panel is the one target the overlay composites into, so this walk is
+	// the only place a replacement can be taken.
+	Ctrds_HdBeginTarget();
 
 	if (inRace)
 	{

@@ -732,6 +732,11 @@ void NativeRenderer_InvalidateStateCache(void)
 	s_previousBlendMode = BM_NONE;
 	s_previousScissorState = 0;
 	s_boundVertexBuffer = -1;
+
+	// -1 matches neither of the two stencil modes, so the next primitive
+	// re-issues the func and op rather than trusting a cache the overlay pass
+	// has just invalidated by turning the test off.
+	s_previousStencilMode = -1;
 }
 
 internal void NativeRenderer_DrawVRAMRegionRaw(int x, int y, int width, int height)
@@ -2671,6 +2676,29 @@ void NativeRenderer_BeginCompanionTarget(int width, int height)
 	glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 	NativeRenderer_Ortho2D(0, width, height, 0, -1.0f, 1.0f);
+}
+
+// Makes the panel current again. Walking an ordering table moves the bound
+// framebuffer around -- an offscreen VRAM target for uploads and blits, at
+// least -- and leaves it wherever the last packet needed it. Anything that
+// wants to draw into the panel after the walk has to say so.
+void NativeRenderer_BindCompanionTarget(void)
+{
+	if (!s_companionActive)
+	{
+		Platform_Log("[CTR-DS/hd] companion target not active at composite time\n");
+		return;
+	}
+
+	if (s_previousOffscreenState)
+	{
+		NativeRenderer_SetOffscreenState(&s_previousOffscreen, 0);
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, s_companionRenderTarget.framebuffer);
+
+	NativeRenderer_SetScissorState(0);
+	NativeRenderer_SetViewPort(0, 0, s_companionWidth, s_companionHeight);
 }
 
 // Publishes the panel into VRAM at (vramX, vramY) so presenting it is an

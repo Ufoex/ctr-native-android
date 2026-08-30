@@ -37,9 +37,16 @@ global_variable GLuint s_hdTexture[CTRDS_HD_ICON_COUNT];
 global_variable struct CtrdsHdQuad s_hdQuads[CTRDS_HD_MAX_QUADS];
 global_variable int s_hdQuadCount = 0;
 
+// Set only while an ordering table is being walked into a target this overlay
+// knows how to composite into. Taking a draw outside that window would skip the
+// PSX quad and then have nowhere to put the replacement, so the art would simply
+// go missing -- and the queue would fill with quads that never get flushed.
+global_variable int s_hdTargetOpen = 0;
+
 global_variable GLuint s_hdShader = 0;
 global_variable GLint s_hdProjLoc = -1;
 global_variable GLint s_hdTintLoc = -1;
+global_variable GLint s_hdTexLoc = -1;
 global_variable GLuint s_hdVao = 0;
 global_variable GLuint s_hdVbo = 0;
 global_variable int s_hdReady = 0;
@@ -113,8 +120,36 @@ internal void Ctrds_HdEnsureResources(void)
 	glDeleteShader(vs);
 	glDeleteShader(fs);
 
+	{
+		GLint linked = 0;
+
+		glGetProgramiv(s_hdShader, GL_LINK_STATUS, &linked);
+
+		// A failed link still hands back a non-zero program, and its uniform
+		// locations all come back as -1 -- which makes setting the projection a
+		// silent no-op, collapses every vertex onto the origin, and looks
+		// exactly like the overlay never being asked to draw at all.
+		if (!linked)
+		{
+			char log[1024];
+
+			glGetProgramInfoLog(s_hdShader, sizeof(log), NULL, log);
+			Platform_Log("[CTR-DS/hd] link failed: %s\n", log);
+
+			glDeleteProgram(s_hdShader);
+			s_hdShader = 0;
+			return;
+		}
+	}
+
 	s_hdProjLoc = glGetUniformLocation(s_hdShader, "u_proj");
 	s_hdTintLoc = glGetUniformLocation(s_hdShader, "u_tint");
+	s_hdTexLoc = glGetUniformLocation(s_hdShader, "u_tex");
+
+	if ((s_hdProjLoc < 0) || (s_hdTintLoc < 0))
+	{
+		Platform_Log("[CTR-DS/hd] uniforms missing (proj=%d tint=%d)\n", (int)s_hdProjLoc, (int)s_hdTintLoc);
+	}
 
 	glGenVertexArrays(1, &s_hdVao);
 	glGenBuffers(1, &s_hdVbo);
@@ -186,7 +221,28 @@ internal GLuint Ctrds_HdTexture(int index)
 
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
+
+	// With a buffer still bound to GL_PIXEL_UNPACK_BUFFER, glTexImage2D reads
+	// its last argument as an offset into that buffer rather than as a pointer,
+	// so the upload quietly takes its pixels from somewhere else entirely -- the
+	// texture comes out opaque black and the call reports GL_INVALID_OPERATION.
+	// The renderer uses pixel buffers for its VRAM traffic and leaves one bound.
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+	// Its pixel-store state is not put back either, and an SDL surface is not
+	// obliged to be tightly packed, so both are stated rather than assumed.
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, rgba->pitch / 4);
+
+	// Start from a clean slate so the check below reports this upload's error
+	// and not one left over from the renderer.
+	while (glGetError() != GL_NO_ERROR)
+	{
+	}
+
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rgba->w, rgba->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba->pixels);
+
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
 	// Replacement art is several times the size it is drawn at -- a portrait
 	// used as a map marker is a 172px texture in a 16px box. Without mipmaps
@@ -194,12 +250,18 @@ internal GLuint Ctrds_HdTexture(int index)
 	// crawls as the map rotates.
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1000);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	Platform_Log("[CTR-DS/hd] icon %d replaced (%dx%d)\n", index, rgba->w, rgba->h);
+	{
+		const GLenum err = glGetError();
+
+		Platform_Log("[CTR-DS/hd] icon %d replaced (%dx%d) pitch=%d err=0x%x\n", index, rgba->w, rgba->h, rgba->pitch, (unsigned)err);
+	}
 	SDL_DestroySurface(rgba);
 
 	s_hdTexture[index] = texture;
@@ -473,7 +535,7 @@ int Ctrds_HdQueue(const struct Icon *icon, int x, int y, int w, int h, unsigned 
 
 	const int index = Ctrds_HdIconIndex(icon);
 
-	if (index < 0)
+	if (!g_ctrds.hdArt || !s_hdTargetOpen || (index < 0))
 	{
 		return 0;
 	}
@@ -523,10 +585,18 @@ int Ctrds_HdQueue(const struct Icon *icon, int x, int y, int w, int h, unsigned 
 	return 1;
 }
 
+void Ctrds_HdBeginTarget(void)
+{
+	s_hdQuadCount = 0;
+	s_hdTargetOpen = 1;
+}
+
 void Ctrds_HdFlush(int width, int height)
 {
 	int i;
 	float proj[16];
+
+	s_hdTargetOpen = 0;
 
 	if ((s_hdQuadCount == 0) || (width <= 0) || (height <= 0))
 	{
@@ -552,13 +622,36 @@ void Ctrds_HdFlush(int width, int height)
 	proj[13] = 1.0f;
 	proj[15] = 1.0f;
 
+	// The ordering-table walk that just ran will have left some other
+	// framebuffer bound, so say which target this is going into.
+	NativeRenderer_BindCompanionTarget();
+
 	glUseProgram(s_hdShader);
 	glUniformMatrix4fv(s_hdProjLoc, 1, GL_FALSE, proj);
 
+	// Say which unit the sampler reads. Leaving it at the default works only as
+	// long as nothing else has had an opinion about this program's uniforms.
+	glUniform1i(s_hdTexLoc, 0);
+
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_SCISSOR_TEST);
+
+	// The PSX path leaves the stencil test on, and in its usual mode it rejects
+	// anything landing where a primitive has already been drawn. That is exactly
+	// where replacement art goes -- over the top of the HUD it is replacing --
+	// so with the test left on the overlay is drawn and then thrown away, and
+	// the icon simply goes missing.
+	glDisable(GL_STENCIL_TEST);
+	glDisable(GL_CULL_FACE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	// One of the PSX blend modes is a reverse subtract, and whichever mode was
+	// last set is still in force here. Subtracting the artwork from a black
+	// panel leaves black, which looks exactly like the overlay never drawing.
+	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
 
 	glBindVertexArray(s_hdVao);
 	glBindBuffer(GL_ARRAY_BUFFER, s_hdVbo);
@@ -581,6 +674,22 @@ void Ctrds_HdFlush(int width, int height)
 
 	glBindVertexArray(0);
 	glUseProgram(0);
+
+	// Put the test back the way the PSX path expects to find it.
+	glEnable(GL_STENCIL_TEST);
+
+	if (g_ctrds.hdLog)
+	{
+		local_persist int reported = 0;
+
+		if (!reported)
+		{
+			reported = 1;
+			Platform_Log("[CTR-DS/hd] flushed %d quad(s) into %dx%d, first at %.1f,%.1f-%.1f,%.1f tint %.2f,%.2f,%.2f\n", s_hdQuadCount, width, height,
+			        (double)s_hdQuads[0].x0, (double)s_hdQuads[0].y0, (double)s_hdQuads[0].x1, (double)s_hdQuads[0].y1,
+			        (double)s_hdQuads[0].r, (double)s_hdQuads[0].g, (double)s_hdQuads[0].b);
+		}
+	}
 
 	s_hdQuadCount = 0;
 

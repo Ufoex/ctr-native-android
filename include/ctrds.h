@@ -214,6 +214,11 @@ struct CtrdsLayout
 	int touchControls;
 
 	// Reports each HUD icon index as it is drawn, for authoring replacement art.
+	// Whether replacement art is used at all. Off by default: the art is built
+	// and shipped, but the overlay that composites it does not land on the panel
+	// yet, so an icon it takes over would go missing rather than look better.
+	int hdArt;
+
 	int hdLog;
 
 	// Writes each HUD icon out of VRAM to hd_dump/ as a PNG the first time it
@@ -342,6 +347,9 @@ void Ctrds_DrawItemBox(struct GameTracker *gGT);
 struct Icon;
 int Ctrds_HdQueue(const struct Icon *icon, int x, int y, int w, int h, unsigned color);
 int Ctrds_HdIconIndex(const struct Icon *icon);
+// Opens the window in which a replacement may be taken. Draws outside it keep
+// their PSX art, because there is no target for the overlay to composite into.
+void Ctrds_HdBeginTarget(void);
 void Ctrds_HdFlush(int width, int height);
 
 // With hd_dump=1, sweeps the icon array and writes anything newly loaded out to
