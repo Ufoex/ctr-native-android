@@ -51,7 +51,16 @@ global_variable GLuint s_hdVao = 0;
 global_variable GLuint s_hdVbo = 0;
 global_variable int s_hdReady = 0;
 
-global_variable const char *s_hdVertexSrc = "#version 330 core\n"
+// The device runs GL ES, the desktop build runs desktop GL, and the two do not
+// accept the same version line. Getting this wrong is quiet: the program fails
+// to link, every replacement is skipped, and the art just never appears.
+#if defined(__ANDROID__)
+#define CTRDS_HD_GLSL_HEADER "#version 300 es\nprecision highp float;\n"
+#else
+#define CTRDS_HD_GLSL_HEADER "#version 330 core\n"
+#endif
+
+global_variable const char *s_hdVertexSrc = CTRDS_HD_GLSL_HEADER
                                             "layout(location=0) in vec2 a_pos;\n"
                                             "layout(location=1) in vec2 a_uv;\n"
                                             "uniform mat4 u_proj;\n"
@@ -61,7 +70,7 @@ global_variable const char *s_hdVertexSrc = "#version 330 core\n"
                                             "  gl_Position = u_proj * vec4(a_pos, 0.0, 1.0);\n"
                                             "}\n";
 
-global_variable const char *s_hdFragmentSrc = "#version 330 core\n"
+global_variable const char *s_hdFragmentSrc = CTRDS_HD_GLSL_HEADER
                                               "in vec2 v_uv;\n"
                                               "uniform sampler2D u_tex;\n"
                                               "uniform vec3 u_tint;\n"
