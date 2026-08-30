@@ -48,17 +48,27 @@ cc -fsyntax-only -m64 \
    -Wint-to-pointer-cast -Wpointer-to-int-cast \
    "$root/main.c" >"$log" 2>&1
 
+# Counted first and reported first, because everything below it is a refinement
+# of "does this compile at all". An earlier version of this script tracked only
+# the interesting diagnostics and cheerfully reported zero while the 64-bit
+# compile was failing outright.
+errors=$(grep -c 'error:' "$log")
+
 asserts=$(grep -c 'static assertion failed' "$log")
 narrow=$(grep -c 'cast from pointer to integer' "$log")
 widen=$(grep -c 'cast to pointer from integer' "$log")
 lines=$(grep -oE '^[^:]+:[0-9]+' "$log" | sort -u | wc -l)
 
+printf 'compile errors ................. %s\n' "$errors"
 printf 'static-assert failures ......... %s\n' "$asserts"
 printf 'pointer-to-int narrowing ....... %s\n' "$narrow"
 printf 'int-to-pointer widening ........ %s\n' "$widen"
 printf 'distinct source lines .......... %s\n' "$lines"
 
 if [ "${1:-}" = "--list" ]; then
+    echo
+    echo "--- first errors ---"
+    grep 'error:' "$log" | sed "s|$root/||" | head -10
     echo
     echo "--- most affected files ---"
     grep -E 'error:|warning:' "$log" \
@@ -70,7 +80,7 @@ if [ "${1:-}" = "--list" ]; then
 fi
 
 # Zero on every count is the finish line for the conversion.
-if [ "$asserts" -eq 0 ] && [ "$narrow" -eq 0 ] && [ "$widen" -eq 0 ]; then
+if [ "$errors" -eq 0 ] && [ "$asserts" -eq 0 ] && [ "$narrow" -eq 0 ] && [ "$widen" -eq 0 ]; then
     exit 0
 fi
 exit 1

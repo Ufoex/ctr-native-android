@@ -49,6 +49,7 @@
 // self-test on 32-bit too, so it goes in ahead of anything that uses it.
 #include "platform/native_guest_ref.c"
 #include "platform/native_asset_ref.c"
+#include "platform/native_asset_relocation.c"
 #include "platform/native_gpu_links.c"
 #include "platform/native_gpu.c"
 #include "platform/native_gte_core.c"

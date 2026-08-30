@@ -4,6 +4,14 @@
 #include <platform/native_checkpoint.h>
 #endif
 
+// Only reachable on a 64-bit host, which is the same condition that guards the
+// relocation call below -- and the reason the 32-bit build never noticed this
+// header was missing.
+#if defined(CTR_NATIVE) && UINTPTR_MAX > UINT32_MAX
+#include <platform/native_asset_relocation.h>
+#include <platform/native_guest_ref.h>
+#endif
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800326b4-0x80032700.
 int LOAD_RunPtrMap(void *assetBase, size_t assetSize, const u32 *patchEntries, size_t patchMapByteSize)
 {
