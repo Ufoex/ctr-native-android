@@ -119,7 +119,22 @@ if(NOT WIN32)
     target_compile_definitions(enet PRIVATE HAS_FCNTL=1 HAS_POLL=1 HAS_GETADDRINFO=1 HAS_GETNAMEINFO=1 HAS_INET_PTON=1 HAS_INET_NTOP=1 HAS_MSGHDR_FLAGS=1)
 endif()
 
-target_link_libraries(ctr_native enet)
+# libchdr, vendored. CHD is what most people actually keep a PS1 disc as, and
+# reading one needs real decompressors -- LZMA, zlib, zstd and FLAC -- so this is
+# a library rather than something to hand-roll. It ships a single unity.c that
+# pulls in its own dependencies, which is why it is one source file here.
+# BSD-3-Clause, compatible with this project's GPLv3.
+# unity.c omits the A/V codec even though the codec table references it, so it
+# is compiled alongside. It is for LaserDisc-style CHDs and does nothing for a
+# CD, but the table will not link without it.
+add_library(chdr STATIC
+    ${CMAKE_SOURCE_DIR}/externals/libchdr/unity.c
+    ${CMAKE_SOURCE_DIR}/externals/libchdr/src/libchdr_codec_avhuff.c)
+target_include_directories(chdr PUBLIC ${CMAKE_SOURCE_DIR}/externals/libchdr/include)
+target_include_directories(chdr PRIVATE ${CMAKE_SOURCE_DIR}/externals/libchdr)
+target_compile_options(chdr PRIVATE -w)
+
+target_link_libraries(ctr_native enet chdr)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
     BUILD=926

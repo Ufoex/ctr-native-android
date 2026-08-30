@@ -10,8 +10,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <libchdr/chd.h>
+
 #define NATIVE_DISC_IMAGE_PATH_MAX          1024
 #define NATIVE_DISC_IMAGE_BIN_PATH          "ctr-u.bin"
+#define NATIVE_DISC_IMAGE_CHD_PATH          "ctr-u.chd"
+
+// A CHD stores a CD as frames of 2352 bytes of sector followed by 96 bytes of
+// subcode, packed into compressed hunks. Only the sector half is wanted here.
+#define NATIVE_DISC_IMAGE_CD_FRAME_SIZE     2448u
+#define NATIVE_DISC_IMAGE_NO_HUNK           0xffffffffu
 #define NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE   2352u
 #define NATIVE_DISC_IMAGE_FORM1_DATA_OFFSET 24u
 #define NATIVE_DISC_IMAGE_FORM1_DATA_SIZE   2048u
@@ -36,6 +44,14 @@ struct NativeDiscImageDirRecord
 
 global_variable char s_nativeDiscImagePath[NATIVE_DISC_IMAGE_PATH_MAX];
 global_variable FILE *s_nativeDiscImageFile;
+
+// Set instead of the FILE above when the image is a CHD. One decompressed hunk
+// is kept because sectors are read in runs and a hunk holds several of them;
+// without it every sector would decompress the same hunk again.
+global_variable chd_file *s_nativeDiscImageChd;
+global_variable u8 *s_nativeDiscImageHunkData;
+global_variable u32 s_nativeDiscImageHunkFrames;
+global_variable u32 s_nativeDiscImageCachedHunk = NATIVE_DISC_IMAGE_NO_HUNK;
 global_variable struct NativeDiscImageFile s_nativeDiscImageRoot;
 global_variable int s_nativeDiscImageAvailable;
 
@@ -64,7 +80,8 @@ internal int NativeDiscImage_FindHostImagePath(char *dst, size_t dstSize, Native
 	{
 		NativeStr8 entryName = NativeStr8_FromCString(entry->d_name);
 
-		if (!NativeStr8_EqualsIgnoreCaseAscii(entryName, NATIVE_STR8_LIT(NATIVE_DISC_IMAGE_BIN_PATH)))
+		if (!NativeStr8_EqualsIgnoreCaseAscii(entryName, NATIVE_STR8_LIT(NATIVE_DISC_IMAGE_BIN_PATH)) &&
+		    !NativeStr8_EqualsIgnoreCaseAscii(entryName, NATIVE_STR8_LIT(NATIVE_DISC_IMAGE_CHD_PATH)))
 		{
 			continue;
 		}
@@ -103,9 +120,84 @@ internal int NativeDiscImage_CheckRawSectorHeader(const u8 *sector)
 	return 1;
 }
 
+internal void NativeDiscImage_CloseChd(void)
+{
+	if (s_nativeDiscImageChd != NULL)
+	{
+		chd_close(s_nativeDiscImageChd);
+		s_nativeDiscImageChd = NULL;
+	}
+
+	free(s_nativeDiscImageHunkData);
+	s_nativeDiscImageHunkData = NULL;
+	s_nativeDiscImageHunkFrames = 0;
+	s_nativeDiscImageCachedHunk = NATIVE_DISC_IMAGE_NO_HUNK;
+}
+
+internal int NativeDiscImage_OpenChd(const char *path)
+{
+	const chd_header *header;
+
+	NativeDiscImage_CloseChd();
+
+	if (chd_open(path, CHD_OPEN_READ, NULL, &s_nativeDiscImageChd) != CHDERR_NONE)
+	{
+		s_nativeDiscImageChd = NULL;
+		return 0;
+	}
+
+	header = chd_get_header(s_nativeDiscImageChd);
+	if ((header == NULL) || (header->hunkbytes < NATIVE_DISC_IMAGE_CD_FRAME_SIZE))
+	{
+		NativeDiscImage_CloseChd();
+		return 0;
+	}
+
+	s_nativeDiscImageHunkFrames = header->hunkbytes / NATIVE_DISC_IMAGE_CD_FRAME_SIZE;
+	s_nativeDiscImageHunkData = (u8 *)malloc(header->hunkbytes);
+
+	if ((s_nativeDiscImageHunkFrames == 0) || (s_nativeDiscImageHunkData == NULL))
+	{
+		NativeDiscImage_CloseChd();
+		return 0;
+	}
+
+	return 1;
+}
+
+internal int NativeDiscImage_ReadChdSector(u32 lba, u8 *sector)
+{
+	const u32 hunkIndex = lba / s_nativeDiscImageHunkFrames;
+	const u32 frameInHunk = lba % s_nativeDiscImageHunkFrames;
+
+	if (hunkIndex != s_nativeDiscImageCachedHunk)
+	{
+		if (chd_read(s_nativeDiscImageChd, hunkIndex, s_nativeDiscImageHunkData) != CHDERR_NONE)
+		{
+			return 0;
+		}
+
+		s_nativeDiscImageCachedHunk = hunkIndex;
+	}
+
+	memcpy(sector, &s_nativeDiscImageHunkData[(size_t)frameInHunk * NATIVE_DISC_IMAGE_CD_FRAME_SIZE],
+	       NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE);
+	return 1;
+}
+
 internal int NativeDiscImage_ReadRawSector(u32 lba, u8 *sector)
 {
 	u64 offset;
+
+	if (s_nativeDiscImageChd != NULL)
+	{
+		if (!NativeDiscImage_ReadChdSector(lba, sector))
+		{
+			return 0;
+		}
+
+		return NativeDiscImage_CheckRawSectorHeader(sector);
+	}
 
 	if (s_nativeDiscImageFile == NULL)
 	{
@@ -364,6 +456,23 @@ internal int NativeDiscImage_LoadRoot(void)
 	return 1;
 }
 
+// Declared in the header since it was written, but never defined -- nothing had
+// called it, because nothing needed to release anything until a CHD handle and
+// its hunk buffer existed.
+void NativeDiscImage_Shutdown(void)
+{
+	if (s_nativeDiscImageFile != NULL)
+	{
+		fclose(s_nativeDiscImageFile);
+		s_nativeDiscImageFile = NULL;
+	}
+
+	NativeDiscImage_CloseChd();
+
+	s_nativeDiscImageAvailable = 0;
+	s_nativeDiscImagePath[0] = '\0';
+}
+
 int NativeDiscImage_Init(const char *assetsDir)
 {
 	char path[NATIVE_DISC_IMAGE_PATH_MAX];
@@ -377,28 +486,33 @@ int NativeDiscImage_Init(const char *assetsDir)
 		s_nativeDiscImageFile = NULL;
 	}
 
+	NativeDiscImage_CloseChd();
+
 	if ((assetsDir == NULL) || !NativeDiscImage_FindHostImagePath(path, sizeof(path), NativeStr8_FromCString(assetsDir)))
 	{
 		return 0;
 	}
 
-	s_nativeDiscImageFile = fopen(path, "rb");
-	if (s_nativeDiscImageFile == NULL)
+	// Decided by whether libchdr accepts the file rather than by its name, so a
+	// CHD works whatever it has been called.
+	if (!NativeDiscImage_OpenChd(path))
 	{
-		return 0;
+		s_nativeDiscImageFile = fopen(path, "rb");
+		if (s_nativeDiscImageFile == NULL)
+		{
+			return 0;
+		}
 	}
 
 	if (!NativeDiscImage_LoadRoot())
 	{
-		fclose(s_nativeDiscImageFile);
-		s_nativeDiscImageFile = NULL;
+		NativeDiscImage_Shutdown();
 		return 0;
 	}
 
 	if (!NativePath_NormalizeSlashes(s_nativeDiscImagePath, sizeof(s_nativeDiscImagePath), NativeStr8_FromCString(path)))
 	{
-		fclose(s_nativeDiscImageFile);
-		s_nativeDiscImageFile = NULL;
+		NativeDiscImage_Shutdown();
 		return 0;
 	}
 

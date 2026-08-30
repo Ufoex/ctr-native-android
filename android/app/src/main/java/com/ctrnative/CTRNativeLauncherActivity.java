@@ -86,8 +86,44 @@ public final class CTRNativeLauncherActivity extends Activity {
         return new File(getStorageRoot(), "assets");
     }
 
-    private File getImportedDiscImage() {
+    private File getImportedBinImage() {
         return new File(getAssetDirectory(), "ctr-u.bin");
+    }
+
+    private File getImportedChdImage() {
+        return new File(getAssetDirectory(), "ctr-u.chd");
+    }
+
+    /** Whichever of the two kinds of disc image is actually present. */
+    private File getImportedDiscImage() {
+        File chd = getImportedChdImage();
+        return chd.isFile() ? chd : getImportedBinImage();
+    }
+
+    /**
+     * A CHD is a compressed disc image and cannot be checked the way a raw BIN
+     * is -- its sectors are inside compressed hunks. The header magic is enough
+     * to tell what it is; whether it holds the right game is a question for the
+     * native side, which reads its filesystem.
+     */
+    private boolean isChdImage(File image) {
+        if (!image.isFile() || (image.length() < 16)) {
+            return false;
+        }
+
+        byte[] magic = new byte[8];
+        try (RandomAccessFile file = new RandomAccessFile(image, "r")) {
+            file.readFully(magic);
+        } catch (IOException exception) {
+            return false;
+        }
+
+        return (magic[0] == 'M') && (magic[1] == 'C') && (magic[2] == 'o') && (magic[3] == 'm')
+                && (magic[4] == 'p') && (magic[5] == 'r') && (magic[6] == 'H') && (magic[7] == 'D');
+    }
+
+    private boolean isUsableDiscImage(File image) {
+        return isChdImage(image) || isRetailDiscImage(image);
     }
 
     private File getConfigFile() {
@@ -261,10 +297,11 @@ public final class CTRNativeLauncherActivity extends Activity {
 
         File disc = getImportedDiscImage();
         boolean present = disc.isFile();
-        boolean valid = present && isRetailDiscImage(disc);
+        boolean valid = present && isUsableDiscImage(disc);
 
         if (valid) {
-            discText.setText(getString(R.string.launcher_disc_ready, disc.length() / (1024L * 1024L)));
+            int label = isChdImage(disc) ? R.string.launcher_disc_ready_chd : R.string.launcher_disc_ready;
+            discText.setText(getString(label, disc.length() / (1024L * 1024L)));
             discText.setTextColor(Color.WHITE);
             statusText.setText(R.string.launcher_disc_replace_hint);
             statusText.setTextColor(COLOR_MUTED);
@@ -342,9 +379,8 @@ public final class CTRNativeLauncherActivity extends Activity {
     }
 
     private void copyDiscImage(Uri uri, long sourceSize) {
-        File destination = getImportedDiscImage();
-        File assetDirectory = destination.getParentFile();
-        File temporary = new File(assetDirectory, "ctr-u.bin.importing");
+        File assetDirectory = getAssetDirectory();
+        File temporary = new File(assetDirectory, "ctr-u.importing");
 
         try {
             if (!assetDirectory.isDirectory() && !assetDirectory.mkdirs()) {
@@ -388,8 +424,21 @@ public final class CTRNativeLauncherActivity extends Activity {
                 output.getFD().sync();
             }
 
-            if (!isRetailDiscImage(temporary)) {
-                throw new IOException("The selected file is not a supported raw NTSC-U BIN image");
+            // What it is decides what it gets called, and the native side looks
+            // for both names.
+            boolean chd = isChdImage(temporary);
+
+            if (!chd && !isRetailDiscImage(temporary)) {
+                throw new IOException("The selected file is not a raw NTSC-U BIN or a CHD image");
+            }
+
+            File destination = chd ? getImportedChdImage() : getImportedBinImage();
+            File other = chd ? getImportedBinImage() : getImportedChdImage();
+
+            // Only one disc image may be left behind, or which one loads becomes
+            // a matter of which name the native side happens to look for first.
+            if (other.exists() && !other.delete()) {
+                throw new IOException("Could not remove the previous disc image");
             }
 
             if (destination.exists() && !destination.delete()) {
