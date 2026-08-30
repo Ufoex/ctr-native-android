@@ -123,6 +123,46 @@ static void VehFrameProc_Driving_SpawnBurnSmoke(struct Driver *d)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005b178-0x8005b510
 void VehFrameProc_Driving(struct Thread *t, struct Driver *d)
 {
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+	// Stall diagnostic. The report is a kart that stops advancing while the
+	// frame rate holds at the cap, at the same point of the track each lap. A
+	// stall in the physics rather than a dropped frame leaves the kart's own
+	// speed at zero with the game otherwise running, so speed and position are
+	// what separate the two -- and the position says whether it is the same
+	// spot every lap.
+	//
+	// driverID 0 is the local player. The AI stalling at a corner is ordinary
+	// and would drown this out.
+	if ((d != NULL) && (d->driverID == 0) && Ctrds_InRace())
+	{
+		local_persist int s_stalledFrames = 0;
+		local_persist int s_reported = 0;
+
+		if ((d->speed > -16) && (d->speed < 16))
+		{
+			s_stalledFrames++;
+
+			// A quarter second without speed: past the start line countdown and
+			// past a single spin-out frame.
+			if ((s_stalledFrames > (Ctrds_TargetFps() / 4)) && !s_reported)
+			{
+				Platform_Log("[CTR Stall] speed %d at %d,%d,%d after %d frames\n", (int)d->speed,
+				    (int)d->posCurr.x, (int)d->posCurr.y, (int)d->posCurr.z, s_stalledFrames);
+				s_reported = 1;
+			}
+		}
+		else
+		{
+			if (s_reported)
+			{
+				Platform_Log("[CTR Stall] moving again, speed %d, stalled %d frames\n", (int)d->speed, s_stalledFrames);
+			}
+			s_stalledFrames = 0;
+			s_reported = 0;
+		}
+	}
+#endif
+
 	struct Instance *inst = t->inst;
 	u8 desiredAnim = VEH_FRAME_ANIM_DRIVE;
 

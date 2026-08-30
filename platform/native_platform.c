@@ -49,6 +49,16 @@ global_variable int s_pinnedVramDisplayH = 0;
 global_variable int s_fpsFrameCount = 0;
 global_variable u64 s_fpsLastCounter = 0;
 
+// Audio steps since the last report. One step is a sixtieth of a second of
+// sound, so this reads 60/s when playback is at real time whatever the cap is
+// -- the number to check when the game sounds fast or slow.
+global_variable int s_audioStepCount = 0;
+
+// A frame this long is not a dropped frame, it is a stall. Reported with where
+// it happened, because a hitch at the same point of the same track every lap is
+// a different problem from one that wanders.
+#define NATIVE_FRAME_SPIKE_MS 50.0
+
 internal void Platform_CalcFPS(void)
 {
 #if defined(CTR_INTERNAL)
@@ -65,6 +75,22 @@ internal void Platform_CalcFPS(void)
 		s_fpsLastCounter = now;
 		s_fpsFrameCount = 0;
 		return;
+	}
+
+	{
+		local_persist u64 s_lastFrameCounter = 0;
+
+		if ((s_lastFrameCounter != 0) && (now > s_lastFrameCounter))
+		{
+			const f64 frameMs = ((f64)(now - s_lastFrameCounter) * 1000.0) / (f64)freq;
+
+			if (frameMs > NATIVE_FRAME_SPIKE_MS)
+			{
+				Platform_Log("[CTR Native] frame spike %.0fms (%s, tick %d)\n", frameMs,
+				    Ctrds_InRace() ? "race" : "menu", Ctrds_RetailTicks());
+			}
+		}
+		s_lastFrameCounter = now;
 	}
 
 	s_fpsFrameCount++;
@@ -84,8 +110,11 @@ internal void Platform_CalcFPS(void)
 		// and comparing that stretch against T is comparing against nothing.
 		const int reachable = (perFlip > 0) ? (cap / perFlip) : cap;
 
-		Platform_Log("[CTR Native] FPS: %.1f of %d reachable (cap %d, %d vblanks per flip, %s, %dx)\n", fps,
-		    reachable, cap, perFlip, Ctrds_InRace() ? "race" : "menu", NativeRenderer_GetInternalScale());
+		Platform_Log("[CTR Native] FPS: %.1f of %d reachable (cap %d, %d vblanks per flip, %s, %dx) audio %.1f/s\n", fps,
+		    reachable, cap, perFlip, Ctrds_InRace() ? "race" : "menu", NativeRenderer_GetInternalScale(),
+		    (f64)s_audioStepCount / elapsedSeconds);
+
+		s_audioStepCount = 0;
 	}
 
 	s_fpsFrameCount = 0;
@@ -797,6 +826,7 @@ internal void Native_EmitVBlank(void)
 	{
 		s_audioTickAccumulator -= Ctrds_TargetFps();
 		NativeAudio_StepVBlank();
+		s_audioStepCount++;
 	}
 
 	s_nativeVBlankCount++;
