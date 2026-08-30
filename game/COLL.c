@@ -2637,29 +2637,48 @@ void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d)
 		}
 
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-		// This gate decides whether the kart moves at all. hitFraction is how
-		// much of the attempted step survived the sweep; at zero the position is
-		// not written, which is a kart that stops dead with no push and no
-		// bounce, exactly as reported. Above 30fps each step is shorter, so a
-		// fraction that quantises to zero is reachable where a longer step would
-		// have cleared. Logged with the step being attempted so a zero can be
-		// told apart from a genuinely blocked one.
-		if ((d != NULL) && (d->driverID == 0) && (sps->hitFraction <= 0))
+		// A zero fraction on its own is ordinary -- it happens constantly while
+		// simply driving on the ground. What marks the stall is a run of frames
+		// in which no iteration ever returns a surviving fraction, so posCurr is
+		// never written at all.
+		//
+		// So this counts consecutive frames that moved nothing, and reports the
+		// state at the moment it becomes a stall rather than every time the
+		// sweep is blocked. The pushback flag is the question: set means the
+		// game knows the kart is against a surface and is trying to separate it,
+		// and the separation is failing; clear means the sweep is refusing a
+		// step with nothing asking it to.
+		if ((d != NULL) && (d->driverID == 0))
 		{
-			local_persist int s_zeroFractionRun = 0;
+			local_persist int s_stuckFrames = 0;
+			local_persist int s_reported = 0;
 
-			s_zeroFractionRun++;
-			if ((s_zeroFractionRun % 32) == 1)
+			if (sps->hitFraction > 0)
 			{
-				Platform_Log("[CTR Hit] hitFraction %d, vel %d,%d,%d, touched %d, run %d\n", (int)sps->hitFraction,
-				    (int)velocity.x, (int)velocity.y, (int)velocity.z, (int)sps->boolDidTouchQuadblock,
-				    s_zeroFractionRun);
+				if (s_reported)
+				{
+					Platform_Log("[CTR Hit] moving again after %d blocked frames\n", s_stuckFrames);
+				}
+				s_stuckFrames = 0;
+				s_reported = 0;
 			}
-		}
-		else if ((d != NULL) && (d->driverID == 0))
-		{
-			local_persist int s_lastRun = 0;
-			(void)s_lastRun;
+			else
+			{
+				s_stuckFrames++;
+
+				// A third of a second at any cap: past ordinary wall contact.
+				if ((s_stuckFrames > (Ctrds_TargetFps() / 3)) && ((s_stuckFrames % 64) == 0))
+				{
+					Platform_Log("[CTR Hit] blocked %d frames: step %d,%d,%d sweep %d,%d,%d -> %d,%d,%d "
+						     "touched %d hitbox %d flags 0x%x pushback %d\n",
+					    s_stuckFrames, (int)velocity.x, (int)velocity.y, (int)velocity.z, (int)current.x,
+					    (int)current.y, (int)current.z, (int)next.x, (int)next.y, (int)next.z,
+					    (int)sps->boolDidTouchQuadblock, (int)sps->boolDidTouchHitbox,
+					    (unsigned)d->collisionFlags,
+					    (d->collisionFlags & DRIVER_COLL_FLAG_SURFACE_PUSHBACK) ? 1 : 0);
+					s_reported = 1;
+				}
+			}
 		}
 #endif
 
