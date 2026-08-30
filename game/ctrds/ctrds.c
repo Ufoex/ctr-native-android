@@ -80,6 +80,7 @@ struct CtrdsLayout g_ctrds = {
     .crt = 1,
     .swapFaceButtons = 1,
     .touchControls = 0,
+    .primReject = 1,
     .hdArt = 1,
     .hdLog = 0,
     .hdDump = 0,
@@ -748,6 +749,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "target_fps=%d\n", g_ctrds.targetFps);
 			fprintf(f, "# internal_scale: render resolution multiplier, 1-5\n");
 			fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
+			fprintf(f, "# prim_reject: drop primitives too large for the PSX GPU (0 off, 1 on, 2 on+log)\n");
+			fprintf(f, "prim_reject=%d\n", g_ctrds.primReject);
 			fprintf(f, "# hd_art: use the upscaled art in hd/ instead of the original sprites\n");
 			fprintf(f, "hd_art=%d\n", g_ctrds.hdArt);
 			fprintf(f, "# hd_log: report each HUD icon index as it is drawn, to author hd/ art\n");
@@ -853,6 +856,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "internal_scale", 14) == 0)
 		{
 			g_ctrds.internalScale = value;
+		}
+		else if (strncmp(line, "prim_reject", 11) == 0)
+		{
+			g_ctrds.primReject = value;
 		}
 		else if (strncmp(line, "hd_art", 6) == 0)
 		{

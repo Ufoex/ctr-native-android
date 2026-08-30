@@ -326,9 +326,33 @@ internal void RejectOversizedPrimitive(GrVertex *vertex, int count)
 		if (vertex[i].y > maxY) { maxY = vertex[i].y; }
 	}
 
-	if (((maxX - minX) <= PSX_PRIM_MAX_W) && ((maxY - minY) <= PSX_PRIM_MAX_H))
+	const float spanX = maxX - minX;
+	const float spanY = maxY - minY;
+
+	if (!g_ctrds.primReject)
 	{
 		return;
+	}
+
+	if ((spanX <= PSX_PRIM_MAX_W) && (spanY <= PSX_PRIM_MAX_H))
+	{
+		return;
+	}
+
+	// Reporting the span matters more than the count: a stray wedge from a
+	// vertex that projected into nowhere spans thousands of pixels, while a wall
+	// the camera has simply got close to only just crosses the line. If the
+	// spans being dropped are the second kind, the limit is wrong here rather
+	// than the geometry.
+	if (g_ctrds.primReject > 1)
+	{
+		local_persist int reported = 0;
+
+		if (reported < 64)
+		{
+			reported++;
+			Platform_Log("[CTR-DS/prim] dropped span %.0fx%.0f at %.0f,%.0f\n", (double)spanX, (double)spanY, (double)minX, (double)minY);
+		}
 	}
 
 	for (i = 1; i < count; i++)

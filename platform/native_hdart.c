@@ -228,6 +228,15 @@ internal GLuint Ctrds_HdTexture(int index)
 		return CTRDS_HD_NONE;
 	}
 
+	// This runs part-way through the draw list, the first time an icon that has
+	// replacement art is drawn. Everything it disturbs has to be put back, and
+	// the renderer has to be told, or the next PSX draw inherits it.
+	GLint previousUnpackBuffer = 0;
+	GLint previousAlignment = 4;
+
+	glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &previousUnpackBuffer);
+	glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousAlignment);
+
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
 
@@ -238,8 +247,7 @@ internal GLuint Ctrds_HdTexture(int index)
 	// The renderer uses pixel buffers for its VRAM traffic and leaves one bound.
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-	// Its pixel-store state is not put back either, and an SDL surface is not
-	// obliged to be tightly packed, so both are stated rather than assumed.
+	// An SDL surface is not obliged to be tightly packed.
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glPixelStorei(GL_UNPACK_ROW_LENGTH, rgba->pitch / 4);
 
@@ -252,6 +260,8 @@ internal GLuint Ctrds_HdTexture(int index)
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rgba->w, rgba->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba->pixels);
 
 	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, previousAlignment);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, (GLuint)previousUnpackBuffer);
 
 	// Replacement art is several times the size it is drawn at -- a portrait
 	// used as a map marker is a 172px texture in a 16px box. Without mipmaps
@@ -265,6 +275,14 @@ internal GLuint Ctrds_HdTexture(int index)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// The renderer caches which texture it last bound and skips redundant binds.
+	// Binding here behind its back leaves that cache describing a texture that
+	// is no longer current, so the next PSX draw skips a bind it genuinely
+	// needs and rasterises untextured -- a flat Gouraud quad where a wall or a
+	// window should be, appearing the moment a replacement icon is first drawn
+	// and clearing as soon as anything else forces a rebind.
+	NativeRenderer_InvalidateStateCache();
 
 	{
 		const GLenum err = glGetError();
