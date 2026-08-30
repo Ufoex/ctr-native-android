@@ -574,16 +574,8 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 	// the window made 4:3 stretch across a 16:9 panel instead of sitting inside
 	// it with bars either side, which is what switching aspect should do -- the
 	// widescreen mod widens the field of view, it does not squeeze the picture.
-	if (Ctrds_Widescreen())
-	{
-		s_presentAspectW = 16;
-		s_presentAspectH = 9;
-	}
-	else
-	{
-		s_presentAspectW = 4;
-		s_presentAspectH = 3;
-	}
+	s_presentAspectW = Ctrds_AspectW();
+	s_presentAspectH = Ctrds_AspectH();
 
 	if ((g_windowWidth <= 0) || (g_windowHeight <= 0) || (s_presentAspectW <= 0) || (s_presentAspectH <= 0))
 	{
@@ -2700,7 +2692,7 @@ void NativeRenderer_PresentTwo(int gameX, int gameY, int gameW, int gameH, int p
 
 	if (Ctrds_Widescreen())
 	{
-		layoutGameH = (gameW * 9) / 16;
+		layoutGameH = (gameW * Ctrds_AspectH()) / Ctrds_AspectW();
 	}
 
 	totalH = layoutGameH + layoutPanelH;

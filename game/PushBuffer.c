@@ -433,10 +433,10 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	// view only.
 	if (Ctrds_Widescreen() && pb != &sdata->gGT->pushBuffer_UI)
 	{
-		pb->matrix_ViewProj.t[0] = pb->matrix_ViewProj.t[0] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
-		pb->matrix_ViewProj.m[0][0] = pb->matrix_ViewProj.m[0][0] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
-		pb->matrix_ViewProj.m[0][1] = pb->matrix_ViewProj.m[0][1] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
-		pb->matrix_ViewProj.m[0][2] = pb->matrix_ViewProj.m[0][2] * CTRDS_WIDE_NUM / CTRDS_WIDE_DEN;
+		pb->matrix_ViewProj.t[0] = pb->matrix_ViewProj.t[0] * Ctrds_WideNum() / Ctrds_WideDen();
+		pb->matrix_ViewProj.m[0][0] = pb->matrix_ViewProj.m[0][0] * Ctrds_WideNum() / Ctrds_WideDen();
+		pb->matrix_ViewProj.m[0][1] = pb->matrix_ViewProj.m[0][1] * Ctrds_WideNum() / Ctrds_WideDen();
+		pb->matrix_ViewProj.m[0][2] = pb->matrix_ViewProj.m[0][2] * Ctrds_WideNum() / Ctrds_WideDen();
 	}
 #endif
 
@@ -637,7 +637,7 @@ void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 	// diagonal with the sky showing through.
 	if (Ctrds_Widescreen())
 	{
-		val_X = val_X * CTRDS_WIDE_DEN / CTRDS_WIDE_NUM;
+		val_X = val_X * Ctrds_WideDen() / Ctrds_WideNum();
 	}
 #endif
 

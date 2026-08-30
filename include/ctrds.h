@@ -213,6 +213,11 @@ struct CtrdsLayout
 	// On-screen controls: 0 automatic (shown only with no pad), 1 always, 2 never.
 	int touchControls;
 
+	// Display aspect as a ratio, e.g. 16:9, 21:9, 4:3. The field of view widens
+	// to match it rather than the picture being stretched.
+	int aspectW;
+	int aspectH;
+
 	// Internal render resolution multiplier, 1..4. Geometry is drawn at this
 	// multiple of the PS1 display size; textures stay native.
 	int internalScale;
@@ -243,8 +248,29 @@ static inline int Ctrds_TallFramebuffer(void)
 // 9/16 x 4/3 = 0.75. The view-projection's Y axis is already scaled so the
 // 512x216 buffer reads as 4:3; narrowing X by this widens it to 16:9. Same
 // factor the CTR-ModSDK 16BY9 mod uses.
-#define CTRDS_WIDE_NUM 750
-#define CTRDS_WIDE_DEN 1000
+// The projection's X is narrowed by (4/3) / targetAspect, which widens the field
+// of view to that aspect. 16:9 gives 0.75, the value this used to hardcode; 21:9
+// gives 0.571; 4:3 gives 1, i.e. no change. Kept as a fraction so the whole path
+// stays integer.
+static inline int Ctrds_AspectW(void)
+{
+	return (g_ctrds.aspectW > 0) ? g_ctrds.aspectW : 16;
+}
+
+static inline int Ctrds_AspectH(void)
+{
+	return (g_ctrds.aspectH > 0) ? g_ctrds.aspectH : 9;
+}
+
+static inline int Ctrds_WideNum(void)
+{
+	return 4 * ((g_ctrds.aspectH > 0) ? g_ctrds.aspectH : 9);
+}
+
+static inline int Ctrds_WideDen(void)
+{
+	return 3 * ((g_ctrds.aspectW > 0) ? g_ctrds.aspectW : 16);
+}
 
 // True while a race is actually running. Menus, the adventure hub and the
 // pre-race screens are not races.
@@ -353,7 +379,9 @@ void Ctrds_FitMapToRegion(const struct Icon *mapTop, const struct Icon *mapBotto
 
 static inline int Ctrds_Widescreen(void)
 {
-	return g_ctrds.widescreen != 0;
+	// Anything other than 4:3 counts as widescreen for the paths that only need
+	// to know whether the field of view was changed at all.
+	return (g_ctrds.aspectW * 3) != (g_ctrds.aspectH * 4);
 }
 
 static inline int Ctrds_SecondScreen(void)
