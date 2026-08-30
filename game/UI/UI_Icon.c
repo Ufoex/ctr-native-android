@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include "ctrds.h"
+
 enum
 {
 	UI_ICON_FIXED_SHIFT = 0xc,
@@ -197,7 +199,12 @@ void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct Prim
 	s16 topY;
 	s16 leftX;
 
+#if defined(CTR_NATIVE)
+	// Per-frame step; scale it so the shine keeps its speed above 30fps.
+	sdata->wumpaShineTheta += (s16)Ctrds_ScaleStep(UI_TRACKER_BG_SHINE_THETA_STEP);
+#else
 	sdata->wumpaShineTheta += UI_TRACKER_BG_SHINE_THETA_STEP;
+#endif
 
 	widthOffset = ((targetIcon->texLayout.u1 - targetIcon->texLayout.u0) * angleX) >> UI_ICON_FIXED_SHIFT;
 	heightOffset = ((targetIcon->texLayout.v2 - targetIcon->texLayout.v0) * angleY) >> UI_ICON_FIXED_SHIFT;

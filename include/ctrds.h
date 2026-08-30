@@ -94,9 +94,16 @@
 // Transparent rows along the bottom of the map art (see Ctrds_FitMapToRegion).
 #define CTRDS_MAP_ART_PAD_Y 9
 
-// Where the finished panel is parked in VRAM. Needs VRAM_HEIGHT > 1470.
+// Where the finished panel is parked in VRAM.
+//
+// It must not overlap either display buffer. MainMain gives them y=0 and
+// y=CTRDS_FB_PITCH (1024), each CTRDS_FB_HEIGHT tall, so the framebuffers own
+// 0..467 and 1024..1491. Parking the panel at 1024 put it inside the second
+// buffer, and the panel turned up drawn into the game view -- small copies of
+// the HUD in the corner of the screen. 1536 is clear of both and still inside
+// VRAM_HEIGHT (2048).
 #define CTRDS_VRAM_PANEL_X 0
-#define CTRDS_VRAM_PANEL_Y 1024
+#define CTRDS_VRAM_PANEL_Y 1536
 
 enum CtrdsMode
 {
@@ -335,6 +342,9 @@ static inline int Ctrds_SwapFaceButtons(void)
 // camera and HUD are delta-timed and keep running every frame.
 int Ctrds_BucketRunsThisFrame(int bucket);
 
+// True for the delta-timed buckets that must run every frame.
+int Ctrds_BucketRunsEveryFrame(int bucket);
+
 // Scales the live map to its region and centres it there, from the actual
 // dimensions of the track's own map textures. Call before the map is drawn.
 struct Icon;
@@ -372,6 +382,18 @@ void Ctrds_RegisterGpuRanges(void);
 // Derived from the measured frame time, so it is correct at 60 and at 120
 // rather than assuming a fixed doubling the way CTR-ModSDK's FPS_DOUBLE does.
 int Ctrds_ScaleFrames(int frames30);
+
+// The inverse of Ctrds_ScaleFrames, for per-frame increments rather than
+// durations: a step written for a 30fps frame becomes a smaller step at a
+// higher rate, so the total per second is unchanged and the motion stays smooth
+// instead of being gated to 30 updates a second.
+int Ctrds_ScaleStep(int step30);
+
+// Gated buckets do not run every frame, so anything delta-timed inside them
+// would otherwise see one frame's elapsed time instead of all the time that
+// passed since they last ran -- which is what made thrown weapons crawl.
+void Ctrds_BeginFrameGating(void);
+int Ctrds_GatedElapsedMs(void);
 
 // True on the subset of frames that corresponds to retail's 30fps cadence.
 // Effects that spawn once per frame -- exhaust, tyre smoke, sparks -- would

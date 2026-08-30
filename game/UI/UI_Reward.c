@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include "ctrds.h"
+
 enum
 {
 	UI_LAP_TIME_LAPS_PER_PLAYER = 7,
@@ -67,7 +69,15 @@ void UI_ThTick_CountPickup(struct Thread *bucket)
 		                       : ((s16)sdata->wumpaShineResult - UI_REWARD_WUMPA_SHINE_CENTER) << UI_REWARD_WUMPA_SHINE_SHIFT;
 	}
 
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): a fixed step per tick, and this bucket runs every frame, so
+	// above 30fps the fruit and the held item spun two to four times too fast.
+	// Scale the step by the frame time instead of gating the bucket, which keeps
+	// the spin smooth at the higher rate.
+	obj->rot.y += (s16)Ctrds_ScaleStep(isTimeCrate ? UI_REWARD_PICKUP_ROT_SLOW : UI_REWARD_PICKUP_ROT_FAST);
+#else
 	obj->rot.y += isTimeCrate ? UI_REWARD_PICKUP_ROT_SLOW : UI_REWARD_PICKUP_ROT_FAST;
+#endif
 
 	MATRIX *mat = &inst->matrix;
 
@@ -93,7 +103,12 @@ void UI_ThTick_Reward(struct Thread *bucket)
 	struct Instance *inst = bucket->inst;
 	struct UiElement3D *obj = bucket->object;
 
+#if defined(CTR_NATIVE)
+	// Same per-frame step as the pickup spin above.
+	obj->rot.y += (s16)Ctrds_ScaleStep(UI_REWARD_PICKUP_ROT_SLOW);
+#else
 	obj->rot.y += UI_REWARD_PICKUP_ROT_SLOW;
+#endif
 
 	Vector_SpecLightSpin2D(inst, &obj->rot, &obj->lightDir);
 
@@ -121,7 +136,12 @@ void UI_ThTick_CtrLetters(struct Thread *bucket)
 	struct Instance *inst = bucket->inst;
 	struct UiElement3D *obj = bucket->object;
 
+#if defined(CTR_NATIVE)
+	// Same per-frame step as the pickup spin above.
+	obj->rot.y += (s16)Ctrds_ScaleStep(UI_REWARD_PICKUP_ROT_SLOW);
+#else
 	obj->rot.y += UI_REWARD_PICKUP_ROT_SLOW;
+#endif
 
 	Vector_SpecLightSpin2D(inst, &obj->rot, &obj->lightDir);
 

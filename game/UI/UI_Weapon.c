@@ -228,7 +228,12 @@ void UI_Weapon_DrawBG(s16 posX, s16 posY, s16 scale, struct Driver *d)
 	int scaleInt = (int)scale;
 
 	// wumpaShineTheta (given to sine)
+#if defined(CTR_NATIVE)
+	// Same per-frame step problem as the pickup spin.
+	sdata->wumpaShineTheta += (s16)Ctrds_ScaleStep(UI_WEAPON_BG_SHINE_THETA_STEP);
+#else
 	sdata->wumpaShineTheta += UI_WEAPON_BG_SHINE_THETA_STEP;
+#endif
 
 	int shineScale = scaleInt * UI_WEAPON_BG_SHINE_SCALE_MUL >> UI_WEAPON_BG_SHINE_SCALE_SHIFT;
 
@@ -251,7 +256,10 @@ void UI_Weapon_DrawBG(s16 posX, s16 posY, s16 scale, struct Driver *d)
 		    // one. The panel redirect moves the UI ordering table, so left as
 		    // it was the shine stayed behind on the main screen while the
 		    // weapon and fruit it belongs to moved to the panel.
-		    Ctrds_Enabled() ? gGT->pushBuffer_UI.ptrOT : gGT->pushBuffer[d->driverID].ptrOT,
+		    // Entry 3 rather than the base: the ordering table is drawn from the
+		    // highest entry down, so a higher index lands behind. At the base the
+		    // shine covered the fruit and the weapon it is meant to sit behind.
+		    Ctrds_Enabled() ? &gGT->pushBuffer_UI.ptrOT[3] : gGT->pushBuffer[d->driverID].ptrOT,
 #else
 		    gGT->pushBuffer[d->driverID].ptrOT,
 #endif

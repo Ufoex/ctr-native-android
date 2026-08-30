@@ -300,6 +300,10 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 			psVar8->quip2 = (s16)iVar4;
 		}
 
+#if defined(CTR_NATIVE)
+		Ctrds_BeginFrameGating();
+#endif
+
 		for (iVar4 = 0; iVar4 < NUM_BUCKETS; iVar4++)
 		{
 			if ((((gGT->gameMode1 & DEBUG_MENU) == 0) || ((gGT->threadBuckets[iVar4].boolCantPause & 1) != 0)) &&
@@ -308,9 +312,21 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 			    (gGT->threadBuckets[iVar4].thread != 0))
 			{
 #if defined(CTR_NATIVE)
-				if (!Ctrds_BucketRunsThisFrame(iVar4))
+				// A gated bucket runs at 30Hz, so while it runs it is told how
+				// much time really passed since last time -- otherwise anything
+				// delta-timed inside it (thrown weapons, moving explosives)
+				// advances by a single frame's worth and crawls.
+				int ctrdsSavedElapsed = gGT->elapsedTimeMS;
+				const int ctrdsGated = !Ctrds_BucketRunsEveryFrame(iVar4);
+
+				if (ctrdsGated)
 				{
-					continue;
+					if (!Ctrds_BucketRunsThisFrame(iVar4))
+					{
+						continue;
+					}
+
+					gGT->elapsedTimeMS = Ctrds_GatedElapsedMs();
 				}
 #endif
 
@@ -348,6 +364,13 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 				}
 
 				ThTick_RunBucket(gGT->threadBuckets[iVar4].thread);
+
+#if defined(CTR_NATIVE)
+				if (ctrdsGated)
+				{
+					gGT->elapsedTimeMS = ctrdsSavedElapsed;
+				}
+#endif
 			}
 		}
 

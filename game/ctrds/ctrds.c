@@ -74,7 +74,7 @@ struct CtrdsLayout g_ctrds = {
     .swapFaceButtons = 1,
     .touchControls = 0,
     .internalScale = 4,
-    .targetFps = 120,
+    .targetFps = 60,
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
@@ -88,7 +88,7 @@ struct CtrdsLayout g_ctrds = {
     /* 0x02 BIG1             */ {410, CTRDS_NUM_Y + 52, 256, 5530},                               \
     /* 0x03 FRUIT_MODEL      */ {330, 18, 512, 4096},                                                            \
     /* 0x04 WUMPA_COUNT      */ {350, 10, 0, 0},                                                                 \
-    /* 0x05 RANK             */ {472, CTRDS_NUM_Y + 30, 0, 0},                                   \
+    /* 0x05 RANK             */ {450, CTRDS_NUM_Y + 30, 0, 0},                                   \
     /* 0x06 JUMP_METER       */ {398 + 77, 60 + 61, 0, 0},                                 \
     /* 0x07 (unused)         */ {475, 164, 0, 0},                                                                \
     /* 0x08 SLIDE_METER      */ {398 + 76, 60 + 61, 0, 0},                                 \
@@ -139,7 +139,56 @@ int Ctrds_ScaleFrames(int frames30)
 	return (frames30 * CTRDS_RETAIL_FRAME_MS) / ms;
 }
 
-int Ctrds_BucketRunsThisFrame(int bucket)
+int Ctrds_ScaleStep(int step30)
+{
+	int ms;
+
+	if (!Ctrds_Enabled())
+	{
+		return step30;
+	}
+
+	ms = sdata->gGT->elapsedTimeMS;
+
+	if (ms < 1)
+	{
+		ms = 1;
+	}
+	if (ms > CTRDS_RETAIL_FRAME_MS)
+	{
+		ms = CTRDS_RETAIL_FRAME_MS;
+	}
+
+	return (step30 * ms) / CTRDS_RETAIL_FRAME_MS;
+}
+
+internal int s_ctrdsGatedElapsed = 0;
+internal int s_ctrdsGatedPending = 0;
+
+void Ctrds_BeginFrameGating(void)
+{
+	if (!Ctrds_Enabled())
+	{
+		return;
+	}
+
+	s_ctrdsGatedElapsed += sdata->gGT->elapsedTimeMS;
+
+	// On the frames where the gated buckets actually run, hand them everything
+	// that has elapsed since they last ran.
+	if (Ctrds_Is30HzTick())
+	{
+		s_ctrdsGatedPending = s_ctrdsGatedElapsed;
+		s_ctrdsGatedElapsed = 0;
+	}
+}
+
+int Ctrds_GatedElapsedMs(void)
+{
+	return (s_ctrdsGatedPending > 0) ? s_ctrdsGatedPending : sdata->gGT->elapsedTimeMS;
+}
+
+int Ctrds_BucketRunsEveryFrame(int bucket)
 {
 	if (!Ctrds_Enabled())
 	{
@@ -163,8 +212,18 @@ int Ctrds_BucketRunsThisFrame(int bucket)
 	// platforms, mines, warp pads, the start banner -- and would run at two or
 	// four times speed if it ran on every frame at 60 or 120fps.
 	default:
-		return Ctrds_Is30HzTick();
+		return 0;
 	}
+}
+
+int Ctrds_BucketRunsThisFrame(int bucket)
+{
+	if (Ctrds_BucketRunsEveryFrame(bucket))
+	{
+		return 1;
+	}
+
+	return Ctrds_Is30HzTick();
 }
 
 int Ctrds_Is30HzTick(void)

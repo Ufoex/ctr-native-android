@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include "ctrds.h"
+
 
 enum
 {
@@ -1498,7 +1500,13 @@ LAB_8001ab04:
 
 		if (pb->rot.x < 0x800)
 		{
+#if defined(CTR_NATIVE)
+			// A per-frame ease toward 0x800: unscaled it settles twice as fast at
+			// 60fps and four times at 120.
+			pb->rot.x += (s16)Ctrds_ScaleStep(0x10);
+#else
 			pb->rot.x += 0x10;
+#endif
 			if (pb->rot.x > 0x800)
 			{
 				pb->rot.x = 0x800;
