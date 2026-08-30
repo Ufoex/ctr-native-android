@@ -512,15 +512,14 @@ void Ctrds_DrawItemBox(struct GameTracker *gGT)
 	RECTMENU_DrawInnerRect(&r, 0, &gGT->pushBuffer_UI.ptrOT[2]);
 }
 
+// NOTE(ctrds): this used to draw the settings list over the game view when
+// there was no second screen, because that was the only way to reach those
+// settings without one. The launcher now owns them, so all this did was cover
+// the picture on a phone. Kept as a no-op rather than deleted: the panel still
+// draws the same list on its idle screen through Ctrds_DrawSettingsList.
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 {
-	if (Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
-	{
-		return;
-	}
-
-	// PS1 screen coordinates: 512 wide, and low enough to sit under the menu.
-	Ctrds_DrawSettingsList(gGT->pushBuffer_UI.ptrOT, 128, 120);
+	(void)gGT;
 }
 
 void Ctrds_PanelTap(float nx, float ny)
