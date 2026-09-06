@@ -1,0 +1,88 @@
+name: Build PC (Linux/Windows)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86 (32-bit)
+            os: ubuntu-24.04
+            force32: "ON"
+            artifact: ctr_native
+          - name: Linux x86-64 (64-bit)
+            os: ubuntu-24.04
+            force32: "OFF"
+            artifact: ctr_native
+          - name: Windows x86 (32-bit, MSVC)
+            os: windows-latest
+            msvc_arch: Win32
+            force32: "ON"
+            artifact: ctr_native.exe
+          - name: Windows x64 (64-bit, MSVC)
+            os: windows-latest
+            msvc_arch: x64
+            force32: "OFF"
+            artifact: ctr_native.exe
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Instalar dependencias (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib g++-multilib libx11-dev libxext-dev libgl1-mesa-dev libasound2-dev libudev-dev libdbus-1-dev
+
+      - name: Configurar (Linux, 32-bit)
+        if: runner.os == 'Linux' && matrix.force32 == 'ON'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCTR_FORCE_32BIT=ON -DCMAKE_C_FLAGS="-m32" -DCMAKE_CXX_FLAGS="-m32" -DCMAKE_EXE_LINKER_FLAGS="-m32"
+
+      - name: Configurar (Linux, 64-bit)
+        if: runner.os == 'Linux' && matrix.force32 == 'OFF'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCTR_FORCE_32BIT=OFF
+
+      - name: Compilar (Linux)
+        if: runner.os == 'Linux'
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Configurar (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.msvc_arch }} -DCTR_FORCE_32BIT=${{ matrix.force32 }}
+
+      - name: Compilar (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build build --config Release -j
+
+      - name: Ubicar el binario compilado
+        id: locate
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            path=$(find build -iname "${{ matrix.artifact }}" -path "*Release*" | head -1)
+          else
+            path=$(find build -maxdepth 1 -iname "${{ matrix.artifact }}" | head -1)
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Publicar binario como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctr-native-${{ matrix.os }}-${{ matrix.msvc_arch || (matrix.force32 == 'ON' && 'x86' || 'x86-64') }}
+          path: ${{ steps.locate.outputs.path }}
+          if-no-files-found: error
