@@ -392,6 +392,10 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY);
 // Main-screen settings, for devices with no second screen.
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
 
+// Opens/closes the main-screen settings list (Tab on desktop, Back on
+// Android). Ignored off the main menu -- nowhere else is safe to draw it.
+void Ctrds_ToggleMenu(void);
+
 // Frame around the held-item slot, drawn whether or not an item is held.
 void Ctrds_DrawItemBox(struct GameTracker *gGT);
 

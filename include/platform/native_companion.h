@@ -25,4 +25,8 @@ void NativeCompanion_Present(int vramX, int vramY, int vramW, int vramH);
 
 void NativeCompanion_Shutdown(void);
 
+// Quits the app. Desktop can just close its own window; Android can't finish
+// its own Activity from the game thread and has to ask Java.
+void NativeCompanion_RequestExit(void);
+
 #endif

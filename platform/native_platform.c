@@ -542,6 +542,15 @@ void Platform_PollHostEvents(void)
 				break;
 			}
 
+			if (key == SDL_SCANCODE_TAB)
+			{
+				if ((down != 0) && (event.key.repeat == 0))
+				{
+					Ctrds_ToggleMenu();
+				}
+				break;
+			}
+
 			if (key == SDL_SCANCODE_RETURN)
 			{
 				if ((s_hostAltKeyState != 0) && (down != 0) && (event.key.repeat == 0))

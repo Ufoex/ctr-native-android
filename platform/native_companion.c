@@ -2,6 +2,8 @@
 #include <platform/native_log.h>
 #include <platform/native_renderer.h>
 
+#include <stdlib.h>
+
 #if defined(__ANDROID__)
 
 #include <SDL3/SDL.h>
@@ -111,6 +113,19 @@ JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeCompanionUnava
 	// Java looked for a presentation display and found none, so this device has
 	// only one screen. Fall back rather than stacking both rectangles into it.
 	Ctrds_DisableSecondScreen();
+}
+
+JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeBackButton(JNIEnv *env, jclass cls)
+{
+	(void)env;
+	(void)cls;
+
+	Ctrds_ToggleMenu();
+}
+
+void NativeCompanion_RequestExit(void)
+{
+	NativeCompanion_CallJavaStatic("exitGame");
 }
 
 void NativeCompanion_Init(void)
@@ -288,6 +303,11 @@ void NativeCompanion_Present(int vramX, int vramY, int vramW, int vramH)
 
 void NativeCompanion_Shutdown(void)
 {
+}
+
+void NativeCompanion_RequestExit(void)
+{
+	exit(0);
 }
 
 #endif

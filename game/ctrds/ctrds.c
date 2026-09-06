@@ -1,6 +1,7 @@
 #include <common.h>
 
 #include "ctrds_online.h"
+#include <platform/native_companion.h>
 #include <platform/native_renderer.h>
 #include <platform/native_gpu_links.h>
 
@@ -306,6 +307,7 @@ enum CtrdsSetting
 	CTRDS_SET_UNLOCK_PORTALS,
 	CTRDS_SET_SKIP_INTRO,
 	CTRDS_SET_SKIP_HINTS,
+	CTRDS_SET_EXIT_GAME,
 	CTRDS_SET_ONLINE,
 	CTRDS_SET_ALL
 };
@@ -334,6 +336,7 @@ internal int Ctrds_Gcd(int a, int b)
 #define CTRDS_FPS_STEP_COUNT ((int)(sizeof(s_ctrdsFpsSteps) / sizeof(s_ctrdsFpsSteps[0])))
 
 internal int s_ctrdsSetting = CTRDS_SET_RESOLUTION;
+internal int s_ctrdsMenuOpen = 0;
 
 void Ctrds_SaveConfig(void)
 {
@@ -508,6 +511,12 @@ internal void Ctrds_AdjustSetting(int delta)
 		g_ctrds.skipHints = !g_ctrds.skipHints;
 		break;
 
+	case CTRDS_SET_EXIT_GAME:
+		// An action, not a value: either shoulder confirms it, no need to
+		// distinguish direction.
+		NativeCompanion_RequestExit();
+		break;
+
 	case CTRDS_SET_ONLINE:
 		Ctrds_OnlineToggle();
 		break;
@@ -603,6 +612,9 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 		case CTRDS_SET_SKIP_HINTS:
 			snprintf(line, sizeof(line), "%s SKIP HINTS  %s", marker, g_ctrds.skipHints ? "ON" : "OFF");
 			break;
+		case CTRDS_SET_EXIT_GAME:
+			snprintf(line, sizeof(line), "%s EXIT GAME", marker);
+			break;
 		default:
 			snprintf(line, sizeof(line), "%s ONLINE  %s", marker, Ctrds_OnlineEnabled() ? "ON" : "OFF");
 			break;
@@ -661,12 +673,15 @@ void Ctrds_DrawItemBox(struct GameTracker *gGT)
 // UI to set them from either on PC. Ctrds_PollPanelInput() already reads
 // Select/L1/R1 regardless of whether a companion screen exists - this is
 // only the other half, the visible feedback, drawn straight onto the main
-// menu's own ordering table instead of the panel's.
+// menu's own ordering table instead of the panel's. Hidden until
+// Ctrds_ToggleMenu() opens it (Tab/Back), not shown just for sitting at the
+// main menu -- it used to be, and a demo-mode timeout kicking the game out of
+// the main menu made it look like the menu itself vanished on its own.
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 {
 	uint32_t *ot;
 
-	if (Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
+	if (!s_ctrdsMenuOpen || Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
 	{
 		return;
 	}
@@ -676,6 +691,19 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 	// bottom edge on a plain 216px-tall single screen; paging/scrolling would
 	// fix that if it turns out to matter in practice.
 	Ctrds_DrawSettingsList(ot, g_ctrds.screenW / 2, 20);
+}
+
+// The only place proven safe to draw the list is the main menu's own
+// ordering table (see above), so opening it anywhere else is a no-op rather
+// than a promise the game state can't yet keep.
+void Ctrds_ToggleMenu(void)
+{
+	if (!Ctrds_OnMainMenu())
+	{
+		return;
+	}
+
+	s_ctrdsMenuOpen = !s_ctrdsMenuOpen;
 }
 
 void Ctrds_PanelTap(float nx, float ny)
@@ -728,8 +756,10 @@ void Ctrds_PollPanelInput(void)
 	onMenu = Ctrds_OnMainMenu();
 
 	// Ignore the frame the menu opens on, so a Select press that got us here
-	// does not immediately toggle.
-	if (onMenu && s_wasOnMenu)
+	// does not immediately toggle. On a single window the list is invisible
+	// until Ctrds_ToggleMenu() opens it; a companion display has no such
+	// toggle, its panel is always live.
+	if (onMenu && s_wasOnMenu && (Ctrds_SecondScreen() || s_ctrdsMenuOpen))
 	{
 		const int tapped = sdata->gGamepads->gamepad[0].buttonsTapped;
 
