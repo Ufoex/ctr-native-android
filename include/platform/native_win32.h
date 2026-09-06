@@ -18,6 +18,16 @@
 #include <windows.h>
 
 /*
+ * ENet (externals/enet) needs <winsock2.h> later in this same unity build,
+ * and its structs use the `far`/`near` pointer qualifiers Windows still
+ * defines. Pull it in now, while those macros are intact, so its own
+ * #include <winsock2.h> further down the translation unit becomes a no-op
+ * against its include guard - undef'ing far/near below would otherwise
+ * turn every `far *` in ws2def.h into a syntax error.
+ */
+#include <winsock2.h>
+
+/*
  * This project is built as one large C translation unit. Keep Win32's ANSI
  * name-selection macros from rewriting PS1 SDK/game function names later.
  */

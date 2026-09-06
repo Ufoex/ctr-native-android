@@ -116,7 +116,7 @@ add_library(enet STATIC
     ${CMAKE_SOURCE_DIR}/externals/enet/win32.c)
 target_include_directories(enet PUBLIC ${CMAKE_SOURCE_DIR}/externals/enet/include)
 target_compile_definitions(enet PRIVATE HAS_SOCKLEN_T=1)
-target_compile_options(enet PRIVATE -w)
+target_compile_options(enet PRIVATE $<IF:$<BOOL:${MSVC}>,/w,-w>)
 if(NOT WIN32)
     target_compile_definitions(enet PRIVATE HAS_FCNTL=1 HAS_POLL=1 HAS_GETADDRINFO=1 HAS_GETNAMEINFO=1 HAS_INET_PTON=1 HAS_INET_NTOP=1 HAS_MSGHDR_FLAGS=1)
 endif()
@@ -134,9 +134,12 @@ add_library(chdr STATIC
     ${CMAKE_SOURCE_DIR}/externals/libchdr/src/libchdr_codec_avhuff.c)
 target_include_directories(chdr PUBLIC ${CMAKE_SOURCE_DIR}/externals/libchdr/include)
 target_include_directories(chdr PRIVATE ${CMAKE_SOURCE_DIR}/externals/libchdr)
-target_compile_options(chdr PRIVATE -w)
+target_compile_options(chdr PRIVATE $<IF:$<BOOL:${MSVC}>,/w,-w>)
 
 target_link_libraries(ctr_native enet chdr)
+if(WIN32)
+    target_link_libraries(ctr_native ws2_32)
+endif()
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
     BUILD=926
