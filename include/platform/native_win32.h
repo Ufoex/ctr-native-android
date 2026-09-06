@@ -47,6 +47,16 @@
 #undef near
 #endif
 
+/*
+ * <winsock2.h>/<inaddr.h> #define s_addr as an alias into struct in_addr's
+ * S_un union. The PS1 kernel EXEC header (psx/kernel.h) has its own,
+ * unrelated field literally named s_addr, which that macro then rewrites
+ * mid-declaration.
+ */
+#ifdef s_addr
+#undef s_addr
+#endif
+
 #endif
 
 #endif
