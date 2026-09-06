@@ -54,6 +54,29 @@ final class CTRDSSettings {
         }
     }
 
+    /** { min, min+step, ..., max }, generated instead of hand-typed since a few of
+     * these runs are 20-40 values long. */
+    private static int[] range(int min, int max, int step) {
+        int[] values = new int[(max - min) / step + 1];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = min + i * step;
+        }
+        return values;
+    }
+
+    private static String[] percentNames(int[] values) {
+        String[] names = new String[values.length];
+        for (int i = 0; i < values.length; i++) {
+            names[i] = values[i] + "%";
+        }
+        return names;
+    }
+
+    private static final int[] SPEED_VALUES = range(10, 200, 10);
+    private static final int[] TURN_VALUES = range(10, 400, 10);
+    private static final int[] JUMP_VALUES = range(10, 300, 10);
+    private static final int[] GRAVITY_VALUES = range(10, 300, 10);
+
     /**
      * Defaults here match the native side's. They are only reached when the file
      * has nothing to say about a key -- a first run, or a setting added since
@@ -80,10 +103,8 @@ final class CTRDSSettings {
                 new String[] { "4:3", "Widescreen" }, 1),
 
         new Option("fxaa", "FXAA", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
-        // Default 1, matching g_ctrds.crt in game/ctrds/ctrds.c. They disagreed, so a
-        // config with no crt line -- which is what the launcher writes until the row
-        // is touched -- showed "Off" here while the engine ran the filter.
-        new Option("crt", "CRT filter", new int[] { 0, 1 }, new String[] { "Off", "On" }, 1),
+        // Default 0, matching g_ctrds.crt in game/ctrds/ctrds.c.
+        new Option("crt", "CRT filter", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
 
         new Option("hd_art", "Upscaled 2D art",
                 new int[] { 0, 1 }, new String[] { "Off", "On" }, 1),
@@ -94,6 +115,24 @@ final class CTRDSSettings {
         new Option("touch_controls", "Touch controls",
                 new int[] { 0, 1, 2 },
                 new String[] { "Auto", "Always", "Never" }, 0),
+
+        new Option("increase_draw_distance", "Draw distance",
+                new int[] { 0, 1 }, new String[] { "Normal", "Far" }, 0),
+
+        new Option("speed_stat_multiplier", "Speed", SPEED_VALUES, percentNames(SPEED_VALUES), 100),
+        new Option("turn_stat_multiplier", "Turn", TURN_VALUES, percentNames(TURN_VALUES), 100),
+        new Option("jump_stat_multiplier", "Jump", JUMP_VALUES, percentNames(JUMP_VALUES), 100),
+        new Option("gravity_stat_multiplier", "Gravity", GRAVITY_VALUES, percentNames(GRAVITY_VALUES), 100),
+
+        new Option("unlock_all_characters", "Unlock characters",
+                new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
+        new Option("unlock_all_gates", "Unlock gates",
+                new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
+        new Option("unlock_all_portals", "Unlock portals",
+                new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
+
+        new Option("skip_intro", "Skip intro", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
+        new Option("skip_hints", "Skip hints", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
 
         // skip_av and prim_reject are deliberately not offered here.
         //

@@ -12,7 +12,8 @@
         android:icon="@mipmap/ic_launcher"
         android:label="CTR Fusion"
         android:requestLegacyExternalStorage="true"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+        android:enableOnBackInvokedCallback="false">
 
         <!-- The launcher is what the app opens on: it picks the disc image and
              the settings, then starts the game. It has to be the entry point

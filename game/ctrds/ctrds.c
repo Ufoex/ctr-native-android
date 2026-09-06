@@ -700,10 +700,12 @@ void Ctrds_ToggleMenu(void)
 {
 	if (!Ctrds_OnMainMenu())
 	{
+		Platform_Log("[CTR-DS] menu toggle ignored, not on main menu\n");
 		return;
 	}
 
 	s_ctrdsMenuOpen = !s_ctrdsMenuOpen;
+	Platform_Log("[CTR-DS] menu open=%d\n", s_ctrdsMenuOpen);
 }
 
 void Ctrds_PanelTap(float nx, float ny)
