@@ -41,6 +41,11 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // No dedicated release key yet: sign with the auto-generated debug
+            // keystore so the release build is still installable without
+            // extra setup. Swap this for a real signingConfig before ever
+            // distributing outside personal testing.
+            signingConfig signingConfigs.debug
         }
     }
 

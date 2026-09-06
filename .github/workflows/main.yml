@@ -39,17 +39,17 @@ jobs:
       - name: Conceder permissão ao Gradle Wrapper
         run: chmod +x android/gradlew
 
-      - name: Compilar APK Debug
+      - name: Compilar APK Release
         working-directory: android
         env:
           ANDROID_NDK_VERSION: 26.3.11579264
-        run: ./gradlew --no-daemon --stacktrace assembleDebug
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
 
       - name: Publicar APK como artefato
         uses: actions/upload-artifact@v4
         with:
-          name: crash-ctr-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: crash-ctr-android-release
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -63,7 +63,7 @@ jobs:
             Build automática do Crash CTR Android.
 
             - Commit: `${{ github.sha }}`
-            - Arquiteturas: `armeabi-v7a`, `x86`
-            - Tipo: Debug
+            - Arquiteturas: `armeabi-v7a`, `arm64-v8a`, `x86`
+            - Tipo: Release (assinado com a keystore de debug - sem chave de release dedicada ainda)
           prerelease: true
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          files: android/app/build/outputs/apk/release/app-release.apk

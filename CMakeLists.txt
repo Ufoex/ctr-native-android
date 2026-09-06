@@ -44,10 +44,12 @@ else()
     set(CTR_NATIVE_BUILD_ID "${CTR_NATIVE_GIT_HASH}-dirty")
 endif()
 
-if(NOT ANDROID)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse")
+if(NOT MSVC)
+    if(NOT ANDROID)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse")
+    endif()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error -g")
 endif()
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error -g")
 
 function(ctr_native_add_label_warning_if_supported target warning flag_check)
     set(saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
@@ -142,7 +144,7 @@ target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
     CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
 )
-if(CTR_NATIVE_MSVC_FRONTEND)
+if(MSVC)
     target_compile_options(ctr_native PRIVATE
         /W4 #TODO(aalhendi): fix warnings
         /bigobj

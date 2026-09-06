@@ -80,20 +80,53 @@ jobs:
         if: runner.os == 'Windows'
         run: cmake --build build --config Release -j
 
-      - name: Ubicar el binario compilado
+      - name: Ubicar y renombrar el binario compilado
         id: locate
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "Windows" ]; then
-            path=$(find build -iname "${{ matrix.artifact }}" -path "*Release*" | head -1)
+            src=$(find build -iname "${{ matrix.artifact }}" -path "*Release*" | head -1)
+            plat="windows"
+            ext=".exe"
           else
-            path=$(find build -maxdepth 1 -iname "${{ matrix.artifact }}" | head -1)
+            src=$(find build -maxdepth 1 -iname "${{ matrix.artifact }}" | head -1)
+            plat="linux"
+            ext=""
           fi
-          echo "path=$path" >> "$GITHUB_OUTPUT"
+          arch="${{ matrix.msvc_arch == 'x64' && 'x86_64' || (matrix.msvc_arch == 'Win32' && 'x86' || (matrix.force32 == 'ON' && 'x86' || 'x86_64')) }}"
+          dst="ctr_native-${plat}-${arch}${ext}"
+          cp "$src" "$dst"
+          echo "path=$dst" >> "$GITHUB_OUTPUT"
+          echo "name=$dst" >> "$GITHUB_OUTPUT"
 
       - name: Publicar binario como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: ctr-native-${{ matrix.os }}-${{ matrix.msvc_arch || (matrix.force32 == 'ON' && 'x86' || 'x86-64') }}
+          name: ${{ steps.locate.outputs.name }}
           path: ${{ steps.locate.outputs.path }}
           if-no-files-found: error
+
+  release:
+    name: Publicar release de PC
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Descargar todos los binarios
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Crear GitHub Release con los binarios de PC
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: pc-build-${{ github.run_number }}
+          name: CTR Fusion PC Build ${{ github.run_number }}
+          body: |
+            Build automática de PC (Linux/Windows).
+
+            - Commit: `${{ github.sha }}`
+            - Arquitecturas: `x86` (32-bit), `x86_64` (64-bit) por cada sistema
+          prerelease: true
+          files: dist/*

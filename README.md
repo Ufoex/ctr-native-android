@@ -1,5 +1,9 @@
 # CTR Native
 
+[![Latest release](https://img.shields.io/github/v/release/Ufoex/ctr-native-android?include_prereleases&label=latest%20release)](https://github.com/Ufoex/ctr-native-android/releases/latest)
+
+**[⬇ Download the latest build](https://github.com/Ufoex/ctr-native-android/releases/latest)** — Android APK (arm64-v8a/armeabi-v7a/x86) and PC binaries (Linux/Windows, 32/64-bit) are built automatically on every push; see [Releases](https://github.com/Ufoex/ctr-native-android/releases).
+
 > **This is the CTR-DS fork.** It adds a companion screen, a 64-bit build,
 > frame caps above 30 and internal resolution up to 8x. See
 > **[README_CTRDS.md](README_CTRDS.md)** for what that changes and how to build
