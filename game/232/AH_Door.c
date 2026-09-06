@@ -58,6 +58,13 @@ void AH_Door_ThDestroy(struct Thread *t)
 
 static b32 AH_Door_IsOpenByRewards(s16 levelID, AdventureHubDoorID doorID)
 {
+#if defined(CTR_NATIVE)
+	if (g_ctrds.unlockAllGates)
+	{
+		return 1;
+	}
+#endif
+
 	if ((levelID == N_SANITY_BEACH) && (doorID == AH_DOOR_BEACH_TO_GLACIER_PARK))
 	{
 		return (sdata->advProgress.storyFlags & ADV_REWARD_DOOR_BEACH_TO_GLACIER_PARK_MASK) != 0;

@@ -868,6 +868,13 @@ void MainFrame_RequestMaskHint(s16 hintId, s16 interruptWarpPad)
 {
 	struct GameTracker *gGT = sdata->gGT;
 
+#if defined(CTR_NATIVE)
+	if (g_ctrds.skipHints)
+	{
+		return;
+	}
+#endif
+
 	if (((gGT->gameMode1 & PAUSE_ALL) == 0) && (sdata->AkuHint_RequestedHint == -1))
 	{
 		sdata->AkuAkuHintState = 1;

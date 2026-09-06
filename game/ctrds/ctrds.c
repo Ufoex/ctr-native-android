@@ -88,6 +88,17 @@ struct CtrdsLayout g_ctrds = {
 
     .mapRetailX = CTRDS_RETAIL_MAP_X,
     .mapRetailY = CTRDS_RETAIL_MAP_Y,
+
+    .increaseDrawDistance = 0,
+    .speedMultiplier = 100,
+    .turnMultiplier = 100,
+    .jumpMultiplier = 100,
+    .gravityMultiplier = 100,
+    .unlockAllCharacters = 0,
+    .unlockAllGates = 0,
+    .unlockAllPortals = 0,
+    .skipIntro = 0,
+    .skipHints = 0,
 };
 
 // Companion replacement for data.hud_1P_P1. Slots the companion does not use
@@ -285,6 +296,16 @@ enum CtrdsSetting
 	CTRDS_SET_ASPECT,
 	CTRDS_SET_FXAA,
 	CTRDS_SET_CRT,
+	CTRDS_SET_DRAW_DISTANCE,
+	CTRDS_SET_SPEED,
+	CTRDS_SET_TURN,
+	CTRDS_SET_JUMP,
+	CTRDS_SET_GRAVITY,
+	CTRDS_SET_UNLOCK_CHARACTERS,
+	CTRDS_SET_UNLOCK_GATES,
+	CTRDS_SET_UNLOCK_PORTALS,
+	CTRDS_SET_SKIP_INTRO,
+	CTRDS_SET_SKIP_HINTS,
 	CTRDS_SET_ONLINE,
 	CTRDS_SET_ALL
 };
@@ -344,6 +365,16 @@ void Ctrds_SaveConfig(void)
 	fprintf(f, "aspect_h=%d\n", g_ctrds.aspectH);
 	fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
 	fprintf(f, "swap_face_buttons=%d\n", g_ctrds.swapFaceButtons);
+	fprintf(f, "increase_draw_distance=%d\n", g_ctrds.increaseDrawDistance);
+	fprintf(f, "speed_stat_multiplier=%d\n", g_ctrds.speedMultiplier);
+	fprintf(f, "turn_stat_multiplier=%d\n", g_ctrds.turnMultiplier);
+	fprintf(f, "jump_stat_multiplier=%d\n", g_ctrds.jumpMultiplier);
+	fprintf(f, "gravity_stat_multiplier=%d\n", g_ctrds.gravityMultiplier);
+	fprintf(f, "unlock_all_characters=%d\n", g_ctrds.unlockAllCharacters);
+	fprintf(f, "unlock_all_gates=%d\n", g_ctrds.unlockAllGates);
+	fprintf(f, "unlock_all_portals=%d\n", g_ctrds.unlockAllPortals);
+	fprintf(f, "skip_intro=%d\n", g_ctrds.skipIntro);
+	fprintf(f, "skip_hints=%d\n", g_ctrds.skipHints);
 	fprintf(f, "online=%d\n", Ctrds_OnlineEnabled() ? 1 : 0);
 	fprintf(f, "online_host=%s\n", Ctrds_OnlineConfig()->host);
 	fprintf(f, "online_port=%d\n", Ctrds_OnlineConfig()->port);
@@ -417,6 +448,66 @@ internal void Ctrds_AdjustSetting(int delta)
 		g_ctrds.crt = !g_ctrds.crt;
 		break;
 
+	case CTRDS_SET_DRAW_DISTANCE:
+		g_ctrds.increaseDrawDistance = !g_ctrds.increaseDrawDistance;
+		break;
+
+	case CTRDS_SET_SPEED:
+	{
+		int v = g_ctrds.speedMultiplier + delta * 10;
+		if (v < 10) v = 10;
+		if (v > 200) v = 200;
+		g_ctrds.speedMultiplier = v;
+		break;
+	}
+
+	case CTRDS_SET_TURN:
+	{
+		int v = g_ctrds.turnMultiplier + delta * 10;
+		if (v < 10) v = 10;
+		if (v > 400) v = 400;
+		g_ctrds.turnMultiplier = v;
+		break;
+	}
+
+	case CTRDS_SET_JUMP:
+	{
+		int v = g_ctrds.jumpMultiplier + delta * 10;
+		if (v < 10) v = 10;
+		if (v > 300) v = 300;
+		g_ctrds.jumpMultiplier = v;
+		break;
+	}
+
+	case CTRDS_SET_GRAVITY:
+	{
+		int v = g_ctrds.gravityMultiplier + delta * 10;
+		if (v < 10) v = 10;
+		if (v > 300) v = 300;
+		g_ctrds.gravityMultiplier = v;
+		break;
+	}
+
+	case CTRDS_SET_UNLOCK_CHARACTERS:
+		g_ctrds.unlockAllCharacters = !g_ctrds.unlockAllCharacters;
+		break;
+
+	case CTRDS_SET_UNLOCK_GATES:
+		g_ctrds.unlockAllGates = !g_ctrds.unlockAllGates;
+		break;
+
+	case CTRDS_SET_UNLOCK_PORTALS:
+		g_ctrds.unlockAllPortals = !g_ctrds.unlockAllPortals;
+		break;
+
+	case CTRDS_SET_SKIP_INTRO:
+		g_ctrds.skipIntro = !g_ctrds.skipIntro;
+		break;
+
+	case CTRDS_SET_SKIP_HINTS:
+		g_ctrds.skipHints = !g_ctrds.skipHints;
+		break;
+
 	case CTRDS_SET_ONLINE:
 		Ctrds_OnlineToggle();
 		break;
@@ -481,6 +572,36 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 			break;
 		case CTRDS_SET_CRT:
 			snprintf(line, sizeof(line), "%s CRT  %s", marker, g_ctrds.crt ? "ON" : "OFF");
+			break;
+		case CTRDS_SET_DRAW_DISTANCE:
+			snprintf(line, sizeof(line), "%s DRAW DISTANCE  %s", marker, g_ctrds.increaseDrawDistance ? "FAR" : "NORMAL");
+			break;
+		case CTRDS_SET_SPEED:
+			snprintf(line, sizeof(line), "%s SPEED  %d%%", marker, g_ctrds.speedMultiplier);
+			break;
+		case CTRDS_SET_TURN:
+			snprintf(line, sizeof(line), "%s TURN  %d%%", marker, g_ctrds.turnMultiplier);
+			break;
+		case CTRDS_SET_JUMP:
+			snprintf(line, sizeof(line), "%s JUMP  %d%%", marker, g_ctrds.jumpMultiplier);
+			break;
+		case CTRDS_SET_GRAVITY:
+			snprintf(line, sizeof(line), "%s GRAVITY  %d%%", marker, g_ctrds.gravityMultiplier);
+			break;
+		case CTRDS_SET_UNLOCK_CHARACTERS:
+			snprintf(line, sizeof(line), "%s UNLOCK CHARACTERS  %s", marker, g_ctrds.unlockAllCharacters ? "ON" : "OFF");
+			break;
+		case CTRDS_SET_UNLOCK_GATES:
+			snprintf(line, sizeof(line), "%s UNLOCK GATES  %s", marker, g_ctrds.unlockAllGates ? "ON" : "OFF");
+			break;
+		case CTRDS_SET_UNLOCK_PORTALS:
+			snprintf(line, sizeof(line), "%s UNLOCK PORTALS  %s", marker, g_ctrds.unlockAllPortals ? "ON" : "OFF");
+			break;
+		case CTRDS_SET_SKIP_INTRO:
+			snprintf(line, sizeof(line), "%s SKIP INTRO  %s", marker, g_ctrds.skipIntro ? "ON" : "OFF");
+			break;
+		case CTRDS_SET_SKIP_HINTS:
+			snprintf(line, sizeof(line), "%s SKIP HINTS  %s", marker, g_ctrds.skipHints ? "ON" : "OFF");
 			break;
 		default:
 			snprintf(line, sizeof(line), "%s ONLINE  %s", marker, Ctrds_OnlineEnabled() ? "ON" : "OFF");
@@ -551,7 +672,10 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 	}
 
 	ot = &gGT->pushBuffer[0].ptrOT[0x3ff];
-	Ctrds_DrawSettingsList(ot, g_ctrds.screenW / 2, g_ctrds.screenH - 100);
+	// ponytail: 15 rows at 15px each runs to ~240px and can run past the
+	// bottom edge on a plain 216px-tall single screen; paging/scrolling would
+	// fix that if it turns out to matter in practice.
+	Ctrds_DrawSettingsList(ot, g_ctrds.screenW / 2, 20);
 }
 
 void Ctrds_PanelTap(float nx, float ny)
@@ -858,6 +982,22 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "touch_controls=%d\n", g_ctrds.touchControls);
 			fprintf(f, "# swap_face_buttons: swap A/B and X/Y (0/1)\n");
 			fprintf(f, "swap_face_buttons=%d\n", g_ctrds.swapFaceButtons);
+			fprintf(f, "\n# --- Gameplay ---\n");
+			fprintf(f, "# increase_draw_distance: render ~3x farther (0/1)\n");
+			fprintf(f, "increase_draw_distance=%d\n", g_ctrds.increaseDrawDistance);
+			fprintf(f, "# speed/turn/jump/gravity_stat_multiplier: percent, 100 = default\n");
+			fprintf(f, "speed_stat_multiplier=%d\n", g_ctrds.speedMultiplier);
+			fprintf(f, "turn_stat_multiplier=%d\n", g_ctrds.turnMultiplier);
+			fprintf(f, "jump_stat_multiplier=%d\n", g_ctrds.jumpMultiplier);
+			fprintf(f, "gravity_stat_multiplier=%d\n", g_ctrds.gravityMultiplier);
+			fprintf(f, "# unlock_all_characters/gates/portals (0/1)\n");
+			fprintf(f, "unlock_all_characters=%d\n", g_ctrds.unlockAllCharacters);
+			fprintf(f, "unlock_all_gates=%d\n", g_ctrds.unlockAllGates);
+			fprintf(f, "unlock_all_portals=%d\n", g_ctrds.unlockAllPortals);
+			fprintf(f, "# skip_intro: skip SCEA/copyright/ND crate intro (0/1)\n");
+			fprintf(f, "skip_intro=%d\n", g_ctrds.skipIntro);
+			fprintf(f, "# skip_hints: skip adventure mode mask hints (0/1)\n");
+			fprintf(f, "skip_hints=%d\n", g_ctrds.skipHints);
 			fprintf(f, "# aspect_mode: 0 = 4:3, 1 = follow the display, 2 = aspect_w/aspect_h below.\n");
 			fprintf(f, "# The field of view widens to match rather than stretching.\n");
 			fprintf(f, "aspect_mode=%d\n", g_ctrds.aspectMode);
@@ -989,6 +1129,46 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "widescreen", 10) == 0)
 		{
 			g_ctrds.widescreen = value;
+		}
+		else if (strncmp(line, "increase_draw_distance", 22) == 0)
+		{
+			g_ctrds.increaseDrawDistance = value;
+		}
+		else if (strncmp(line, "speed_stat_multiplier", 21) == 0)
+		{
+			g_ctrds.speedMultiplier = value;
+		}
+		else if (strncmp(line, "turn_stat_multiplier", 20) == 0)
+		{
+			g_ctrds.turnMultiplier = value;
+		}
+		else if (strncmp(line, "jump_stat_multiplier", 20) == 0)
+		{
+			g_ctrds.jumpMultiplier = value;
+		}
+		else if (strncmp(line, "gravity_stat_multiplier", 23) == 0)
+		{
+			g_ctrds.gravityMultiplier = value;
+		}
+		else if (strncmp(line, "unlock_all_characters", 21) == 0)
+		{
+			g_ctrds.unlockAllCharacters = value;
+		}
+		else if (strncmp(line, "unlock_all_gates", 16) == 0)
+		{
+			g_ctrds.unlockAllGates = value;
+		}
+		else if (strncmp(line, "unlock_all_portals", 18) == 0)
+		{
+			g_ctrds.unlockAllPortals = value;
+		}
+		else if (strncmp(line, "skip_intro", 10) == 0)
+		{
+			g_ctrds.skipIntro = value;
+		}
+		else if (strncmp(line, "skip_hints", 10) == 0)
+		{
+			g_ctrds.skipHints = value;
 		}
 	}
 

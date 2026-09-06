@@ -678,10 +678,19 @@ void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 		// from end of PushBuffer_SetMatrixVP (called earlier)
 		PushBuffer_UpdateFrustum_ReadMAC(&tx, &ty, &tz);
 
-		// far clip: pos + dir*100
+		// far clip: pos + dir*farClip (retail is always 0x100)
+#if defined(CTR_NATIVE)
+		{
+			int farClip = g_ctrds.increaseDrawDistance ? 0x200 : 0x100;
+			posX = tx * farClip + cameraPosX;
+			posY = ty * farClip + cameraPosY;
+			posZ = tz * farClip + cameraPosZ;
+		}
+#else
 		posX = tx * 0x100 + cameraPosX;
 		posY = ty * 0x100 + cameraPosY;
 		posZ = tz * 0x100 + cameraPosZ;
+#endif
 
 		iVar19 = 0x1000;
 

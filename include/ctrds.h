@@ -253,6 +253,19 @@ struct CtrdsLayout
 	// Write per-frame bucket timings next to the config. Off unless asked for.
 	int perf;
 
+	// Gameplay options ported from thecodingbob's config menu, plumbed through
+	// the same ctrds.cfg / in-game settings list instead of a separate menu.
+	int increaseDrawDistance; // 0 off (default), 1 render ~3x farther
+	int speedMultiplier;      // percent, 10-200, 100 = 1.0x (default)
+	int turnMultiplier;       // percent, 10-400, 100 = 1.0x (default)
+	int jumpMultiplier;       // percent, 10-300, 100 = 1.0x (default)
+	int gravityMultiplier;    // percent, 10-300, 100 = 1.0x (default)
+	int unlockAllCharacters;  // 0 off (default), 1 = every character selectable
+	int unlockAllGates;       // 0 off (default), 1 = adventure wood gates need no key
+	int unlockAllPortals;     // 0 off (default), 1 = every warp pad/boss garage open
+	int skipIntro;            // 0 off (default), 1 = skip SCEA/copyright/ND crate intro
+	int skipHints;            // 0 off (default), 1 = skip adventure mode mask hints
+
 };
 
 extern struct CtrdsLayout g_ctrds;

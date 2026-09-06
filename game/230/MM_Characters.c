@@ -126,7 +126,11 @@ int MM_Characters_GetNextDriver(s16 direction, s16 characterID)
 	    // if desired driver is not unlocked by default
 	    (unlocked != MM_CHARACTER_UNLOCK_ALWAYS) &&
 
-	    !CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked))
+	    !CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked)
+#if defined(CTR_NATIVE)
+	    && !g_ctrds.unlockAllCharacters
+#endif
+	)
 	{
 		// set new driver to the driver you already have
 		newDriver = characterID;
@@ -397,6 +401,13 @@ void MM_Characters_SetMenuLayout(void)
 	s32 numPlyrNextGame = sdata->gGT->numPlyrNextGame;
 	s32 layoutIndex = numPlyrNextGame - 1;
 
+#if defined(CTR_NATIVE)
+	if (g_ctrds.unlockAllCharacters)
+	{
+		expandRoster = true;
+	}
+	else
+#endif
 	// Loop through bottom characters,
 	// if any are unlocked, use expanded
 	for (s32 iconIndex = MM_CHARACTER_SELECT_EXPANSION_ICON_FIRST; iconIndex < MM_CHARACTER_SELECT_ICON_COUNT; iconIndex++)
@@ -555,7 +566,11 @@ void MM_Characters_RestoreIDs(void)
 		    (unlocked != MM_CHARACTER_UNLOCK_ALWAYS) &&
 
 		    // If Character is Locked
-		    !CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked))
+		    !CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlocked)
+#if defined(CTR_NATIVE)
+		    && !g_ctrds.unlockAllCharacters
+#endif
+		)
 		{
 			// change character to Crash
 			*currID = CRASH_BANDICOOT;
@@ -1016,7 +1031,11 @@ dontDrawSelectCharacter:
 		    // if character is unlocked
 		    // from the global unlock bitfield
 		    // also the variable written by cheats
-		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement))
+		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement)
+#if defined(CTR_NATIVE)
+		    || g_ctrds.unlockAllCharacters
+#endif
+		)
 		{
 			Color iconColor = D230.characterSelect_NeutralColor;
 
@@ -1140,7 +1159,11 @@ dontDrawSelectCharacter:
 		    // if character is unlocked
 		    // from the global unlock bitfield
 		    // also the variable written by cheats
-		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement))
+		    CHECK_ADV_BIT(sdata->gameProgress.unlocks, unlockRequirement)
+#if defined(CTR_NATIVE)
+		    || g_ctrds.unlockAllCharacters
+#endif
+		)
 		{
 			struct TransitionMeta *iconTransition = &D230.characterSelectTransitionMeta[iconIndex];
 

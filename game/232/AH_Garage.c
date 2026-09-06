@@ -195,6 +195,13 @@ void AH_Garage_ThTick(struct Thread *t)
 
 LAB_800aeb6c:
 
+#if defined(CTR_NATIVE)
+	if (g_ctrds.unlockAllPortals)
+	{
+		goto LAB_800aec34;
+	}
+#endif
+
 	// If you're in Gemstone Valley
 	if (levelID == GEM_STONE_VALLEY)
 	{
@@ -441,6 +448,13 @@ void AH_Garage_LInB(struct Instance *inst)
 		garage->garageTopInst = garageTop;
 	}
 
+#if defined(CTR_NATIVE)
+	if (g_ctrds.unlockAllPortals)
+	{
+		goto GarageBossCheckDone;
+	}
+#endif
+
 	if (levelID == GEM_STONE_VALLEY)
 	{
 		// ripper roo boss key
@@ -473,6 +487,7 @@ void AH_Garage_LInB(struct Instance *inst)
 		}
 	}
 
+GarageBossCheckDone:
 	// if boss is open
 	if (bossIsOpen)
 	{

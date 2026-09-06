@@ -602,6 +602,27 @@ static int VehBirth_ApplyConstTable(struct Driver *driver, int engineID)
 		struct MetaPhys *metaPhys = &data.metaPhys[i];
 		const u32 metaPhysSize = (u32)metaPhys->size;
 		u32 rawValue = (u32)metaPhys->value[engineID];
+
+#if defined(CTR_NATIVE)
+		switch (metaPhys->offset)
+		{
+		case SPEED_CLASS_STAT_OFFSET:
+			rawValue = rawValue * (u32)g_ctrds.speedMultiplier / 100;
+			break;
+		case GRAVITY_OFFSET:
+			rawValue = rawValue * (u32)g_ctrds.gravityMultiplier / 100;
+			break;
+		case TURN_RATE_OFFSET:
+			rawValue = rawValue * (u32)g_ctrds.turnMultiplier / 100;
+			break;
+		case JUMP_OFFSET:
+			rawValue = rawValue * (u32)g_ctrds.jumpMultiplier / 100;
+			break;
+		default:
+			break;
+		}
+#endif
+
 		u8 *dst = VehBirth_ConstDestination(driver, metaPhys->offset, metaPhysSize);
 
 		if (dst == NULL)

@@ -1164,9 +1164,18 @@ static int RenderBucket_AcceptProjectedBounds(const struct RenderBucketBounds *b
 		return 0;
 	}
 
-	if (RenderBucket_MipsSub(bounds->maxZ, geomScreenHalf) < 0)
 	{
-		return 0;
+		int gsh = geomScreenHalf;
+#if defined(CTR_NATIVE)
+		if (g_ctrds.increaseDrawDistance)
+		{
+			gsh >>= 2;
+		}
+#endif
+		if (RenderBucket_MipsSub(bounds->maxZ, gsh) < 0)
+		{
+			return 0;
+		}
 	}
 
 	if (RenderBucket_MipsSub(bounds->minX, (u16)pb->rect.w) > 0)
@@ -1275,6 +1284,14 @@ static struct ModelHeader *RenderBucket_SelectModelHeader(struct Instance *inst,
 
 	// NOTE(aalhendi): Retail keeps the low 32 bits of this product before dividing by GTE H.
 	projectedDistance = (int)(u32)((s64)(pb->rect.w >> 1) * viewDepth) / pb->distanceToScreen_PREV;
+#if defined(CTR_NATIVE)
+	// NOTE(ctrds): maxDrawDistance LOD scaling must skip screenspace instances
+	// (e.g. instBigNum) whose viewDepth is a digit selector, not a 3D camera distance.
+	if (g_ctrds.increaseDrawDistance && ((inst->flags & SCREENSPACE_INSTANCE) == 0))
+	{
+		projectedDistance = (projectedDistance * 100) / 400;
+	}
+#endif
 	mh = Model_GetHeaders(inst->model, "render model headers");
 	if (mh == NULL)
 	{

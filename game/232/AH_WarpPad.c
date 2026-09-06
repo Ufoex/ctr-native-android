@@ -652,9 +652,17 @@ void AH_WarpPad_ThTick(struct Thread *t)
 
 	if (levelID < AH_WP_ID_SLIDE_COLISEUM)
 	{
+#if defined(CTR_NATIVE)
+		if (g_ctrds.unlockAllPortals || CHECK_ADV_BIT(sdata->advProgress.rewards, levelID + ADV_REWARD_FIRST_TROPHY))
+#else
 		if (CHECK_ADV_BIT(sdata->advProgress.rewards, levelID + ADV_REWARD_FIRST_TROPHY))
+#endif
 		{
+#if defined(CTR_NATIVE)
+			if (g_ctrds.unlockAllPortals || (gGT->currAdvProfile.numTrophies >= data.metaDataLEV[levelID].numTrophiesToOpen))
+#else
 			if (gGT->currAdvProfile.numTrophies >= data.metaDataLEV[levelID].numTrophiesToOpen)
+#endif
 			{
 				if (warppadObj->framesWarping < AH_WP_WARP_LOAD_FRAMES)
 				{
@@ -1113,7 +1121,11 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	}
 
 	// if unlocked
+#if defined(CTR_NATIVE)
+	if (g_ctrds.unlockAllPortals || (unlockItem_numOwned >= unlockItem_numNeeded))
+#else
 	if (unlockItem_numOwned >= unlockItem_numNeeded)
+#endif
 	{
 		warppadObj->digit1s = 0;
 		t->modelIndex = AH_WP_VISUAL_TROPHY_OPEN;
