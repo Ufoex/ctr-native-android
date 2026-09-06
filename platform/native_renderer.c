@@ -532,12 +532,6 @@ internal void NativeRenderer_SetPresentationAspect(int width, int height)
 
 internal void NativeRenderer_UpdatePresentationViewport(void)
 {
-#if defined(USE_16BY9) || defined(__ANDROID__)
-	s_presentViewport.x = 0;
-	s_presentViewport.y = 0;
-	s_presentViewport.w = (g_windowWidth > 0) ? g_windowWidth : 1;
-	s_presentViewport.h = (g_windowHeight > 0) ? g_windowHeight : 1;
-#else
 	int viewportW;
 	int viewportH;
 
@@ -582,7 +576,6 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 	s_presentViewport.h = viewportH;
 	s_presentViewport.x = (g_windowWidth - viewportW) / 2;
 	s_presentViewport.y = (g_windowHeight - viewportH) / 2;
-#endif
 }
 
 
@@ -1521,6 +1514,8 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 		u_projectionLoc = s_gteShader4.projectionLoc;
 		u_texelSizeLoc = -1;
 		u_psxSemiTransPassLoc = s_gteShader4.psxSemiTransPassLoc;
+		u_psxDrawMaskSetLoc = s_gteShader4.psxDrawMaskSetLoc;
+		u_psxTextureOutputStpLoc = s_gteShader4.psxTextureOutputStpLoc;
 		break;
 	case TF_8_BIT:
 		NativeRenderer_SetShader(s_gteShader8.shader);
@@ -1529,6 +1524,8 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 		u_projectionLoc = s_gteShader8.projectionLoc;
 		u_texelSizeLoc = -1;
 		u_psxSemiTransPassLoc = s_gteShader8.psxSemiTransPassLoc;
+		u_psxDrawMaskSetLoc = s_gteShader8.psxDrawMaskSetLoc;
+		u_psxTextureOutputStpLoc = s_gteShader8.psxTextureOutputStpLoc;
 		break;
 	case TF_16_BIT:
 		NativeRenderer_SetShader(s_gteShader16.shader);
@@ -1537,6 +1534,8 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 		u_projectionLoc = s_gteShader16.projectionLoc;
 		u_texelSizeLoc = -1;
 		u_psxSemiTransPassLoc = s_gteShader16.psxSemiTransPassLoc;
+		u_psxDrawMaskSetLoc = s_gteShader16.psxDrawMaskSetLoc;
+		u_psxTextureOutputStpLoc = s_gteShader16.psxTextureOutputStpLoc;
 		break;
 	case TF_32_BIT_RGBA:
 		NativeRenderer_SetShader(s_gteShader32Rgba.shader);
