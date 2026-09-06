@@ -535,14 +535,23 @@ void Ctrds_DrawItemBox(struct GameTracker *gGT)
 	RECTMENU_DrawInnerRect(&r, 0, &gGT->pushBuffer_UI.ptrOT[2]);
 }
 
-// NOTE(ctrds): this used to draw the settings list over the game view when
-// there was no second screen, because that was the only way to reach those
-// settings without one. The launcher now owns them, so all this did was cover
-// the picture on a phone. Kept as a no-op rather than deleted: the panel still
-// draws the same list on its idle screen through Ctrds_DrawSettingsList.
+// Single-screen platforms (PC, or Android/handhelds with no companion
+// display) have no idle panel to draw the settings list on, and no launcher
+// UI to set them from either on PC. Ctrds_PollPanelInput() already reads
+// Select/L1/R1 regardless of whether a companion screen exists - this is
+// only the other half, the visible feedback, drawn straight onto the main
+// menu's own ordering table instead of the panel's.
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 {
-	(void)gGT;
+	uint32_t *ot;
+
+	if (Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
+	{
+		return;
+	}
+
+	ot = &gGT->pushBuffer[0].ptrOT[0x3ff];
+	Ctrds_DrawSettingsList(ot, g_ctrds.screenW / 2, g_ctrds.screenH - 100);
 }
 
 void Ctrds_PanelTap(float nx, float ny)

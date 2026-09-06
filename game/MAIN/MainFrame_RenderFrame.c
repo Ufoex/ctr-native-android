@@ -1369,6 +1369,13 @@ void RenderSubmit(struct GameTracker *gGT)
 	{
 		Ctrds_DrawCompanionPass(gGT);
 	}
+	else
+	{
+		// No companion display to show the settings list on: draw it straight
+		// onto the main screen instead, so it stays reachable on PC and on
+		// single-screen Android devices.
+		Ctrds_DrawSettingsOnMainScreen(gGT);
+	}
 
 	Ctrds_PollPanelInput();
 	Ctrds_OnlinePump();
