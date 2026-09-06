@@ -146,6 +146,7 @@ target_compile_definitions(ctr_native PRIVATE
 )
 if(MSVC)
     target_compile_options(ctr_native PRIVATE
+        /std:c17 # default (pre-C11) dialect doesn't know _Static_assert/nullptr
         /W4 #TODO(aalhendi): fix warnings
         /bigobj
         /arch:SSE2
