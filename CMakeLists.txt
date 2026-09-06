@@ -138,7 +138,7 @@ target_compile_options(chdr PRIVATE $<IF:$<BOOL:${MSVC}>,/w,-w>)
 
 target_link_libraries(ctr_native enet chdr)
 if(WIN32)
-    target_link_libraries(ctr_native ws2_32)
+    target_link_libraries(ctr_native ws2_32 winmm)
 endif()
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
