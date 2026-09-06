@@ -1344,6 +1344,15 @@ void Ctrds_InitFromEnv(void)
 {
 	Ctrds_InitLayout();
 
+#if !defined(__ANDROID__)
+	// Desktop never grows a physical companion display -- Android is the only
+	// platform that calls Ctrds_DisableSecondScreen() once Java confirms none
+	// is present. Without this, PC keeps the struct's dual-screen default and
+	// draws the tall companion layout into its one and only window instead of
+	// the compact single-window settings menu.
+	g_ctrds.mode = CTRDS_INLINE;
+#endif
+
 	const char *mode = getenv("CTRDS");
 	const char *tall = getenv("CTRDS_TALL_FB");
 
