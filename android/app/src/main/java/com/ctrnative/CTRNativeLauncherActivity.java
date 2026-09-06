@@ -182,7 +182,7 @@ public final class CTRNativeLauncherActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(24), dp(28), dp(24), dp(28));
 
-        TextView title = makeText("CTR-DS", 32.0f, Color.WHITE);
+        TextView title = makeText("CTR Fusion", 32.0f, Color.WHITE);
         title.setGravity(Gravity.START);
         root.addView(title, stacked(2));
 
