@@ -52,6 +52,13 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 		}
 	}
 
+#if defined(CTR_NATIVE)
+	// Must run before RECTMENU_CollectInput() below: it steals the D-pad from
+	// the pad this frame while our settings list is open, so the CTR title/
+	// mode-select menu underneath can't also react to the same press.
+	Ctrds_MaskMenuInput(gGamepads);
+#endif
+
 	if ((sdata->ptrActiveMenu != 0) || ((gGT->gameMode1 & END_OF_RACE) != 0))
 	{
 		RECTMENU_CollectInput();

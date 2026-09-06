@@ -396,6 +396,12 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
 // Android). Ignored off the main menu -- nowhere else is safe to draw it.
 void Ctrds_ToggleMenu(void);
 
+// Steals D-pad input for the settings list while it's open on a single
+// window, so the CTR title/mode-select menu underneath can't also move.
+// Call once per frame, before RECTMENU_CollectInput().
+struct GamepadSystem;
+void Ctrds_MaskMenuInput(struct GamepadSystem *gGamepads);
+
 // Frame around the held-item slot, drawn whether or not an item is held.
 void Ctrds_DrawItemBox(struct GameTracker *gGT);
 

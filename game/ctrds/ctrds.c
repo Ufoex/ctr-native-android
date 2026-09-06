@@ -631,7 +631,8 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 		y += 15;
 	}
 
-	DecalFont_DrawLineOT("SELECT MOVES   L1/R1 CHANGES", centreX, y + 6, FONT_SMALL, JUSTIFY_CENTER, head);
+	DecalFont_DrawLineOT(Ctrds_SecondScreen() ? "SELECT MOVES   L1/R1 CHANGES" : "UP/DOWN MOVES   LEFT/RIGHT CHANGES", centreX, y + 6,
+	        FONT_SMALL, JUSTIFY_CENTER, head);
 
 	return y;
 }
@@ -692,6 +693,21 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 	// already uses for other 2D overlays (the fade rect at ptrOT[3]) that do
 	// draw correctly, so put the list there instead.
 	ot = &gGT->pushBuffer_UI.ptrOT[3];
+
+	// A flat rect straight over the 3D title/logo behind it -- same box the
+	// game's own menu uses (RECTMENU_DrawInnerRect) -- so the list reads as
+	// its own panel instead of blending into whatever is on screen there.
+	// Added first so the text below prepends in front of it.
+	{
+		RECT bg;
+
+		bg.x = (s16)((g_ctrds.screenW / 2) - 220);
+		bg.y = 4;
+		bg.w = 440;
+		bg.h = (s16)(CTRDS_SET_COUNT * 15 + 40);
+		RECTMENU_DrawInnerRect(&bg, 0, ot);
+	}
+
 	// ponytail: 15 rows at 15px each runs to ~240px and can run past the
 	// bottom edge on a plain 216px-tall single screen; paging/scrolling would
 	// fix that if it turns out to matter in practice.
@@ -753,7 +769,11 @@ int Ctrds_OnMainMenu(void)
 }
 
 // Reads the pad directly rather than going through the menu code, which has no
-// notion of a setting that lives on the other screen.
+// notion of a setting that lives on the other screen. Companion-panel mode
+// only: its panel is always live, with no open/close concept, so Select/L1/R1
+// stay free for it. The single-window case is handled by
+// Ctrds_MaskMenuInput() instead, which also has to run before the game's own
+// menu reads the pad.
 void Ctrds_PollPanelInput(void)
 {
 	local_persist int s_wasOnMenu = 0;
@@ -763,10 +783,8 @@ void Ctrds_PollPanelInput(void)
 	onMenu = Ctrds_OnMainMenu();
 
 	// Ignore the frame the menu opens on, so a Select press that got us here
-	// does not immediately toggle. On a single window the list is invisible
-	// until Ctrds_ToggleMenu() opens it; a companion display has no such
-	// toggle, its panel is always live.
-	if (onMenu && s_wasOnMenu && (Ctrds_SecondScreen() || s_ctrdsMenuOpen))
+	// does not immediately toggle.
+	if (onMenu && s_wasOnMenu && Ctrds_SecondScreen())
 	{
 		const int tapped = sdata->gGamepads->gamepad[0].buttonsTapped;
 
@@ -789,6 +807,58 @@ void Ctrds_PollPanelInput(void)
 	}
 
 	s_wasOnMenu = onMenu;
+}
+
+// Single-window case: steals the exact button set the game's own menu
+// (RECTMENU_INPUT_MENU) listens for while our list is open, so navigating our
+// list can't also move the CTR title/mode-select menu sitting underneath it --
+// that was happening silently before, since both read the same pad. Must run
+// before RECTMENU_CollectInput() so the theft actually lands before the game
+// menu reads the pad.
+void Ctrds_MaskMenuInput(struct GamepadSystem *gGamepads)
+{
+	local_persist int s_wasOpen = 0;
+
+	struct GamepadBuffer *pad;
+	u32 tapped;
+
+	if (!s_ctrdsMenuOpen || Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
+	{
+		s_wasOpen = 0;
+		return;
+	}
+
+	pad = &gGamepads->gamepad[0];
+	tapped = (u32)pad->buttonsTapped;
+
+	pad->buttonsTapped &= ~RECTMENU_INPUT_MENU;
+	pad->buttonsHeldCurrFrame &= ~RECTMENU_INPUT_MENU;
+
+	// Ignore the frame the menu opened on, so whatever press opened it isn't
+	// also read as a move.
+	if (!s_wasOpen)
+	{
+		s_wasOpen = 1;
+		return;
+	}
+
+	if ((tapped & BTN_DOWN) != 0)
+	{
+		s_ctrdsSetting = (s_ctrdsSetting + 1) % CTRDS_SET_COUNT;
+	}
+	else if ((tapped & BTN_UP) != 0)
+	{
+		s_ctrdsSetting = (s_ctrdsSetting + CTRDS_SET_COUNT - 1) % CTRDS_SET_COUNT;
+	}
+
+	if ((tapped & BTN_RIGHT) != 0)
+	{
+		Ctrds_AdjustSetting(1);
+	}
+	else if ((tapped & BTN_LEFT) != 0)
+	{
+		Ctrds_AdjustSetting(-1);
+	}
 }
 
 // The colour to start a frame from, as 0-255 RGB.
