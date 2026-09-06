@@ -462,9 +462,6 @@ public class CTRNativeActivity extends SDLActivity {
     /** Tells native this device has no second screen, so the HUD stays on the main one. */
     public static native void nativeCompanionUnavailable();
 
-    /** Back button pressed -- native decides whether that opens or closes the settings menu. */
-    public static native void nativeBackButton();
-
     /** On-screen controls -> pad. Mask is active-low in PSX bit order. */
     public static native void nativeTouchInput(int buttonMask, int stickX, int stickY);
 
@@ -531,18 +528,12 @@ public class CTRNativeActivity extends SDLActivity {
     }
 
     /**
-     * Back no longer exits by itself -- it opens/closes the settings menu, same
-     * as Tab on desktop. The only way out is EXIT GAME inside that menu, which
-     * calls {@link #exitGame()} below.
+     * Back no longer exits by itself -- SDL reports it to native as
+     * SDL_SCANCODE_AC_BACK (SDLActivity's key dispatch always consumes it, so
+     * it never reaches onBackPressed() here), and that's where it now opens
+     * or closes the settings menu, same as Tab on desktop. The only way out
+     * is EXIT GAME inside that menu, which calls {@link #exitGame()} below.
      */
-    @Override
-    public void onBackPressed() {
-        try {
-            nativeBackButton();
-        } catch (UnsatisfiedLinkError e) {
-            Log.e(CTRDS_TAG, "nativeBackButton missing: " + e.getMessage());
-        }
-    }
 
     /** Called from native when EXIT GAME is chosen in the settings menu. */
     public static void exitGame() {

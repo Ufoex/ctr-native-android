@@ -686,7 +686,12 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 		return;
 	}
 
-	ot = &gGT->pushBuffer[0].ptrOT[0x3ff];
+	// pushBuffer[0].ptrOT[0x3ff] is claimed earlier in the frame for the draw
+	// env/skybox glow (MainFrame_RenderFrame.c), so text linked in there after
+	// never made it to the screen. pushBuffer_UI's table is the one RenderSubmit
+	// already uses for other 2D overlays (the fade rect at ptrOT[3]) that do
+	// draw correctly, so put the list there instead.
+	ot = &gGT->pushBuffer_UI.ptrOT[3];
 	// ponytail: 15 rows at 15px each runs to ~240px and can run past the
 	// bottom edge on a plain 216px-tall single screen; paging/scrolling would
 	// fix that if it turns out to matter in practice.

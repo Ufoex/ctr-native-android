@@ -115,14 +115,6 @@ JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeCompanionUnava
 	Ctrds_DisableSecondScreen();
 }
 
-JNIEXPORT void JNICALL Java_com_ctrnative_CTRNativeActivity_nativeBackButton(JNIEnv *env, jclass cls)
-{
-	(void)env;
-	(void)cls;
-
-	Ctrds_ToggleMenu();
-}
-
 void NativeCompanion_RequestExit(void)
 {
 	NativeCompanion_CallJavaStatic("exitGame");

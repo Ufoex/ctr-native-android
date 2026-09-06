@@ -551,6 +551,19 @@ void Platform_PollHostEvents(void)
 				break;
 			}
 
+			// Android's back button. SDL's own input handling always reports
+			// this key as consumed (see SDLActivity's key dispatch), so it
+			// never reaches Activity.onBackPressed() -- this is the only path
+			// that actually sees it.
+			if (key == SDL_SCANCODE_AC_BACK)
+			{
+				if ((down != 0) && (event.key.repeat == 0))
+				{
+					Ctrds_ToggleMenu();
+				}
+				break;
+			}
+
 			if (key == SDL_SCANCODE_RETURN)
 			{
 				if ((s_hostAltKeyState != 0) && (down != 0) && (event.key.repeat == 0))
