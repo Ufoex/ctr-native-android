@@ -374,6 +374,10 @@ void Ctrds_SkyClearColor(int *r, int *g, int *b);
 // True on the main menu, where the panel offers the online switch.
 int Ctrds_OnMainMenu(void);
 
+// True wherever the single-window settings list (Ctrds_ToggleMenu and
+// friends) is actually able to draw itself: the main menu, or mid-race.
+int Ctrds_MenuAvailableHere(void);
+
 // 0 auto, 1 always, 2 never.
 int Ctrds_TouchControlsMode(void);
 
@@ -393,12 +397,17 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY);
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
 
 // Opens/closes the main-screen settings list (Tab on desktop, Back on
-// Android). Ignored off the main menu -- nowhere else is safe to draw it.
+// Android). Opening is ignored where Ctrds_MenuAvailableHere() is false;
+// closing is always allowed. Pauses the race (PAUSE_ALL) for as long as it's
+// open mid-race.
 void Ctrds_ToggleMenu(void);
 
 // Steals D-pad input for the settings list while it's open on a single
 // window, so the CTR title/mode-select menu underneath can't also move.
-// Call once per frame, before RECTMENU_CollectInput().
+// Also calls Ctrds_ToggleMenu() itself on a controller's Back/Select button,
+// which (unlike Tab or Android's system Back gesture) never reaches the
+// keyboard-event hook in native_platform.c. Call once per frame, before
+// RECTMENU_CollectInput().
 struct GamepadSystem;
 void Ctrds_MaskMenuInput(struct GamepadSystem *gGamepads);
 

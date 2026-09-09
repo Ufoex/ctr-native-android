@@ -57,6 +57,19 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	// the pad this frame while our settings list is open, so the CTR title/
 	// mode-select menu underneath can't also react to the same press.
 	Ctrds_MaskMenuInput(gGamepads);
+
+	// Also must run before RECTMENU_ProcessState() below, which is what
+	// queues the CTR title/mode-select menu's own box and text. Both land in
+	// the same OT slot (index 0, the one nearest slot in the shared table),
+	// and within a slot the first thing AddPrim'd there each frame is the
+	// last thing drawn -- i.e. whichever gets there first ends up on top.
+	// Queuing here, ahead of the menu's own draw, is what used to lose that
+	// race when this ran down in RenderSubmit instead: the menu's letters
+	// always painted over the list regardless of OT index.
+	if (!Ctrds_SecondScreen())
+	{
+		Ctrds_DrawSettingsOnMainScreen(gGT);
+	}
 #endif
 
 	if ((sdata->ptrActiveMenu != 0) || ((gGT->gameMode1 & END_OF_RACE) != 0))
@@ -1382,13 +1395,10 @@ void RenderSubmit(struct GameTracker *gGT)
 	{
 		Ctrds_DrawCompanionPass(gGT);
 	}
-	else
-	{
-		// No companion display to show the settings list on: draw it straight
-		// onto the main screen instead, so it stays reachable on PC and on
-		// single-screen Android devices.
-		Ctrds_DrawSettingsOnMainScreen(gGT);
-	}
+
+	// The single-screen case (Ctrds_DrawSettingsOnMainScreen) is queued far
+	// earlier in this same frame now, up where Ctrds_MaskMenuInput runs --
+	// see the comment there for why.
 
 	Ctrds_PollPanelInput();
 	Ctrds_OnlinePump();

@@ -674,7 +674,7 @@ void Ctrds_DrawItemBox(struct GameTracker *gGT)
 // UI to set them from either on PC. Ctrds_PollPanelInput() already reads
 // Select/L1/R1 regardless of whether a companion screen exists - this is
 // only the other half, the visible feedback, drawn straight onto the main
-// menu's own ordering table instead of the panel's. Hidden until
+// screen's own ordering table instead of the panel's. Hidden until
 // Ctrds_ToggleMenu() opens it (Tab/Back), not shown just for sitting at the
 // main menu -- it used to be, and a demo-mode timeout kicking the game out of
 // the main menu made it look like the menu itself vanished on its own.
@@ -682,51 +682,118 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 {
 	uint32_t *ot;
 
-	if (!s_ctrdsMenuOpen || Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
+	if (!s_ctrdsMenuOpen || Ctrds_SecondScreen() || !Ctrds_MenuAvailableHere())
 	{
 		return;
 	}
 
 	// pushBuffer[0].ptrOT[0x3ff] is claimed earlier in the frame for the draw
 	// env/skybox glow (MainFrame_RenderFrame.c), so text linked in there after
-	// never made it to the screen. pushBuffer_UI's table is the one RenderSubmit
-	// already uses for other 2D overlays (the fade rect at ptrOT[3]) that do
-	// draw correctly, so put the list there instead.
-	ot = &gGT->pushBuffer_UI.ptrOT[3];
+	// never made it to the screen. pushBuffer_UI is the table RenderSubmit
+	// already uses for other 2D overlays, and its entries are one shared OT
+	// with the game's own menu widgets, ordered near-to-far by index -- index 0
+	// is the nearest slot there is. The title/mode-select menu draws its own
+	// box and text straight into that slot (gGT->backBuffer->otMem.uiOT, the
+	// same pointer as pushBuffer_UI.ptrOT), so an offset slot here put our
+	// panel strictly behind it: the menu's own letters always painted over
+	// ours. Sharing index 0, and queued earlier in the frame than the menu
+	// queues its own draws (see the call site in MainFrame_RenderFrame.c),
+	// puts our panel on top instead.
+	ot = gGT->pushBuffer_UI.ptrOT;
 
-	// A flat rect straight over the 3D title/logo behind it -- same box the
-	// game's own menu uses (RECTMENU_DrawInnerRect) -- so the list reads as
-	// its own panel instead of blending into whatever is on screen there.
-	// Added first so the text below prepends in front of it.
+	// Narrow and left-of-centre, over the 3D logo rather than spanning the
+	// full width: the CTR title screen's own mode-select column sits on the
+	// right half, and the old edge-to-edge box ran straight into it.
 	{
-		RECT bg;
+		const s16 panelX = 10;
+		const s16 panelW = 260;
+		const s16 centreX = (s16)(panelX + panelW / 2);
 
-		bg.x = (s16)((g_ctrds.screenW / 2) - 220);
-		bg.y = 4;
-		bg.w = 440;
-		bg.h = (s16)(CTRDS_SET_COUNT * 15 + 40);
-		RECTMENU_DrawInnerRect(&bg, 0, ot);
+		// AddPrim prepends, so within one OT slot the FIRST prim linked in this
+		// frame is the LAST one walked at draw time -- i.e. on top. The list text
+		// has to go in before the backing rect, not after, or the (translucent)
+		// rect draws over its own text and dims it.
+		Ctrds_DrawSettingsList(ot, centreX, 20);
+
+		// A flat rect straight over the 3D title/logo behind it -- same box the
+		// game's own menu uses (RECTMENU_DrawInnerRect) -- so the list reads as
+		// its own panel instead of blending into whatever is on screen there.
+		{
+			RECT bg;
+
+			bg.x = panelX;
+			bg.y = 4;
+			bg.w = panelW;
+			bg.h = (s16)(CTRDS_SET_COUNT * 15 + 40);
+			RECTMENU_DrawInnerRect(&bg, 0, ot);
+		}
 	}
 
 	// ponytail: 15 rows at 15px each runs to ~240px and can run past the
 	// bottom edge on a plain 216px-tall single screen; paging/scrolling would
 	// fix that if it turns out to matter in practice.
-	Ctrds_DrawSettingsList(ot, g_ctrds.screenW / 2, 20);
 }
 
-// The only place proven safe to draw the list is the main menu's own
-// ordering table (see above), so opening it anywhere else is a no-op rather
-// than a promise the game state can't yet keep.
+// Main menu (drawn on the title screen itself) or mid-race (drawn over the
+// paused race view) -- the only two places this has actually been wired up
+// to render. Elsewhere (cutscenes, podium, loading) is a no-op rather than a
+// promise the game state can't yet keep.
+int Ctrds_MenuAvailableHere(void)
+{
+	return Ctrds_OnMainMenu() || Ctrds_InRace();
+}
+
+// PAUSE_2 is one of the four PAUSE_ALL bits retail leaves "unused, debug" --
+// distinct from PAUSE_1, which is the real in-race pause menu's own bit, so
+// the two can't stomp on each other's state if a player somehow reaches both.
+// Every gameplay system already guards on the PAUSE_ALL mask, so this freezes
+// the race (physics, AI, camera, HUD ticking) the same way retail pausing
+// does, which is what a kart still steered by a D-pad that our list has just
+// taken over actually needs.
+#define CTRDS_PAUSE_BIT PAUSE_2
+
+internal void Ctrds_SetMenuOpen(int open)
+{
+	s_ctrdsMenuOpen = open;
+
+	// Unconditionally cleared on close (harmless if it was never set) rather
+	// than only when Ctrds_InRace() still holds: that's what lets a forced
+	// close -- the race having ended while the list was still open -- drop
+	// the pause too, instead of leaving it stuck set with nothing left to
+	// clear it.
+	if (open && Ctrds_InRace())
+	{
+		sdata->gGT->gameMode1 |= CTRDS_PAUSE_BIT;
+	}
+	else
+	{
+		sdata->gGT->gameMode1 &= ~CTRDS_PAUSE_BIT;
+	}
+
+	Platform_Log("[CTR-DS] menu open=%d\n", s_ctrdsMenuOpen);
+}
+
 void Ctrds_ToggleMenu(void)
 {
-	if (!Ctrds_OnMainMenu())
+	// Closing is always allowed, whatever the game state drifted into while
+	// the list was open -- most notably, stealing input for our own list
+	// this whole time also starves the main menu's demo-mode idle timer,
+	// which can fire and drop the title screen into attract mode before the
+	// player gets back to Back. Gating the close the same way as the open
+	// left it stuck open with no way in reach of Ctrds_ToggleMenu() to undo.
+	if (s_ctrdsMenuOpen)
 	{
-		Platform_Log("[CTR-DS] menu toggle ignored, not on main menu\n");
+		Ctrds_SetMenuOpen(0);
 		return;
 	}
 
-	s_ctrdsMenuOpen = !s_ctrdsMenuOpen;
-	Platform_Log("[CTR-DS] menu open=%d\n", s_ctrdsMenuOpen);
+	if (!Ctrds_MenuAvailableHere())
+	{
+		Platform_Log("[CTR-DS] menu toggle ignored, nowhere to show it\n");
+		return;
+	}
+
+	Ctrds_SetMenuOpen(1);
 }
 
 void Ctrds_PanelTap(float nx, float ny)
@@ -809,22 +876,57 @@ void Ctrds_PollPanelInput(void)
 	s_wasOnMenu = onMenu;
 }
 
-// Single-window case: steals the exact button set the game's own menu
+// Single-window case. Also where a controller's Back/Select button gets its
+// chance to open/close the list (see below), since there's nowhere else in
+// the single-window frame that already runs every frame with the pad in
+// hand. Otherwise: steals the exact button set the game's own menu
 // (RECTMENU_INPUT_MENU) listens for while our list is open, so navigating our
 // list can't also move the CTR title/mode-select menu sitting underneath it --
 // that was happening silently before, since both read the same pad. Must run
 // before RECTMENU_CollectInput() so the theft actually lands before the game
 // menu reads the pad.
+// A noisy D-pad (some Android controllers, this one included by report,
+// never fully debounce a direction in hardware) can report a single physical
+// press as several rapid press/release blips a few milliseconds apart, each
+// one a legitimate rising edge on buttonsTapped -- so edge-detection alone
+// still reads it as several presses. This is the actual fix: once a press is
+// accepted, further edges are ignored until this much wall-clock time has
+// passed, collapsing a whole blip-storm into the one move it should be.
+#define CTRDS_MENU_DEBOUNCE_MS 180
+
 void Ctrds_MaskMenuInput(struct GamepadSystem *gGamepads)
 {
 	local_persist int s_wasOpen = 0;
+	local_persist int s_debounceMs = 0;
 
 	struct GamepadBuffer *pad;
 	u32 tapped;
 
-	if (!s_ctrdsMenuOpen || Ctrds_SecondScreen() || !Ctrds_OnMainMenu())
+	// A physical controller's own Back/Select button (Odin2 and most
+	// USB/Bluetooth pads included) never reaches the keyboard hook Tab and
+	// Android's system Back gesture go through in native_platform.c -- SDL
+	// reports it as a gamepad button (mapped here to BTN_SELECT via
+	// gc_select), not a key event -- so without this, that button opened
+	// nothing. Skipped on a companion panel, where Select already means
+	// "move to the next row" (Ctrds_PollPanelInput).
+	if (!Ctrds_SecondScreen() && ((gGamepads->gamepad[0].buttonsTapped & BTN_SELECT) != 0))
 	{
+		Ctrds_ToggleMenu();
+	}
+
+	if (!s_ctrdsMenuOpen || Ctrds_SecondScreen() || !Ctrds_MenuAvailableHere())
+	{
+		if (s_ctrdsMenuOpen && !Ctrds_SecondScreen())
+		{
+			// The race ended (or otherwise left the only two screens this
+			// can draw on) while the list was still open. Close it and drop
+			// the pause instead of leaving the game stuck frozen with no way
+			// left to reach Ctrds_ToggleMenu() and undo it.
+			Ctrds_SetMenuOpen(0);
+		}
+
 		s_wasOpen = 0;
+		s_debounceMs = 0;
 		return;
 	}
 
@@ -839,9 +941,35 @@ void Ctrds_MaskMenuInput(struct GamepadSystem *gGamepads)
 	if (!s_wasOpen)
 	{
 		s_wasOpen = 1;
+		s_debounceMs = 0;
 		return;
 	}
 
+	if (s_debounceMs > 0)
+	{
+		s_debounceMs -= (int)sdata->gGT->elapsedTimeMS;
+		if (s_debounceMs > 0)
+		{
+			// Still cooling down from the last accepted move: whatever just
+			// came in is either the same press bouncing or a genuinely fast
+			// re-press, and either way it's too soon to count.
+			return;
+		}
+
+		s_debounceMs = 0;
+	}
+
+	tapped &= (BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT);
+
+	if (tapped == 0)
+	{
+		return;
+	}
+
+	s_debounceMs = CTRDS_MENU_DEBOUNCE_MS;
+
+	// One move per press, full stop -- holding a direction does nothing
+	// further until it's released and pressed again.
 	if ((tapped & BTN_DOWN) != 0)
 	{
 		s_ctrdsSetting = (s_ctrdsSetting + 1) % CTRDS_SET_COUNT;

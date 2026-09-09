@@ -33,3 +33,6 @@ local.properties
 *.aar
 captures/
 *.keystore
+
+# Notas privadas de contexto de sesión, no para el repo
+.claude-context.md
