@@ -63,24 +63,35 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # allow_failure: Ubuntu's i386 archive has occasionally shipped a
+          # libglib2.0-dev:i386 that demands a libglib2.0-dev-bin:i386 build
+          # the same snapshot doesn't have yet (an upstream mirror skew, not
+          # anything this repo controls) -- true here keeps that from
+          # blocking the release the other three platforms are ready for.
           - name: Linux x86 (32-bit)
             os: ubuntu-24.04
             force32: "ON"
             artifact: ctr_native
+            allow_failure: true
           - name: Linux x86-64 (64-bit)
             os: ubuntu-24.04
             force32: "OFF"
             artifact: ctr_native
+            allow_failure: false
           - name: Windows x86 (32-bit, MSVC)
             os: windows-latest
             msvc_arch: Win32
             force32: "ON"
             artifact: ctr_native.exe
+            allow_failure: false
           - name: Windows x64 (64-bit, MSVC)
             os: windows-latest
             msvc_arch: x64
             force32: "OFF"
             artifact: ctr_native.exe
+            allow_failure: false
+
+    continue-on-error: ${{ matrix.allow_failure }}
 
     steps:
       - name: Checkout do código
