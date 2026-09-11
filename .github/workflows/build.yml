@@ -158,22 +158,35 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout do código (para leer as tags existentes)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Descargar todos los binarios
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      - name: Calcular versión (fecha + commit)
+      - name: Calcular versión (v1.0, v1.1, ...)
         id: version
         run: |
-          echo "version=$(date -u +'%Y.%m.%d')-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          last=$(git tag -l 'v[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          if [ -z "$last" ]; then
+            next="1.0"
+          else
+            major=$(echo "${last#v}" | cut -d. -f1)
+            minor=$(echo "${last#v}" | cut -d. -f2)
+            next="${major}.$((minor + 1))"
+          fi
+          echo "version=$next" >> "$GITHUB_OUTPUT"
 
       - name: Crear GitHub Release combinada (Android + PC)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: CTR Fusion ${{ steps.version.outputs.version }}
+          name: CTR Fusion v${{ steps.version.outputs.version }}
           body: |
             Build automática de Android y PC a partir del mismo commit.
 

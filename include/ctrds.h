@@ -200,6 +200,11 @@ struct CtrdsLayout
 	// CRT-Royale-style beam simulation on the presented image.
 	int crt;
 
+	// The PS1 GPU's own dither pattern, applied to every textured/shaded
+	// fragment to hide banding from its 15-bit colour. On by default to match
+	// the original console; off shows the flat, undithered art instead.
+	int dither;
+
 	// Swaps the face buttons: cross<->circle and square<->triangle, i.e. A/B and
 	// X/Y on an Xbox-labelled pad like the Thor's.
 	int swapFaceButtons;
@@ -390,8 +395,10 @@ void Ctrds_SaveConfig(void);
 // A tap on the bottom screen, normalised 0..1 across the panel.
 void Ctrds_PanelTap(float nx, float ny);
 
-// Draws the settings list; returns the y it finished at.
-int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY);
+// Draws the settings list; returns the y it finished at. maxVisible caps how
+// many rows are drawn at once, scrolling to keep the selected one on screen;
+// 0 means draw every row with no scrolling.
+int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY, int maxVisible);
 
 // Main-screen settings, for devices with no second screen.
 void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT);
@@ -507,6 +514,11 @@ static inline int Ctrds_Fxaa(void)
 static inline int Ctrds_Crt(void)
 {
 	return Ctrds_Enabled() && (g_ctrds.crt != 0);
+}
+
+static inline int Ctrds_Dither(void)
+{
+	return !Ctrds_Enabled() || (g_ctrds.dither != 0);
 }
 
 static inline int Ctrds_SwapFaceButtons(void)

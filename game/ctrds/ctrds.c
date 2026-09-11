@@ -77,6 +77,7 @@ struct CtrdsLayout g_ctrds = {
     .vsyncsPerFlip = 1,
     .fxaa = 0,
     .crt = 0,
+    .dither = 1,
     .swapFaceButtons = 1,
     .touchControls = 0,
     .skipAv = 0,
@@ -297,6 +298,7 @@ enum CtrdsSetting
 	CTRDS_SET_ASPECT,
 	CTRDS_SET_FXAA,
 	CTRDS_SET_CRT,
+	CTRDS_SET_DITHER,
 	CTRDS_SET_DRAW_DISTANCE,
 	CTRDS_SET_SPEED,
 	CTRDS_SET_TURN,
@@ -363,6 +365,7 @@ void Ctrds_SaveConfig(void)
 	fprintf(f, "internal_scale=%d\n", g_ctrds.internalScale);
 	fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
 	fprintf(f, "crt=%d\n", g_ctrds.crt);
+	fprintf(f, "dither=%d\n", g_ctrds.dither);
 	fprintf(f, "aspect_mode=%d\n", g_ctrds.aspectMode);
 	fprintf(f, "aspect_w=%d\n", g_ctrds.aspectW);
 	fprintf(f, "aspect_h=%d\n", g_ctrds.aspectH);
@@ -451,6 +454,10 @@ internal void Ctrds_AdjustSetting(int delta)
 		g_ctrds.crt = !g_ctrds.crt;
 		break;
 
+	case CTRDS_SET_DITHER:
+		g_ctrds.dither = !g_ctrds.dither;
+		break;
+
 	case CTRDS_SET_DRAW_DISTANCE:
 		g_ctrds.increaseDrawDistance = !g_ctrds.increaseDrawDistance;
 		break;
@@ -533,16 +540,37 @@ internal void Ctrds_AdjustSetting(int delta)
 // Draws the settings list into the given ordering table. Used by the panel and,
 // on a device with only one screen, by the main screen itself -- otherwise the
 // settings would be unreachable there.
-int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
+int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY, int maxVisible)
 {
 	struct CtrdsOnlineStatus st;
 	char line[96];
 	int row;
 	int y = topY;
+	int first = 0;
+	int last = CTRDS_SET_COUNT;
 
 	Ctrds_OnlineGetStatus(&st);
 
-	for (row = 0; row < CTRDS_SET_COUNT; row++)
+	// Scroll the window to keep the selected row visible instead of always
+	// drawing from the top -- otherwise a selection past maxVisible rows
+	// moves off the bottom edge with nothing on screen to show it happened.
+	if ((maxVisible > 0) && (maxVisible < CTRDS_SET_COUNT))
+	{
+		first = s_ctrdsSetting - maxVisible / 2;
+
+		if (first > CTRDS_SET_COUNT - maxVisible)
+		{
+			first = CTRDS_SET_COUNT - maxVisible;
+		}
+		if (first < 0)
+		{
+			first = 0;
+		}
+
+		last = first + maxVisible;
+	}
+
+	for (row = first; row < last; row++)
 	{
 		const char *marker = (row == s_ctrdsSetting) ? "*" : " ";
 
@@ -581,6 +609,9 @@ int Ctrds_DrawSettingsList(uint32_t *head, int centreX, int topY)
 			break;
 		case CTRDS_SET_CRT:
 			snprintf(line, sizeof(line), "%s CRT  %s", marker, g_ctrds.crt ? "ON" : "OFF");
+			break;
+		case CTRDS_SET_DITHER:
+			snprintf(line, sizeof(line), "%s DITHER  %s", marker, g_ctrds.dither ? "ON" : "OFF");
 			break;
 		case CTRDS_SET_DRAW_DISTANCE:
 			snprintf(line, sizeof(line), "%s DRAW DISTANCE  %s", marker, g_ctrds.increaseDrawDistance ? "FAR" : "NORMAL");
@@ -701,37 +732,38 @@ void Ctrds_DrawSettingsOnMainScreen(struct GameTracker *gGT)
 	// puts our panel on top instead.
 	ot = gGT->pushBuffer_UI.ptrOT;
 
-	// Narrow and left-of-centre, over the 3D logo rather than spanning the
-	// full width: the CTR title screen's own mode-select column sits on the
-	// right half, and the old edge-to-edge box ran straight into it.
+	// Full screen, not boxed to a narrow column: a fixed width cut the list's
+	// own text off the edge of the box on longer rows. Rows/topY are centred
+	// so the list still never runs past the 216px-tall screen.
 	{
-		const s16 panelX = 10;
-		const s16 panelW = 260;
-		const s16 centreX = (s16)(panelX + panelW / 2);
+		const s16 centreX = (s16)(SCREEN_WIDTH / 2);
+
+		// All CTRDS_SET_COUNT rows run to ~240px, past the bottom edge on a
+		// plain 216px-tall single screen -- capped and scrolled so the
+		// selected row is always the one that's visible.
+		const int visibleRows = 11;
+		const int contentHeight = visibleRows * 15 + 20;
+		const s16 topY = (s16)((CTRDS_GAME_HEIGHT - contentHeight) / 2);
 
 		// AddPrim prepends, so within one OT slot the FIRST prim linked in this
 		// frame is the LAST one walked at draw time -- i.e. on top. The list text
 		// has to go in before the backing rect, not after, or the (translucent)
 		// rect draws over its own text and dims it.
-		Ctrds_DrawSettingsList(ot, centreX, 20);
+		Ctrds_DrawSettingsList(ot, centreX, topY, visibleRows);
 
-		// A flat rect straight over the 3D title/logo behind it -- same box the
+		// A flat rect covering the whole screen behind it -- same box the
 		// game's own menu uses (RECTMENU_DrawInnerRect) -- so the list reads as
-		// its own panel instead of blending into whatever is on screen there.
+		// its own screen instead of blending into whatever is on screen there.
 		{
 			RECT bg;
 
-			bg.x = panelX;
-			bg.y = 4;
-			bg.w = panelW;
-			bg.h = (s16)(CTRDS_SET_COUNT * 15 + 40);
+			bg.x = 0;
+			bg.y = 0;
+			bg.w = SCREEN_WIDTH;
+			bg.h = CTRDS_GAME_HEIGHT;
 			RECTMENU_DrawInnerRect(&bg, 0, ot);
 		}
 	}
-
-	// ponytail: 15 rows at 15px each runs to ~240px and can run past the
-	// bottom edge on a plain 216px-tall single screen; paging/scrolling would
-	// fix that if it turns out to matter in practice.
 }
 
 // Main menu (drawn on the title screen itself) or mid-race (drawn over the
@@ -894,13 +926,32 @@ void Ctrds_PollPanelInput(void)
 // passed, collapsing a whole blip-storm into the one move it should be.
 #define CTRDS_MENU_DEBOUNCE_MS 180
 
+// A gamepad's very first polled frame can read as every button held at once
+// (Odin2 confirmed live: tapped=held=0x0003bc2f, prevHeld=0 -- the controller
+// hasn't produced a real HID report yet, so the zeroed snapshot decodes as
+// "all pressed" the same way the PSX pad protocol's active-low bytes always
+// would). That phantom BTN_SELECT edge is silently swallowed by
+// Ctrds_ToggleMenu() logging "nowhere to show it" on any normal boot, since
+// the crate intro is still playing -- but with skip_intro on, the game is
+// already sitting on the main menu on frame one, so the same glitch opens the
+// settings list with nobody having touched Select or Back. Ignoring this
+// button for the console's first few frames costs nothing a real player could
+// notice and only ever discards the one glitched read.
+#define CTRDS_SELECT_SETTLE_FRAMES 5
+
 void Ctrds_MaskMenuInput(struct GamepadSystem *gGamepads)
 {
 	local_persist int s_wasOpen = 0;
 	local_persist int s_debounceMs = 0;
+	local_persist int s_framesPolled = 0;
 
 	struct GamepadBuffer *pad;
 	u32 tapped;
+
+	if (s_framesPolled < CTRDS_SELECT_SETTLE_FRAMES)
+	{
+		s_framesPolled++;
+	}
 
 	// A physical controller's own Back/Select button (Odin2 and most
 	// USB/Bluetooth pads included) never reaches the keyboard hook Tab and
@@ -909,7 +960,8 @@ void Ctrds_MaskMenuInput(struct GamepadSystem *gGamepads)
 	// gc_select), not a key event -- so without this, that button opened
 	// nothing. Skipped on a companion panel, where Select already means
 	// "move to the next row" (Ctrds_PollPanelInput).
-	if (!Ctrds_SecondScreen() && ((gGamepads->gamepad[0].buttonsTapped & BTN_SELECT) != 0))
+	if (!Ctrds_SecondScreen() && (s_framesPolled >= CTRDS_SELECT_SETTLE_FRAMES) &&
+	    ((gGamepads->gamepad[0].buttonsTapped & BTN_SELECT) != 0))
 	{
 		Ctrds_ToggleMenu();
 	}
@@ -1199,6 +1251,8 @@ void Ctrds_LoadConfig(void)
 			fprintf(f, "fxaa=%d\n", g_ctrds.fxaa);
 			fprintf(f, "# crt: CRT-Royale-style scanlines, phosphor mask and halation (0/1)\n");
 			fprintf(f, "crt=%d\n", g_ctrds.crt);
+			fprintf(f, "# dither: PS1-style dither pattern that hides its 15-bit colour banding (0/1)\n");
+			fprintf(f, "dither=%d\n", g_ctrds.dither);
 			fprintf(f, "# target_fps: frame cap -- 30, 60, 90, 120, or 480 for uncapped\n");
 			fprintf(f, "target_fps=%d\n", g_ctrds.targetFps);
 			fprintf(f, "# internal_scale: render resolution multiplier, 1-5\n");
@@ -1308,6 +1362,10 @@ void Ctrds_LoadConfig(void)
 		else if (strncmp(line, "crt", 3) == 0)
 		{
 			g_ctrds.crt = value;
+		}
+		else if (strncmp(line, "dither", 6) == 0)
+		{
+			g_ctrds.dither = value;
 		}
 		else if (strncmp(line, "aspect_mode", 11) == 0)
 		{
@@ -1662,7 +1720,7 @@ internal void Ctrds_DrawIdlePanel(void)
 	// Settings list, on the main menu only.
 	if (Ctrds_OnMainMenu())
 	{
-		Ctrds_DrawSettingsList(head, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 8);
+		Ctrds_DrawSettingsList(head, g_ctrds.screenW / 2, (g_ctrds.screenH / 2) - 8, 0);
 	}
 
 	DrawOTag(head);

@@ -1006,6 +1006,7 @@ typedef struct
 	GLint psxSemiTransPassLoc;
 	GLint psxDrawMaskSetLoc;
 	GLint psxTextureOutputStpLoc;
+	GLint ditherEnableLoc;
 } GTEShader;
 
 internal int NativeRenderer_Shader_CheckShaderStatus(GLuint shader);
@@ -1032,6 +1033,7 @@ GLint u_texelSizeLoc;
 GLint u_psxSemiTransPassLoc;
 GLint u_psxDrawMaskSetLoc;
 GLint u_psxTextureOutputStpLoc;
+GLint u_ditherEnableLoc;
 
 #define GPU_SAMPLE_TEXTURE_4BIT_FUNC                                             \
 	"	// returns 16 bit colour\n"                                                \
@@ -1080,12 +1082,14 @@ GLint u_psxTextureOutputStpLoc;
 	"	}\n"
 
 #define GPU_DITHERING                                             \
+	"	uniform int ditherEnable;\n"                                \
 	"	const mat4 c_dither = mat4(\n"                              \
 	"		-4.0,  +0.0,  -3.0,  +1.0,\n"                              \
 	"		+2.0,  -2.0,  +3.0,  -1.0,\n"                              \
 	"		-3.0,  +1.0,  -4.0,  +0.0,\n"                              \
 	"		+3.0,  -1.0,  +2.0,  -2.0) / 255.0;\n"                     \
 	"	vec4 dither(vec4 color) {\n"                                \
+	"		if (ditherEnable == 0) { return color; }\n"                \
 	"		ivec2 dc = ivec2(mod(floor(v_ditherCoord), 4.0));\n"       \
 	"		color.xyz += vec3(c_dither[dc.x][dc.y] * v_texcoord.w);\n" \
 	"		return color;\n"                                           \
@@ -1396,6 +1400,7 @@ internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source)
 	sh->psxSemiTransPassLoc = glGetUniformLocation(sh->shader, "psxSemiTransPass");
 	sh->psxDrawMaskSetLoc = glGetUniformLocation(sh->shader, "psxDrawMaskSet");
 	sh->psxTextureOutputStpLoc = glGetUniformLocation(sh->shader, "psxTextureOutputStp");
+	sh->ditherEnableLoc = glGetUniformLocation(sh->shader, "ditherEnable");
 }
 
 internal void NativeRenderer_InitialisePSXShaders(void)
@@ -1836,6 +1841,7 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 		u_psxSemiTransPassLoc = s_gteShader4.psxSemiTransPassLoc;
 		u_psxDrawMaskSetLoc = s_gteShader4.psxDrawMaskSetLoc;
 		u_psxTextureOutputStpLoc = s_gteShader4.psxTextureOutputStpLoc;
+		u_ditherEnableLoc = s_gteShader4.ditherEnableLoc;
 		break;
 	case TF_8_BIT:
 		NativeRenderer_SetShader(s_gteShader8.shader);
@@ -1845,6 +1851,7 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 		u_psxSemiTransPassLoc = s_gteShader8.psxSemiTransPassLoc;
 		u_psxDrawMaskSetLoc = s_gteShader8.psxDrawMaskSetLoc;
 		u_psxTextureOutputStpLoc = s_gteShader8.psxTextureOutputStpLoc;
+		u_ditherEnableLoc = s_gteShader8.ditherEnableLoc;
 		break;
 	case TF_16_BIT:
 		NativeRenderer_SetShader(s_gteShader16.shader);
@@ -1854,6 +1861,7 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 		u_psxSemiTransPassLoc = s_gteShader16.psxSemiTransPassLoc;
 		u_psxDrawMaskSetLoc = s_gteShader16.psxDrawMaskSetLoc;
 		u_psxTextureOutputStpLoc = s_gteShader16.psxTextureOutputStpLoc;
+		u_ditherEnableLoc = s_gteShader16.ditherEnableLoc;
 		break;
 	case TF_32_BIT_RGBA:
 		NativeRenderer_SetShader(s_gteShader32Rgba.shader);
@@ -1863,6 +1871,7 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 		u_psxSemiTransPassLoc = s_gteShader32Rgba.psxSemiTransPassLoc;
 		u_psxDrawMaskSetLoc = s_gteShader32Rgba.psxDrawMaskSetLoc;
 		u_psxTextureOutputStpLoc = s_gteShader32Rgba.psxTextureOutputStpLoc;
+		u_ditherEnableLoc = s_gteShader32Rgba.ditherEnableLoc;
 		break;
 	}
 
@@ -1878,6 +1887,10 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 	if (u_bilinearFilterLoc >= 0)
 	{
 		glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
+	}
+	if (u_ditherEnableLoc >= 0)
+	{
+		glUniform1i(u_ditherEnableLoc, Ctrds_Dither());
 	}
 	NativeRenderer_SetPSXTextureSemiTransPass(0);
 

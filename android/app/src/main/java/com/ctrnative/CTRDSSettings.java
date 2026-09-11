@@ -105,6 +105,9 @@ final class CTRDSSettings {
         new Option("fxaa", "FXAA", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
         // Default 0, matching g_ctrds.crt in game/ctrds/ctrds.c.
         new Option("crt", "CRT filter", new int[] { 0, 1 }, new String[] { "Off", "On" }, 0),
+        // Default 1 (on), matching g_ctrds.dither: PS1's own dither pattern,
+        // which hides its 15-bit colour banding.
+        new Option("dither", "Dither", new int[] { 0, 1 }, new String[] { "Off", "On" }, 1),
 
         new Option("hd_art", "Upscaled 2D art",
                 new int[] { 0, 1 }, new String[] { "Off", "On" }, 1),
