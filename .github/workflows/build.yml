@@ -183,13 +183,17 @@ jobs:
       - name: Calcular versión (v1.0, v1.1, ...)
         id: version
         run: |
-          last=$(git tag -l 'v[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          # 'v*' also matches older non-semver tags (e.g. v2026.09.09-8e0f1bd
+          # from before this scheme), so filter to exactly vMAJOR.MINOR before
+          # picking the highest one -- sort -V is version-aware (v1.9 < v1.10).
+          last=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+$' | sort -V | tail -1)
           if [ -z "$last" ]; then
             next="1.0"
           else
             major=$(echo "${last#v}" | cut -d. -f1)
             minor=$(echo "${last#v}" | cut -d. -f2)
-            next="${major}.$((minor + 1))"
+            # 10# forces base-10 so a minor like 09 isn't read as invalid octal.
+            next="${major}.$((10#$minor + 1))"
           fi
           echo "version=$next" >> "$GITHUB_OUTPUT"
 
